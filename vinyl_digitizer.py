@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VinylFlow - Automated Vinyl Record Digitization
+VINYLflow+ - Automated Vinyl Record Digitization
 
 Command-line interface for converting vinyl recordings to tagged FLAC files.
 Features intelligent silence detection, Discogs metadata integration, and batch processing.
@@ -48,10 +48,10 @@ class VinylDigitizer:
 
     def process_file(self, input_file: Path, output_dir: Optional[Path] = None) -> bool:
         """
-        Process a single WAV file.
+        Process a single audio file (WAV, AIFF, FLAC, or MP3).
 
         Args:
-            input_file: Path to input WAV file
+            input_file: Path to input audio file
             output_dir: Output directory (uses config default if None)
 
         Returns:
@@ -435,31 +435,35 @@ class VinylDigitizer:
 
     def batch_process(self, input_dir: Path, output_dir: Optional[Path] = None) -> Dict:
         """
-        Batch process all WAV files in directory.
+        Batch process all audio files in directory.
 
         Args:
-            input_dir: Directory containing WAV files
+            input_dir: Directory containing audio files
             output_dir: Output directory
 
         Returns:
             Dict with statistics
         """
-        wav_files = sorted(input_dir.glob("*.wav"))
+        audio_files = []
+        for ext in ["*.wav", "*.aiff", "*.aif", "*.flac", "*.mp3"]:
+            audio_files.extend(input_dir.glob(ext))
+        
+        audio_files = sorted(audio_files)
 
-        if not wav_files:
-            print(f"No WAV files found in: {input_dir}")
+        if not audio_files:
+            print(f"No audio files found in: {input_dir}")
             return {"success": 0, "failed": 0, "skipped": 0}
 
-        print(f"\nFound {len(wav_files)} WAV files")
+        print(f"\nFound {len(audio_files)} audio files")
         print(f"{'='*70}\n")
 
         stats = {"success": 0, "failed": 0, "skipped": 0}
 
-        for i, wav_file in enumerate(wav_files, 1):
-            print(f"\n[{i}/{len(wav_files)}]")
+        for i, audio_file in enumerate(audio_files, 1):
+            print(f"\n[{i}/{len(audio_files)}]")
 
             try:
-                if self.process_file(wav_file, output_dir):
+                if self.process_file(audio_file, output_dir):
                     stats["success"] += 1
                 else:
                     stats["skipped"] += 1
@@ -477,7 +481,7 @@ class VinylDigitizer:
         print(f"Success:  {stats['success']}")
         print(f"Skipped:  {stats['skipped']}")
         print(f"Failed:   {stats['failed']}")
-        print(f"Total:    {len(wav_files)}")
+        print(f"Total:    {len(audio_files)}")
         print()
 
         return stats
@@ -535,7 +539,7 @@ def check_dependencies():
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="VinylFlow - Automated vinyl record digitization",
+        description="VINYLflow+ - Automated vinyl record digitization",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 
@@ -548,8 +552,8 @@ def main():
     subparsers.add_parser("init", help="Create default .env configuration file")
 
     # Process command
-    process_parser = subparsers.add_parser("process", help="Process a single WAV file")
-    process_parser.add_argument("file", type=Path, help="WAV file to process")
+    process_parser = subparsers.add_parser("process", help="Process a single audio file")
+    process_parser.add_argument("file", type=Path, help="Audio file (WAV, AIFF, FLAC, or MP3) to process")
     process_parser.add_argument("-o", "--output-dir", type=Path, help="Output directory")
     process_parser.add_argument("--silence-threshold", type=float, help="Silence threshold (dB)")
     process_parser.add_argument(
@@ -561,8 +565,8 @@ def main():
     process_parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     # Batch command
-    batch_parser = subparsers.add_parser("batch", help="Batch process directory of WAV files")
-    batch_parser.add_argument("directory", type=Path, help="Directory containing WAV files")
+    batch_parser = subparsers.add_parser("batch", help="Batch process directory of audio files")
+    batch_parser.add_argument("directory", type=Path, help="Directory containing audio files (WAV, AIFF, FLAC, or MP3)")
     batch_parser.add_argument("-o", "--output-dir", type=Path, help="Output directory")
     batch_parser.add_argument(
         "--dry-run", action="store_true", help="Show what would be done without processing"

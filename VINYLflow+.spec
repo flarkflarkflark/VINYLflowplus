@@ -7,7 +7,7 @@ from pathlib import Path
 from PyInstaller.utils.hooks import collect_data_files
 
 
-WINDOWS_ICON = 'assets/VinylFlow.ico' if sys.platform.startswith('win') else None
+WINDOWS_ICON = 'assets/VINYLflow+.ico' if sys.platform.startswith('win') else None
 FFMPEG_PATH = shutil.which('ffmpeg')
 
 if not FFMPEG_PATH:
@@ -41,7 +41,7 @@ if sys.platform.startswith('win'):
         'clr_loader',
     ]
     # Bundle Python.Runtime.dll so clr_loader can find it inside the bundle.
-    # The runtime hook (rthooks/rthook_vinylflow.py) then sets
+    # The runtime hook (rthooks/rthook_vinylflow+.py) then sets
     # PYTHONNET_RUNTIME_DLL to this path before any imports happen.
     try:
         pythonnet_datas = collect_data_files('pythonnet')
@@ -61,7 +61,7 @@ a = Analysis(
     hiddenimports=HIDDEN_IMPORTS,
     hookspath=[],
     hooksconfig={},
-    runtime_hooks=['rthooks/rthook_vinylflow.py'],
+    runtime_hooks=['rthooks/rthook_vinylflow+.py'],
     excludes=EXCLUDES,
     noarchive=False,
     optimize=0,
@@ -73,7 +73,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='VinylFlow',
+    name='VINYLflow+',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -95,11 +95,11 @@ coll = COLLECT(
     # UPX can corrupt .NET assemblies and third-party executables.
     # ffmpeg.exe in particular can be mis-flagged by AV when UPX-packed.
     upx_exclude=['Python.Runtime.dll', 'ffmpeg.exe'],
-    name='VinylFlow',
+    name='VINYLflow+',
 )
 app = BUNDLE(
     coll,
-    name='VinylFlow.app',
-    icon='assets/VinylFlow.icns',
+    name='VINYLflow+.app',
+    icon='assets/VINYLflow+.icns',
     bundle_identifier=None,
 )

@@ -1,5 +1,5 @@
 """
-VinylFlow - Audio Processing Module
+VINYLflow+ - Audio Processing Module
 
 Handles silence detection, track splitting, and audio format conversion.
 Uses FFmpeg for audio analysis and format conversion.
@@ -23,23 +23,28 @@ def _ffmpeg() -> str:
     return os.environ.get("VINYLFLOW_FFMPEG_PATH") or "ffmpeg"
 
 # Supported input formats
-SUPPORTED_INPUT_EXTENSIONS = {".wav", ".aiff", ".aif"}
+SUPPORTED_INPUT_EXTENSIONS = {".wav", ".aiff", ".aif", ".flac", ".mp3"}
 
 # Output format configurations: codec flags for FFmpeg + file extension
 OUTPUT_FORMATS = {
     "flac": {
         "extension": ".flac",
-        "codec_args": ["-c:a", "flac"],
-        "label": "FLAC (Lossless)",
+        "codec_args": ["-c:a", "flac", "-sample_fmt", "s16", "-ar", "44100"],
+        "label": "FLAC 16-bit",
+    },
+    "flac24": {
+        "extension": ".flac",
+        "codec_args": ["-c:a", "flac", "-sample_fmt", "s32", "-ar", "44100"],
+        "label": "FLAC 24-bit",
     },
     "mp3": {
         "extension": ".mp3",
-        "codec_args": ["-c:a", "libmp3lame", "-b:a", "320k"],
+        "codec_args": ["-c:a", "libmp3lame", "-b:a", "320k", "-ar", "44100"],
         "label": "MP3 (320kbps)",
     },
     "aiff": {
         "extension": ".aiff",
-        "codec_args": ["-c:a", "pcm_s16be"],
+        "codec_args": ["-c:a", "pcm_s16be", "-ar", "44100"],
         "label": "AIFF (Lossless)",
     },
 }
@@ -335,7 +340,7 @@ class AudioProcessor:
         cmd.extend(format_config["codec_args"])
 
         # Add FLAC compression level if applicable
-        if output_format == "flac":
+        if output_format.startswith("flac"):
             cmd.extend(["-compression_level", str(self.flac_compression)])
 
         # Add audio restoration filter chain if requested
@@ -350,7 +355,7 @@ class AudioProcessor:
 
         try:
             result = subprocess.run(
-                cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=600
+                cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=1800
             )
 
             if result.returncode != 0:

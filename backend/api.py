@@ -1,5 +1,5 @@
 """
-VinylFlow - FastAPI Backend
+VINYLflow+ - FastAPI Backend
 
 Provides REST API and WebSocket endpoints for automated vinyl record digitization.
 Handles file uploads, audio analysis, metadata fetching, and track processing.
@@ -10,6 +10,8 @@ import os
 import uuid
 import copy
 import shutil
+import subprocess
+import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional
 import asyncio
@@ -36,7 +38,7 @@ from audio_processor import AudioProcessor, Track, SUPPORTED_INPUT_EXTENSIONS, O
 from metadata_handler import MetadataHandler
 
 # Initialize FastAPI app
-app = FastAPI(title="VinylFlow API", version="1.0.0")
+app = FastAPI(title="VINYLflow+ API", version="1.0.0")
 
 # Enable CORS
 # Note: allow_origins=["*"] is fine for local/self-hosted use.
@@ -188,6 +190,102 @@ class ProcessRequest(BaseModel):
     hum_freq: int = 50           # Electrical hum frequency in Hz (50=EU, 60=US)
 
 
+class MultiTrackMapping(BaseModel):
+    source_file_id: str
+    detected: int
+    discogs: str
+
+
+class MultiProcessRequest(BaseModel):
+    release_id: int
+    track_mapping: List[MultiTrackMapping]
+    track_boundaries_map: Dict[str, List[TrackBoundary]]  # Map of file_id to its boundaries
+    output_format: str = "flac"
+    restoration_level: int = 0
+    hum_freq: int = 50
+
+
+class StitchRequest(BaseModel):
+    file_ids: List[str]
+
+
+@app.post("/api/stitch")
+async def stitch_files(request: StitchRequest):
+    """
+    Merge multiple uploaded files into one master file with 3s silence gaps.
+    Returns the new file ID and metadata.
+    """
+    if not request.file_ids:
+        raise HTTPException(status_code=400, detail="No files selected for stitching")
+
+    # Get file paths for selected IDs
+    valid_files = []
+    for fid in request.file_ids:
+        if fid in uploaded_files:
+            valid_files.append(uploaded_files[fid])
+    
+    if not valid_files:
+        raise HTTPException(status_code=404, detail="Selected files not found")
+
+    # Sort them to ensure A, B, C, D order
+    valid_files.sort(key=lambda x: x['filename'])
+
+    # Create new session for the master file
+    master_id = str(uuid.uuid4())
+    master_dir = get_session_path(master_id)
+    master_dir.mkdir(parents=True, exist_ok=True)
+    
+    # We use .wav for the master to avoid re-encoding issues during stitching
+    master_path = master_dir / "source.wav"
+    
+    try:
+        # Create a 3-second silence file
+        silence_path = master_dir / "silence.wav"
+        subprocess.run([
+            "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", 
+            "-t", "3", str(silence_path)
+        ], check=True, capture_output=True)
+
+        # Build FFmpeg filter complex to join with silence
+        filter_complex = ""
+        inputs = []
+        for i, f_info in enumerate(valid_files):
+            inputs.extend(["-i", f_info['path']])
+            filter_complex += f"[{i}:a][{len(valid_files)}:a]" # Audio + Silence
+        
+        inputs.extend(["-i", str(silence_path)])
+        filter_complex += f"concat=n={len(valid_files)*2}:v=0:a=1[outa]"
+        
+        cmd = ["ffmpeg", "-y"] + inputs + ["-filter_complex", filter_complex, "-map", "[outa]", str(master_path)]
+        
+        await asyncio.to_thread(subprocess.run, cmd, check=True, capture_output=True)
+        
+        # Cleanup silence file
+        if silence_path.exists():
+            silence_path.unlink()
+
+        # Get metadata for the new master
+        file_size = master_path.stat().st_size
+        duration = audio_processor.get_audio_duration(master_path) or 0
+
+        # Register the new master file
+        new_filename = f"MASTER_MERGE_{len(valid_files)}_files.wav"
+        uploaded_files[master_id] = {
+            "id": master_id,
+            "filename": new_filename,
+            "path": str(master_path),
+            "size": file_size,
+            "duration": duration,
+            "status": "uploaded",
+        }
+
+        return {"id": master_id, "filename": new_filename, "size": file_size, "duration": duration}
+
+    except Exception as e:
+        print(f"Stitching failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to merge files: {str(e)}")
+
+
 class ConfigUpdate(BaseModel):
     silence_threshold: Optional[float] = None
     min_silence_duration: Optional[float] = None
@@ -197,7 +295,141 @@ class ConfigUpdate(BaseModel):
 
 class DiscogsSetupRequest(BaseModel):
     token: str
-    user_agent: Optional[str] = "VinylFlow/1.0"
+    user_agent: Optional[str] = "VINYLflow+/1.0"
+
+
+@app.post("/api/multi-process")
+async def multi_process_files(request: MultiProcessRequest):
+    """
+    Process multiple source files: split tracks and map them to a single release.
+    """
+    # Create a unique job ID for the batch
+    job_id = str(uuid.uuid4())
+    
+    # We'll use the first file_id as a reference for the session
+    primary_file_id = request.track_mapping[0].source_file_id
+    
+    processing_jobs[job_id] = {
+        "job_id": job_id,
+        "file_id": primary_file_id,
+        "status": "processing",
+        "progress": 0.1,
+        "message": "Starting multi-file processing...",
+    }
+
+    asyncio.create_task(multi_process_file_background(request, job_id))
+
+    return {"job_id": job_id, "status": "processing"}
+
+
+async def multi_process_file_background(request: MultiProcessRequest, job_id: str):
+    """Background task to process multiple files for one release."""
+    try:
+        # Fetch release metadata once
+        release = metadata_handler.get_release_by_id(request.release_id)
+        if not release:
+            raise Exception("Failed to fetch Discogs release")
+
+        # Create output directory
+        output_base = Path(config.default_output_dir).expanduser()
+        album_folder = output_base / metadata_handler.create_album_folder_name(release, output_format)
+        album_folder.mkdir(parents=True, exist_ok=True)
+
+        # Download cover art
+        cover_data = None
+        if release.cover_url:
+            cover_path = album_folder / "folder.jpg"
+            if metadata_handler.download_cover_art(release.cover_url, cover_path):
+                cover_data = metadata_handler.prepare_cover_for_embedding(cover_path)
+
+        format_config = OUTPUT_FORMATS[request.output_format]
+        ext = format_config["extension"]
+        output_files = []
+
+        total_tracks = len(request.track_mapping)
+        
+        for i, mapping in enumerate(request.track_mapping):
+            progress = 0.2 + (i / total_tracks) * 0.7
+            
+            file_info = uploaded_files.get(mapping.source_file_id)
+            if not file_info:
+                print(f"Warning: File {mapping.source_file_id} not found in queue, skipping track {mapping.discogs}")
+                continue
+                
+            file_path = Path(file_info["path"])
+            
+            # Find the boundary for this specific detected track in its source file
+            boundaries = request.track_boundaries_map.get(mapping.source_file_id, [])
+            boundary = next((b for b in boundaries if b.number == mapping.detected), None)
+            
+            if not boundary:
+                print(f"Warning: Boundary for track {mapping.detected} in file {mapping.source_file_id} not found")
+                continue
+
+            track_obj = Track(
+                number=mapping.detected,
+                start=boundary.start,
+                end=boundary.end
+            )
+            track_obj.vinyl_number = mapping.discogs
+
+            msg = f"Processing track {i+1}/{total_tracks} ({mapping.discogs}) from {file_info['filename']}..."
+            processing_jobs[job_id]["progress"] = progress
+            processing_jobs[job_id]["message"] = msg
+            
+            await broadcast_message({
+                "type": "progress",
+                "file_id": mapping.source_file_id,
+                "progress": progress,
+                "message": msg
+            })
+
+            temp_output = album_folder / f"temp_{track_obj.vinyl_number}{ext}"
+
+            # Split and convert
+            audio_processor.extract_track(
+                file_path, track_obj, temp_output, request.output_format,
+                restoration_level=request.restoration_level,
+                hum_freq=request.hum_freq,
+            )
+
+            # Tag
+            print(f"DEBUG (Multi): Tagging track {track_obj.vinyl_number} with Artist: {release.artist}, Album: {release.title}")
+            metadata_handler.tag_file(temp_output, track_obj, release, cover_data, request.output_format)
+
+            # Rename
+            final_filename = metadata_handler.create_track_filename(track_obj, release, request.output_format)
+            final_path = album_folder / final_filename
+            
+            import time
+            time.sleep(0.2)
+            if final_path.exists():
+                final_path.unlink()
+            temp_output.rename(final_path)
+
+            output_files.append(final_filename)
+
+        # Finish up
+        processing_jobs[job_id]["status"] = "complete"
+        processing_jobs[job_id]["progress"] = 1.0
+        processing_jobs[job_id]["message"] = "Multi-file processing complete!"
+        processing_jobs[job_id]["output_path"] = str(album_folder)
+        processing_jobs[job_id]["tracks"] = output_files
+
+        await broadcast_message({
+            "type": "complete",
+            "file_id": "multi-session",
+            "output_path": str(album_folder),
+            "tracks": output_files,
+        })
+
+    except Exception as e:
+        processing_jobs[job_id]["status"] = "error"
+        processing_jobs[job_id]["message"] = f"Multi-processing failed: {str(e)}"
+        await broadcast_message({
+            "type": "error",
+            "message": f"Multi-processing failed: {str(e)}"
+        })
 
 
 # WebSocket broadcast helper
@@ -243,7 +475,7 @@ async def read_root():
     if html_path.exists():
         return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
     return HTMLResponse(
-        content="<h1>VinylFlow</h1><p>Frontend not found. Please create static/index.html</p>"
+        content="<h1>VINYLflow+</h1><p>Frontend not found. Please create static/index.html</p>"
     )
 
 
@@ -276,10 +508,12 @@ async def preconvert_to_mp3(file_id: str, file_path: Path):
                     "-y",
                     "-i",
                     str(file_path),
+                    "-ac",
+                    "2",
                     "-acodec",
                     "libmp3lame",
                     "-b:a",
-                    "128k",
+                    "192k",
                     str(mp3_path),
                 ],
                 check=True,
@@ -304,7 +538,11 @@ async def upload_files(files: List[UploadFile] = File(...)):
     for file in files:
         # Check file extension against supported formats
         file_ext = Path(file.filename).suffix.lower()
-        if file_ext not in SUPPORTED_INPUT_EXTENSIONS:
+        print(f"DEBUG: Uploading {file.filename}, extension: {file_ext}")
+        print(f"DEBUG: Supported extensions: {SUPPORTED_INPUT_EXTENSIONS}")
+        
+        if file_ext not in [ext.lower() for ext in SUPPORTED_INPUT_EXTENSIONS]:
+            print(f"DEBUG: Skipping {file.filename} - extension not in supported list")
             continue
 
         # Generate unique file ID, create session folder
@@ -315,8 +553,8 @@ async def upload_files(files: List[UploadFile] = File(...)):
 
         # Save uploaded file
         with open(file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
+            while content := await file.read(1024 * 1024):  # Read in 1MB chunks
+                buffer.write(content)
 
         # Get file metadata
         file_size = file_path.stat().st_size
@@ -550,18 +788,20 @@ async def get_waveform_peaks(file_id: str):
             "ffmpeg",
             "-i",
             str(file_path),
+            "-map",
+            "0:a:0",
             "-f",
             "s16le",
-            "-acodec",
-            "pcm_s16le",
             "-ac",
             "1",
+            "-acodec",
+            "pcm_s16le",
             "-ar",
             "8000",
             "-",
         ]
 
-        result = subprocess.run(cmd, capture_output=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, check=True, timeout=60)
         audio_data = np.frombuffer(result.stdout, dtype=np.int16)
 
         target_peaks = 3000
@@ -612,13 +852,19 @@ async def get_audio_file(file_id: str):
         ".wav": "audio/wav",
         ".aiff": "audio/aiff",
         ".aif": "audio/aiff",
+        ".flac": "audio/flac",
+        ".mp3": "audio/mpeg",
     }
     media_type = media_types.get(ext, "audio/wav")
+
+    # Safe filename for headers (encode to UTF-8 for RFC 5987 support)
+    from urllib.parse import quote
+    safe_filename = quote(file_info['filename'])
 
     return FileResponse(
         file_path,
         media_type=media_type,
-        headers={"Content-Disposition": f"inline; filename={file_info['filename']}"},
+        headers={"Content-Disposition": f"inline; filename*=UTF-8''{safe_filename}"},
     )
 
 
@@ -734,8 +980,8 @@ async def process_file_background(request: ProcessRequest, job_id: str):
                 track.vinyl_number = mapping.discogs
 
         # Create output directory
-        output_base = Path(config.default_output_dir)
-        album_folder = output_base / metadata_handler.create_album_folder_name(release)
+        output_base = Path(config.default_output_dir).expanduser()
+        album_folder = output_base / metadata_handler.create_album_folder_name(release, output_format)
         album_folder.mkdir(parents=True, exist_ok=True)
 
         # Download cover art
@@ -787,12 +1033,25 @@ async def process_file_background(request: ProcessRequest, job_id: str):
             )
 
             # Tag with metadata
+            print(f"DEBUG: Tagging track {track.vinyl_number} with Artist: {release.artist}, Album: {release.title}")
             metadata_handler.tag_file(temp_output, track, release, cover_data, output_format)
 
-            # Rename to final filename
+            # Rename to final filename (with retry/error handling for file locks)
             final_filename = metadata_handler.create_track_filename(track, release, output_format)
             final_path = album_folder / final_filename
-            temp_output.rename(final_path)
+            
+            try:
+                # Give the OS a split second to release any locks from the tagging step
+                import time
+                time.sleep(0.2)
+                
+                if final_path.exists():
+                    final_path.unlink()
+                temp_output.rename(final_path)
+            except Exception as e:
+                print(f"Rename failed, trying copy: {e}")
+                shutil.copy2(temp_output, final_path)
+                temp_output.unlink()
 
             output_files.append(final_filename)
 

@@ -1,4 +1,4 @@
-# VinylFlow — Claude Code Context
+# VINYLflow+ — Claude Code Context
 
 ## Project Purpose
 Desktop app to digitize vinyl records: upload a WAV/AIFF recording of a vinyl side, detect track boundaries via silence analysis, search Discogs for metadata, and export split + tagged FLAC/MP3/AIFF files.
@@ -14,7 +14,7 @@ Desktop app to digitize vinyl records: upload a WAV/AIFF recording of a vinyl si
 | Desktop shell | pywebview (WKWebView on macOS, WebView2 on Windows) |
 | Audio processing | FFmpeg (via subprocess) + Mutagen (tagging) + Pillow (cover art) |
 | Discogs API | `discogs-client` Python library |
-| Bundling | PyInstaller (`VinylFlow.spec`) |
+| Bundling | PyInstaller (`VINYLflow+.spec`) |
 | CI/CD | GitHub Actions (`.github/workflows/`) |
 
 ---
@@ -22,7 +22,7 @@ Desktop app to digitize vinyl records: upload a WAV/AIFF recording of a vinyl si
 ## Directory Structure
 
 ```
-vinylflow/
+vinylflow+/
 ├── backend/
 │   ├── api.py              # FastAPI app — all REST endpoints + WebSocket
 │   └── static/
@@ -30,7 +30,7 @@ vinylflow/
 │       ├── app.js          # Main frontend logic (~1000+ lines)
 │       └── fonts/          # Mirano Extended font family
 ├── rthooks/
-│   └── rthook_vinylflow.py # PyInstaller runtime hook (runs before app code)
+│   └── rthook_vinylflow+.py # PyInstaller runtime hook (runs before app code)
 ├── .github/workflows/
 │   ├── windows-release.yml # Manual trigger — builds Windows .exe via PyInstaller
 │   ├── privacy-guard.yml   # Scans commits for secrets
@@ -39,7 +39,7 @@ vinylflow/
 ├── audio_processor.py      # Silence detection, track splitting, ffmpeg wrappers
 ├── metadata_handler.py     # Discogs fetch, cover art download, audio tagging
 ├── desktop_launcher.py     # Entry point — sets up dirs/env vars, starts FastAPI, opens window
-├── VinylFlow.spec          # PyInstaller spec (macOS .app + Windows .exe)
+├── VINYLflow+.spec          # PyInstaller spec (macOS .app + Windows .exe)
 ├── requirements.txt
 └── README.md
 ```
@@ -126,7 +126,7 @@ These rules are **critical** — violating them breaks the bundled app silently.
 4. **UPX exclusions** — both must be in `upx_exclude`:
    - `Python.Runtime.dll` — UPX corrupts .NET assemblies
    - `ffmpeg.exe` — UPX-packed ffmpeg is flagged by Windows Defender
-5. **Runtime hook** `rthooks/rthook_vinylflow.py` runs before any import; sets:
+5. **Runtime hook** `rthooks/rthook_vinylflow+.py` runs before any import; sets:
    - `PYTHONNET_RUNTIME_DLL` → bundled `Python.Runtime.dll`
    - `SSL_CERT_FILE` + `REQUESTS_CA_BUNDLE` → bundled `cacert.pem`
 6. Bundle `backend/static/` as data files so the frontend is served correctly.
@@ -163,7 +163,7 @@ Also: guard `@click.away` with `!$event.ctrlKey` so Ctrl+click (which triggers `
 | Mode | Command | Notes |
 |------|---------|-------|
 | Docker | `docker compose up` | Recommended for self-hosting |
-| Desktop (bundled) | `VinylFlow.app` / `VinylFlow.exe` | PyInstaller build |
+| Desktop (bundled) | `VINYLflow+.app` / `VINYLflow+.exe` | PyInstaller build |
 | Local dev | `python desktop_launcher.py` | Opens browser or native window |
 | Backend only | `uvicorn backend.api:app --reload` | For API development |
 
@@ -171,7 +171,7 @@ Also: guard `@click.away` with `!$event.ctrlKey` so Ctrl+click (which triggers `
 
 ## GitHub Actions
 
-- **`windows-release.yml`** — Manual trigger with `tag` input. Builds on `windows-latest`, installs FFmpeg via Chocolatey, runs PyInstaller, uploads `VinylFlow-windows-unsigned.zip` to the release.
+- **`windows-release.yml`** — Manual trigger with `tag` input. Builds on `windows-latest`, installs FFmpeg via Chocolatey, runs PyInstaller, uploads `VINYLflow+-windows-unsigned.zip` to the release.
 - **`privacy-guard.yml`** — Scans commits for secrets.
 - **`release-artifact-scan.yml`** — Scans release assets before publishing.
 
@@ -188,7 +188,7 @@ Also: guard `@click.away` with `!$event.ctrlKey` so Ctrl+click (which triggers `
 | `audio_processor.py` | Hardcoded `"ffmpeg"` instead of `_ffmpeg()` | Use helper; use `encoding='utf-8', errors='replace'` |
 | `backend/static/app.js` | Right-click opened WKWebView native menu on macOS | Capture-phase `preventDefault` in `init()` |
 | `backend/static/app.js` | Ctrl+click dismissed custom context menu immediately | Guard `@click.away` with `!$event.ctrlKey` |
-| `VinylFlow.spec` | `ffmpeg.exe` UPX-packed → blocked by Windows Defender | Add to `upx_exclude` |
+| `VINYLflow+.spec` | `ffmpeg.exe` UPX-packed → blocked by Windows Defender | Add to `upx_exclude` |
 
 ---
 

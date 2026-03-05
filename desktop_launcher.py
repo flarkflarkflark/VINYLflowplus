@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-VinylFlow Desktop Launcher
+VINYLflow+ Desktop Launcher
 
-Runs VinylFlow in a no-Docker local desktop mode:
+Runs VINYLflow+ in a no-Docker local desktop mode:
 - Uses writable user directories for config/temp/output
 - Starts the FastAPI backend locally
 - Opens a native desktop app window (WebView2 on Windows, WKWebView on macOS)
@@ -44,7 +44,7 @@ except Exception as exc:
     _WEBVIEW_IMPORT_ERROR = exc
 
 
-APP_NAME = "VinylFlow"
+APP_NAME = "VINYLflow+"
 
 
 class DesktopApi:
@@ -192,20 +192,58 @@ def _open_browser_fallback(app_url: str, server_thread: threading.Thread) -> Non
         time.sleep(0.5)
 
 
+def _kill_existing_server(host: str, port: int) -> None:
+    """Kill any existing process on the target port to ensure a fresh start."""
+    import socket
+    import subprocess
+    
+    # Simple check if port is in use
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        if s.connect_ex((host, port)) == 0:
+            print(f"[VINYLflow+] Port {port} is in use. Attempting to kill existing process...")
+            if sys.platform.startswith("win"):
+                # Windows implementation
+                try:
+                    output = subprocess.check_output(f"netstat -ano | findstr :{port}", shell=True).decode()
+                    for line in output.splitlines():
+                        if f":{port}" in line and "LISTENING" in line:
+                            pid = line.strip().split()[-1]
+                            subprocess.run(f"taskkill /F /PID {pid}", shell=True)
+                except Exception:
+                    pass
+            else:
+                # Linux/macOS implementation
+                try:
+                    subprocess.run(["fuser", "-k", f"{port}/tcp"], capture_output=True)
+                except Exception:
+                    # Fallback for systems without fuser
+                    try:
+                        output = subprocess.check_output(["lsof", "-t", "-i", f":{port}"]).decode()
+                        for pid in output.splitlines():
+                            subprocess.run(["kill", "-9", pid])
+                    except Exception:
+                        pass
+
+
 def main() -> None:
     host, port = configure_desktop_environment()
+    
+    # Ensure we have a fresh start
+    _kill_existing_server(host, port)
+    time.sleep(0.5)
+    
     server_thread = threading.Thread(target=lambda: _run_server(host, port), daemon=True)
     server_thread.start()
 
     if not _wait_for_server(host, port):
-        raise RuntimeError(f"VinylFlow backend failed to start on http://{host}:{port}")
+        raise RuntimeError(f"VINYLflow+ backend failed to start on http://{host}:{port}")
 
     app_url = f"http://{host}:{port}"
 
     # --- webview not importable at all ---
     if webview is None:
         print(
-            f"[VinylFlow] pywebview unavailable ({_WEBVIEW_IMPORT_ERROR}). "
+            f"[VINYLflow+] pywebview unavailable ({_WEBVIEW_IMPORT_ERROR}). "
             "Opening in default browser.",
             file=sys.stderr,
         )
@@ -215,7 +253,7 @@ def main() -> None:
     # --- Windows: check WebView2 Runtime before attempting to start ---
     if sys.platform.startswith("win") and not _check_webview2_available():
         print(
-            "[VinylFlow] Microsoft WebView2 Runtime not found.\n"
+            "[VINYLflow+] Microsoft WebView2 Runtime not found.\n"
             "  Download: https://developer.microsoft.com/microsoft-edge/webview2/\n"
             "  Opening in default browser as fallback.",
             file=sys.stderr,
@@ -226,7 +264,7 @@ def main() -> None:
     # --- Try native desktop window ---
     try:
         webview.create_window(
-            "VinylFlow",
+            "VINYLflow+",
             app_url,
             width=1280,
             height=900,
@@ -239,7 +277,7 @@ def main() -> None:
             webview.start()
     except Exception as exc:
         print(
-            f"[VinylFlow] Native window failed ({exc}). Opening in default browser.",
+            f"[VINYLflow+] Native window failed ({exc}). Opening in default browser.",
             file=sys.stderr,
         )
         _open_browser_fallback(app_url, server_thread)

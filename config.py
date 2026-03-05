@@ -1,5 +1,5 @@
 """
-VinylFlow - Configuration Management
+VINYLflow+ - Configuration Management
 
 Loads settings from .env file and provides configuration defaults.
 Handles Discogs API credentials, audio processing parameters, and output settings.
@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 
 
 class Config:
-    """Configuration manager for VinylFlow."""
+    """Configuration manager for VINYLflow+."""
 
     def __init__(self, env_path=None, settings_path=None):
         """
@@ -57,7 +57,7 @@ class Config:
         )
         self.discogs_user_agent = (
             json_settings.get('DISCOGS_USER_AGENT') or
-            os.getenv("DISCOGS_USER_AGENT", "VinylFlow/1.0")
+            os.getenv("DISCOGS_USER_AGENT", "VINYLflow+/1.0")
         )
 
         # Output settings
@@ -237,12 +237,12 @@ def create_default_env_file(path=None):
     else:
         path = Path(path)
 
-    template = """# VinylFlow Configuration
+    template = """# VINYLflow+ Configuration
 
 # Discogs API Settings
 # Get your token from: https://www.discogs.com/settings/developers
 DISCOGS_USER_TOKEN=your_token_here
-DISCOGS_USER_AGENT=VinylFlow/1.0
+DISCOGS_USER_AGENT=VINYLflow+/1.0
 
 # Output Settings
 DEFAULT_OUTPUT_DIR=/app/output

@@ -1,5 +1,5 @@
 /**
- * VinylFlow Frontend Application
+ * VINYLflow+ Frontend Application
  * Alpine.js application for managing vinyl digitization workflow
  */
 
@@ -21,6 +21,8 @@ function vinylApp() {
         uploadedFiles: [],
         currentFileId: null,
         currentFile: null,
+        selectedFileIds: [], // Multi-file selection
+        allFilesAnalyzed: false,
 
         // Analysis
         detectedTracks: [],
@@ -83,7 +85,7 @@ function vinylApp() {
         },
 
         // Supported input file extensions
-        supportedExtensions: ['.wav', '.aiff', '.aif'],
+        supportedExtensions: ['.wav', '.aiff', '.aif', '.flac', '.mp3'],
 
         // Status
         discogsConfigured: true,
@@ -93,7 +95,66 @@ function vinylApp() {
         setupLoading: false,
         setupError: null,
         setupToken: '',
-        setupUserAgent: 'VinylFlow/1.0',
+        setupUserAgent: 'VINYLflow+/1.0',
+
+        /**
+         * Get all detected tracks across all selected files
+         */
+        get allDetectedTracks() {
+            // If we only have one file selected (like after a Merge), just use that file's tracks
+            if (this.selectedFileIds.length <= 1) {
+                return this.detectedTracks.map(t => ({
+                    ...t,
+                    file_id: this.currentFileId,
+                    filename: this.currentFile?.filename
+                }));
+            }
+
+            let tracks = [];
+            this.selectedFileIds.forEach(id => {
+                const file = this.uploadedFiles.find(f => f.id === id);
+                if (file && file.detected_tracks) {
+                    file.detected_tracks.forEach(track => {
+                        tracks.push({
+                            ...track,
+                            file_id: id,
+                            filename: file.filename
+                        });
+                    });
+                }
+            });
+            // Also include current file's tracks if not in uploadedFiles detected_tracks yet
+            if (this.selectedFileIds.includes(this.currentFileId) && this.detectedTracks.length > 0) {
+                this.detectedTracks.forEach(track => {
+                    if (!tracks.some(t => t.file_id === this.currentFileId && t.number === track.number)) {
+                        tracks.push({
+                            ...track,
+                            file_id: this.currentFileId,
+                            filename: this.currentFile?.filename
+                        });
+                    }
+                });
+            }
+            return tracks;
+        },
+
+        /**
+         * Get count of active (not ignored) tracks across all selected files
+         */
+        get allActiveTrackCount() {
+            return this.allDetectedTracks.filter(t => !t.ignored).length;
+        },
+
+        /**
+         * Check if all selected files have been analyzed
+         */
+        checkAllAnalyzed() {
+            this.allFilesAnalyzed = this.selectedFileIds.every(id => {
+                const file = this.uploadedFiles.find(f => f.id === id);
+                return file && (file.status === 'analyzed' || file.status === 'completed' || (id === this.currentFileId && this.detectedTracks.length > 0));
+            });
+            return this.allFilesAnalyzed;
+        },
 
         /**
          * Initialize the application
@@ -115,6 +176,12 @@ function vinylApp() {
             this.$watch('currentFile', (file) => {
                 if (file && !this.searchQuery) {
                     this.searchQuery = this.cleanFilename(file.filename);
+                }
+            });
+
+            this.$watch('currentFileId', (id) => {
+                if (id && !this.selectedFileIds.includes(id)) {
+                    this.selectedFileIds = [id];
                 }
             });
         },
@@ -204,7 +271,7 @@ function vinylApp() {
                         this.processingProgress = 1.0;
                         this.processingMessage = 'Complete!';
                         this.isProcessing = false;
-                        this.successMessage = `✅ ${data.tracks.length} tracks saved to your VinylFlow/output folder\n\nTracks: ${data.tracks.join(', ')}`;
+                        this.successMessage = `✅ ${data.tracks.length} tracks saved to your VINYLflow+/output folder\n\nTracks: ${data.tracks.join(', ')}`;
 
                         const file = this.uploadedFiles.find(f => f.id === data.file_id);
                         if (file) {
@@ -280,7 +347,8 @@ function vinylApp() {
                 const data = await response.json();
 
                 if (!response.ok) {
-                    throw new Error(data.detail || 'Setup failed');
+                    const errorMsg = data.detail || (typeof data === 'object' ? JSON.stringify(data) : 'Setup failed');
+                    throw new Error(errorMsg);
                 }
 
                 // Success!
@@ -399,6 +467,9 @@ function vinylApp() {
                                 });
                             });
 
+                            // Sort files alphabetically by filename
+                            this.uploadedFiles.sort((a, b) => a.filename.localeCompare(b.filename));
+
                             if (!this.currentFile && data.files.length > 0) {
                                 this.selectFile(data.files[0].id);
                             }
@@ -440,12 +511,98 @@ function vinylApp() {
         },
 
         /**
+         * Merge selected files into one and analyze
+         */
+        async stitchFiles() {
+            if (this.selectedFileIds.length < 2 || this.isProcessing) return;
+
+            this.isProcessing = true;
+            this.processingMessage = 'Merging files...';
+
+            try {
+                const response = await fetch('/api/stitch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ file_ids: this.selectedFileIds })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Merge failed');
+
+                // Add the new master file to the queue
+                this.uploadedFiles.push({
+                    ...data,
+                    status: 'uploaded'
+                });
+
+                // Crucial: Clear multi-selection and focus only on the new master
+                this.selectedFileIds = [data.id];
+                this.selectFile(data.id);
+                
+                // Trigger analysis on the new master
+                await this.analyzeFile();
+
+            } catch (error) {
+                console.error('Merge failed:', error);
+                alert('Merge failed: ' + error.message);
+            } finally {
+                this.isProcessing = false;
+            }
+        },
+
+        /**
+         * Select all files in the queue
+         */
+        selectAllFiles() {
+            this.selectedFileIds = this.uploadedFiles.map(f => f.id);
+            if (this.selectedFileIds.length > 0) {
+                this.selectFile(this.selectedFileIds[0]);
+            }
+        },
+
+        /**
+         * Deselect all files in the queue
+         */
+        deselectAllFiles() {
+            this.selectedFileIds = this.currentFileId ? [this.currentFileId] : [];
+        },
+
+        /**
+         * Toggle file selection for multi-file processing
+         */
+        toggleFileSelection(fileId) {
+            if (this.selectedFileIds.includes(fileId)) {
+                if (this.selectedFileIds.length > 1) {
+                    this.selectedFileIds = this.selectedFileIds.filter(id => id !== fileId);
+                    if (this.currentFileId === fileId) {
+                        this.selectFile(this.selectedFileIds[0]);
+                    }
+                }
+            } else {
+                this.selectedFileIds.push(fileId);
+                this.selectFile(fileId);
+            }
+        },
+
+        /**
          * Select a file from the queue
          */
         selectFile(fileId) {
+            // Save current state before switching
+            if (this.currentFileId && this.detectedTracks.length > 0) {
+                const prevFile = this.uploadedFiles.find(f => f.id === this.currentFileId);
+                if (prevFile) {
+                    prevFile.detected_tracks = JSON.parse(JSON.stringify(this.detectedTracks));
+                    prevFile.status = 'analyzed';
+                }
+            }
+
             this.currentFileId = fileId;
             this.currentFile = this.uploadedFiles.find(f => f.id === fileId);
-            this.detectedTracks = [];
+            
+            // Restore tracks if they exist
+            this.detectedTracks = this.currentFile?.detected_tracks ? JSON.parse(JSON.stringify(this.currentFile.detected_tracks)) : [];
+            
             this.searchResults = [];
             this.selectedRelease = null;
             this.successMessage = '';
@@ -456,6 +613,26 @@ function vinylApp() {
 
             if (this.currentFile) {
                 this.searchQuery = this.cleanFilename(this.currentFile.filename);
+                if (this.detectedTracks.length > 0) {
+                    this.initWaveform();
+                }
+            }
+        },
+
+        /**
+         * Analyze all selected files that haven't been analyzed yet
+         */
+        async analyzeAllSelected() {
+            const toAnalyze = this.selectedFileIds.filter(id => {
+                const file = this.uploadedFiles.find(f => f.id === id);
+                return file && file.status !== 'analyzed' && file.status !== 'completed';
+            });
+
+            if (toAnalyze.length === 0) return;
+
+            for (const fileId of toAnalyze) {
+                this.selectFile(fileId);
+                await this.analyzeFile();
             }
         },
 
@@ -509,6 +686,7 @@ function vinylApp() {
                 const file = this.uploadedFiles.find(f => f.id === this.currentFileId);
                 if (file) {
                     file.status = 'analyzed';
+                    file.detected_tracks = JSON.parse(JSON.stringify(this.detectedTracks));
                 }
 
                 await this.initWaveform();
@@ -597,9 +775,12 @@ function vinylApp() {
         selectRelease(release) {
             this.selectedRelease = release;
             this.trackMappingReversed = false;
-            this.customMapping = Array.from({ length: this.detectedTracks.length }, (_, i) => i);
+            
+            // Re-initialize custom mapping based on all detected tracks (single or multi-file)
+            const tracksToMap = this.selectedFileIds.length > 1 ? this.allDetectedTracks.filter(t => !t.ignored) : this.detectedTracks;
+            this.customMapping = Array.from({ length: tracksToMap.length }, (_, i) => i);
 
-            const activeTrackCount = this.detectedTracks.filter(t => !t.ignored).length;
+            const activeTrackCount = tracksToMap.length;
             const discogsTrackCount = release.tracks.length;
 
             // Check for track count mismatch
@@ -607,6 +788,20 @@ function vinylApp() {
                 this.trackCountMismatch = true;
             } else {
                 this.trackCountMismatch = false;
+            }
+
+            // Redraw regions if waveform exists
+            if (this.waveform && this.waveformRegions) {
+                const draw = () => {
+                    console.log('Drawing regions for', this.detectedTracks.length, 'tracks');
+                    this.addTrackRegions();
+                };
+
+                if (this.waveform.getDuration() > 0) {
+                    draw();
+                } else {
+                    this.waveform.once('ready', draw);
+                }
             }
         },
 
@@ -794,7 +989,17 @@ function vinylApp() {
 
             this.waveformLoading = true;
 
+            // Wait a tiny bit for Alpine to show the container if it was hidden
+            await new Promise(resolve => setTimeout(resolve, 50));
+
             try {
+                const container = document.getElementById('waveform');
+                if (!container) {
+                    console.warn('Waveform container not found, skipping init');
+                    this.waveformLoading = false;
+                    return;
+                }
+
                 if (this.waveform) {
                     this.waveform.destroy();
                 }
@@ -806,7 +1011,7 @@ function vinylApp() {
                     cursorColor: '#1e40af',
                     height: 'auto',
                     normalize: true,
-                    backend: 'WebAudio',
+                    backend: 'MediaElement',
                     barWidth: 2,
                     barGap: 1
                 });
@@ -826,6 +1031,9 @@ function vinylApp() {
                     throw new Error('Failed to load waveform peaks');
                 }
                 const peaksData = await peaksResponse.json();
+
+                // Load audio with pre-generated peaks
+                this.waveform.load(`/api/audio/${this.currentFileId}`, peaksData.peaks);
 
                 this.waveform.on('ready', () => {
                     console.log('Waveform ready');
@@ -972,14 +1180,25 @@ function vinylApp() {
 
                     if (clampedEnd <= clampedStart) return;
 
+                    // Get track label (from Discogs if available)
+                    let label = `Track ${track.number}`;
+                    if (this.selectedRelease) {
+                        const activeIdx = this.detectedTracks.filter((t, i) => !t.ignored && i < idx).length;
+                        if (!track.ignored) {
+                            const discogsIdx = this.customMapping[activeIdx] || activeIdx;
+                            const dt = this.selectedRelease.tracks[discogsIdx];
+                            if (dt) label = `${dt.position} - ${dt.title}`;
+                        }
+                    }
+
                     this.waveformRegions.addRegion({
                         start: clampedStart,
                         end: clampedEnd,
-                        color: colors[idx % colors.length],
+                        color: track.ignored ? 'rgba(138, 138, 134, 0.3)' : colors[idx % colors.length],
                         drag: true,
                         resize: true,
                         id: `track-${track.number}`,
-                        content: `Track ${track.number}`
+                        content: label
                     });
                 } catch (e) {
                     console.error(`Failed to create region for Track ${track.number}:`, e);
@@ -1263,7 +1482,87 @@ function vinylApp() {
         },
 
         /**
-         * Process file with selected release
+         * Process files (handles both single and multi-file processing)
+         */
+        async processFiles() {
+            if (this.selectedFileIds.length > 1) {
+                return this.multiProcessFiles();
+            }
+            return this.processFile();
+        },
+
+        async multiProcessFiles() {
+            if (!this.selectedRelease || this.isProcessing) return;
+
+            // Ensure all selected files have detected tracks in state
+            if (this.currentFile) {
+                this.currentFile.detected_tracks = JSON.parse(JSON.stringify(this.detectedTracks));
+            }
+
+            const activeTracks = this.allDetectedTracks.filter(t => !t.ignored);
+            if (activeTracks.length === 0) {
+                alert('Please select and analyze at least one track.');
+                return;
+            }
+
+            this.isProcessing = true;
+            this.processingProgress = 0.1;
+            this.processingMessage = 'Starting batch processing...';
+
+            const trackMapping = [];
+            const trackBoundariesMap = {};
+
+            this.selectedFileIds.forEach(id => {
+                const file = this.uploadedFiles.find(f => f.id === id);
+                if (file && file.detected_tracks) {
+                    trackBoundariesMap[id] = file.detected_tracks;
+                }
+            });
+
+            activeTracks.forEach((track, idx) => {
+                const mappedIdx = this.customMapping[idx] || 0;
+                const discogsTrack = this.selectedRelease.tracks[mappedIdx];
+                if (discogsTrack) {
+                    trackMapping.push({
+                        source_file_id: track.file_id,
+                        detected: track.number,
+                        discogs: discogsTrack.position
+                    });
+                }
+            });
+
+            try {
+                const response = await fetch('/api/multi-process', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        release_id: this.selectedRelease.id,
+                        track_mapping: trackMapping,
+                        track_boundaries_map: trackBoundariesMap,
+                        output_format: this.outputFormat,
+                        restoration_level: this.restorationLevel
+                    })
+                });
+
+                const data = await response.json();
+                if (!response.ok) throw new Error(data.detail || 'Batch processing failed');
+
+                this.currentJobId = data.job_id;
+                this.startProcessPolling(data.job_id);
+
+                this.selectedFileIds.forEach(id => {
+                    const file = this.uploadedFiles.find(f => f.id === id);
+                    if (file) file.status = 'processing';
+                });
+            } catch (error) {
+                console.error('Multi-process error:', error);
+                this.isProcessing = false;
+                alert('Processing failed: ' + error.message);
+            }
+        },
+
+        /**
+         * Process single file with selected release
          */
         async processFile() {
             if (!this.currentFileId || !this.selectedRelease) return;
@@ -1365,9 +1664,9 @@ function vinylApp() {
 
                         const tracks = Array.isArray(job.tracks) ? job.tracks : [];
                         if (tracks.length > 0) {
-                            this.successMessage = `✅ ${tracks.length} tracks saved to your VinylFlow/output folder\n\nTracks: ${tracks.join(', ')}`;
+                            this.successMessage = `✅ ${tracks.length} tracks saved to your VINYLflow+/output folder\n\nTracks: ${tracks.join(', ')}`;
                         } else {
-                            this.successMessage = '✅ Processing complete. Files saved to your VinylFlow/output folder.';
+                            this.successMessage = '✅ Processing complete. Files saved to your VINYLflow+/output folder.';
                         }
 
                         const file = this.uploadedFiles.find(f => f.id === job.file_id);
@@ -1416,14 +1715,13 @@ function vinylApp() {
             this.searchQuery = '';
             this.processingProgress = 0;
             this.processingMessage = '';
-
-            const nextFile = this.uploadedFiles.find(f => f.status === 'uploaded');
-            if (nextFile) {
-                this.selectFile(nextFile.id);
-            } else {
-                this.currentFileId = null;
-                this.currentFile = null;
-            }
+            
+            // Clear the queue
+            this.uploadedFiles = [];
+            this.selectedFileIds = [];
+            this.currentFileId = null;
+            this.currentFile = null;
+            this.allFilesAnalyzed = false;
         },
 
         /**

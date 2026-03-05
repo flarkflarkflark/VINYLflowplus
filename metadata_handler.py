@@ -1,5 +1,5 @@
 """
-VinylFlow - Metadata Handling Module
+VINYLflow+ - Metadata Handling Module
 
 Handles Discogs API integration, metadata tagging, and cover art embedding.
 Manages release searches, track mapping, and file tagging for FLAC, MP3, and AIFF.
@@ -64,6 +64,32 @@ class DiscogsTrack:
 class DiscogsRelease:
     """Represents a Discogs release."""
 
+    @staticmethod
+    def _clean_discogs_name(name: str) -> str:
+        """
+        Clean Discogs names by removing numeric suffixes (e.g., "(2)")
+        and trailing asterisks (e.g., "DJ Y*").
+        """
+        if not name:
+            return name
+        
+        # Discogs names often have suffixes like "Artist (2)" or "Artist*"
+        # Sometimes combined like "Artist (2)*" or "Artist* (2)"
+        
+        # Remove trailing asterisks and numeric suffixes in any order
+        while True:
+            old_name = name
+            # Remove trailing asterisks (and any space before them)
+            name = re.sub(r"\s*\*+$", "", name)
+            # Remove numeric suffix in parentheses (and any space before it)
+            # Only matches if it's at the very end of the string
+            name = re.sub(r"\s*\(\d+\)$", "", name)
+            name = name.strip()
+            if name == old_name:
+                break
+        
+        return name
+
     def __init__(self, release):
         """
         Initialize from discogs_client Release object.
@@ -72,7 +98,7 @@ class DiscogsRelease:
             release: discogs_client Release object
         """
         self.id = release.id
-        self.title = release.title
+        self.title = self._clean_discogs_name(release.title)
         self.year = getattr(release, "year", "")
 
         # Get URI for Discogs link - construct from release ID
@@ -80,7 +106,8 @@ class DiscogsRelease:
 
         # Get artists
         artists = getattr(release, "artists", [])
-        self.artist = artists[0].name if artists else "Unknown Artist"
+        raw_artist = artists[0].name if artists else "Unknown Artist"
+        self.artist = self._clean_discogs_name(raw_artist)
 
         # Handle various artists
         if self.artist.lower() in ["various", "various artists"]:
@@ -88,9 +115,33 @@ class DiscogsRelease:
         else:
             self.various_artists = False
 
-        # Get label
+        # Get label and catalog number
         labels = getattr(release, "labels", [])
-        self.label = labels[0].name if labels else ""
+        if labels:
+            first_label = labels[0]
+            self.label = self._clean_discogs_name(first_label.name)
+            
+            # Exhaustive search for catalog number
+            self.catno = ""
+            # Check all labels if the first one doesn't have it
+            for l in labels:
+                # Try attributes
+                for attr in ['catno', 'catalog_number', 'catalog_no']:
+                    if hasattr(l, attr) and getattr(l, attr):
+                        self.catno = getattr(l, attr)
+                        break
+                if self.catno: break
+                
+                # Try data dictionary (often where discogs_client stores raw response)
+                if hasattr(l, 'data') and isinstance(l.data, dict):
+                    for key in ['catno', 'catalog_number', 'catalog_no']:
+                        if key in l.data and l.data[key]:
+                            self.catno = l.data[key]
+                            break
+                if self.catno: break
+        else:
+            self.label = ""
+            self.catno = ""
 
         # Get format
         formats = getattr(release, "formats", [])
@@ -99,6 +150,12 @@ class DiscogsRelease:
         # Get images
         self.images = getattr(release, "images", [])
         self.cover_url = self.images[0]["uri"] if self.images else None
+
+        # Get genres and styles
+        genres = getattr(release, "genres", [])
+        styles = getattr(release, "styles", [])
+        all_genres = genres + styles
+        self.genre = ", ".join(all_genres) if all_genres else ""
 
         # Parse tracklist
         self.tracks = self._parse_tracklist(getattr(release, "tracklist", []), debug=False)
@@ -358,7 +415,7 @@ class MetadataHandler:
         Returns:
             True if successful
         """
-        if output_format == "flac":
+        if output_format == "flac" or output_format == "flac24":
             return self._tag_flac(file_path, track, release, cover_data)
         elif output_format == "mp3":
             return self._tag_mp3(file_path, track, release, cover_data)
@@ -391,26 +448,30 @@ class MetadataHandler:
         """Write Vorbis comment tags to FLAC file."""
         try:
             audio = FLAC(file_path)
-            audio.clear_pictures()
-            audio.delete()
-
+            
             discogs_track = self._find_discogs_track(track, release)
             if not discogs_track:
                 return False
 
-            audio["ARTIST"] = release.artist
-            audio["ALBUM"] = release.title
-            audio["TITLE"] = discogs_track.title
-            audio["TRACKNUMBER"] = track.vinyl_number
-            audio["DATE"] = str(release.year) if release.year else ""
-
+            # Set tags using standard Vorbis comment keys
+            audio["artist"] = [release.artist]
+            audio["album"] = [release.title]
+            audio["title"] = [discogs_track.title]
+            audio["tracknumber"] = [track.vinyl_number]
+            
+            if release.year:
+                audio["date"] = [str(release.year)]
             if release.label:
-                audio["LABEL"] = release.label
+                audio["label"] = [release.label]
+            if release.genre:
+                audio["genre"] = [release.genre]
 
-            audio["DISCOGS_RELEASE_ID"] = str(release.id)
-            audio["COMMENT"] = "Digitized from vinyl"
+            audio["discogs_release_id"] = [str(release.id)]
+            audio["comment"] = ["Digitized from vinyl"]
 
             if cover_data:
+                # Clear old pictures and add new one
+                audio.clear_pictures()
                 picture = Picture()
                 picture.type = 3  # Front cover
                 picture.mime = "image/jpeg"
@@ -419,6 +480,7 @@ class MetadataHandler:
                 audio.add_picture(picture)
 
             audio.save()
+            print(f"Successfully tagged {file_path}")
             return True
 
         except Exception as e:
@@ -456,6 +518,10 @@ class MetadataHandler:
             if release.label:
                 audio.tags["TPUB"] = TPUB(encoding=3, text=release.label)
 
+            if release.genre:
+                from mutagen.id3 import TCON
+                audio.tags["TCON"] = TCON(encoding=3, text=release.genre)
+
             audio.tags["TXXX:DISCOGS_RELEASE_ID"] = TXXX(
                 encoding=3, desc="DISCOGS_RELEASE_ID", text=str(release.id)
             )
@@ -469,6 +535,7 @@ class MetadataHandler:
                 )
 
             audio.save()
+            print(f"Successfully tagged {file_path}")
             return True
 
         except Exception as e:
@@ -506,6 +573,10 @@ class MetadataHandler:
             if release.label:
                 audio.tags["TPUB"] = TPUB(encoding=3, text=release.label)
 
+            if release.genre:
+                from mutagen.id3 import TCON
+                audio.tags["TCON"] = TCON(encoding=3, text=release.genre)
+
             audio.tags["TXXX:DISCOGS_RELEASE_ID"] = TXXX(
                 encoding=3, desc="DISCOGS_RELEASE_ID", text=str(release.id)
             )
@@ -519,6 +590,7 @@ class MetadataHandler:
                 )
 
             audio.save()
+            print(f"Successfully tagged {file_path}")
             return True
 
         except Exception as e:
@@ -527,16 +599,47 @@ class MetadataHandler:
 
     def sanitize_filename(self, name: str) -> str:
         """Sanitize string for use in filename."""
-        name = re.sub(r'[/\\:*?"<>|]', "-", name)
-        name = name.strip(" .")
+        if not name:
+            return ""
+            
+        # First remove common Discogs characters we definitely don't want as hyphens
+        name = name.replace("*", "")
+        
+        # Replace other forbidden characters with hyphens
+        name = re.sub(r'[/\\:?"<>|]', "-", name)
+        
+        # Clean up whitespace and repetitive hyphens
         name = re.sub(r"\s+", " ", name)
+        name = re.sub(r"-+", "-", name)
+        
+        # Strip from both ends
+        name = name.strip(" .-_")
+        
         return name
 
-    def create_album_folder_name(self, release: DiscogsRelease) -> str:
-        """Create folder name for album."""
+    def create_album_folder_name(self, release: DiscogsRelease, output_format: str = "flac") -> str:
+        """Create folder name for album with extra metadata."""
         artist = self.sanitize_filename(release.artist)
         title = self.sanitize_filename(release.title)
-        return f"{artist} - {title}"
+        
+        # Combine label and catalog number
+        label_str = self.sanitize_filename(release.label or "Unknown Label")
+        if release.catno:
+            catno = self.sanitize_filename(release.catno)
+            label_str = f"{label_str} - {catno}"
+            
+        year = release.year or "Unknown Year"
+        
+        # Determine format tag
+        fmt_tag = "FLAC 16 VINYL"
+        if output_format == "flac24":
+            fmt_tag = "FLAC 24 VINYL"
+        elif output_format == "mp3":
+            fmt_tag = "MP3 320 VINYL"
+        elif output_format == "aiff":
+            fmt_tag = "AIFF VINYL"
+            
+        return f"{artist} - {title} [{label_str}][{year}][{fmt_tag}]"
 
     def create_track_filename(
         self, track: "Track", release: DiscogsRelease, output_format: str = "flac"
@@ -558,11 +661,13 @@ class MetadataHandler:
         ext = format_config["extension"]
 
         discogs_track = self._find_discogs_track(track, release)
+        artist = self.sanitize_filename(release.artist)
+        
         if not discogs_track:
-            return f"{track.vinyl_number}-Unknown{ext}"
+            return f"{track.vinyl_number} - {artist} - Unknown{ext}"
 
         title = self.sanitize_filename(discogs_track.title)
-        return f"{track.vinyl_number}-{title}{ext}"
+        return f"{track.vinyl_number} - {artist} - {title}{ext}"
 
 
 def compare_track_durations(

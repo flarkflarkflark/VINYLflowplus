@@ -40,21 +40,21 @@ jobs:
       - name: Build Windows app
         shell: powershell
         run: |
-          pyinstaller --clean -y VinylFlow.spec
+          pyinstaller --clean -y VINYLflow+.spec
 
       - name: Package unsigned Windows app
         shell: powershell
         run: |
-          if (Test-Path VinylFlow-windows-unsigned.zip) { Remove-Item VinylFlow-windows-unsigned.zip -Force }
-          Compress-Archive -Path dist\VinylFlow\* -DestinationPath VinylFlow-windows-unsigned.zip
-          Get-Item VinylFlow-windows-unsigned.zip | Format-List Name,Length,LastWriteTime
+          if (Test-Path VINYLflow+-windows-unsigned.zip) { Remove-Item VINYLflow+-windows-unsigned.zip -Force }
+          Compress-Archive -Path dist\VINYLflow+\* -DestinationPath VINYLflow+-windows-unsigned.zip
+          Get-Item VINYLflow+-windows-unsigned.zip | Format-List Name,Length,LastWriteTime
 
       - name: Replace release asset
         env:
           GH_TOKEN: ${{ github.token }}
         shell: powershell
         run: |
-          gh release upload ${{ inputs.tag }} VinylFlow-windows-unsigned.zip --clobber
+          gh release upload ${{ inputs.tag }} VINYLflow+-windows-unsigned.zip --clobber
           $release = gh release view ${{ inputs.tag }} --json assets | ConvertFrom-Json
-          $asset = $release.assets | Where-Object { $_.name -eq 'VinylFlow-windows-unsigned.zip' }
+          $asset = $release.assets | Where-Object { $_.name -eq 'VINYLflow+-windows-unsigned.zip' }
           $asset | Select-Object name,size,updatedAt,url | Format-List

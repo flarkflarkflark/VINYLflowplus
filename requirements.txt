@@ -1,4 +1,4 @@
-# VinylFlow - Python Dependencies
+# VINYLflow+ - Python Dependencies
 # Install with: pip install -r requirements.txt
 
 mutagen>=1.47.0
