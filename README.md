@@ -94,7 +94,7 @@ cd vinylflowplus
 
 When you open VINYLflowplus for the first time, you'll see a welcome screen that guides you through setup in seconds:
 
-![VINYLflowplus Setup Screen](docs/modal.jpg)
+![VINYLflowplus Setup Screen](docs/modal.png)
 
 1. **Get your free Discogs API token** — Click the link in the setup screen or visit [discogs.com/settings/developers](https://www.discogs.com/settings/developers)
 2. **Generate a new token** — Click "Generate new token" on the Discogs settings page
