@@ -378,4 +378,4 @@ Found a bug? Have a feature idea? [Open an issue](https://github.com/flarkflarkf
 
 ---
 
-**VINYLflowplus** — Built with ❤️ by DJs, for DJs.\n---\n\n**VINYLflowplus** — An evolution of the great [VINYLflowplus](https://github.com/olimic1000/vinylflow) invention. Built with ❤️ for DJs.
+**VINYLflowplus** — Built with ❤️ by DJs, for DJs...
