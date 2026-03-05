@@ -1,5 +1,8 @@
 # 🎵 VINYLflowplus
 
+> [!NOTE]
+> **VINYLflowplus** is an enhanced fork of the original [VinylFlow](https://github.com/olimic1000/vinylflow) by [olimic1000](https://github.com/olimic1000). This version includes additional features, improved naming conventions, and better metadata handling for professional vinyl digitization workflows.
+
 **Digitize vinyl 10x faster. Open source.**
 
 Turn your vinyl recordings into perfectly tagged, organized digital files in minutes — not hours. VINYLflowplus automates track splitting, Discogs metadata tagging, cover art embedding, and vinyl-style numbering (A1, A2, B1, B2).
@@ -363,10 +366,16 @@ Found a bug? Have a feature idea? [Open an issue](https://github.com/flarkflarkf
 
 ---
 
+## Credits & Acknowledgments
+
+**VINYLflowplus** is a fork of the amazing [VinylFlow](https://github.com/olimic1000/vinylflow) project. Special thanks to the original author, **[olimic1000](https://github.com/olimic1000)**, for inventing such a powerful tool for the vinyl community. We are building on that solid foundation to bring even more features to vinyl enthusiasts everywhere.
+
+---
+
 ## License
 
 [MIT](LICENSE) — free to use, modify, and distribute.
 
 ---
 
-**VINYLflowplus** — Built with ❤️ by DJs, for DJs.
+**VINYLflowplus** — Built with ❤️ by DJs, for DJs.\n---\n\n**VINYLflowplus** — An evolution of the great [VinylFlow](https://github.com/olimic1000/vinylflow) invention. Built with ❤️ for DJs.
