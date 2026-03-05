@@ -368,7 +368,7 @@ Found a bug? Have a feature idea? [Open an issue](https://github.com/flarkflarkf
 
 ## Credits & Acknowledgments
 
-**VINYLflowplus** is a fork of the amazing [VINYLflowplus](https://github.com/olimic1000/vinylflow) project. Special thanks to the original author, **[olimic1000](https://github.com/olimic1000)**, for inventing such a powerful tool for the vinyl community. We are building on that solid foundation to bring even more features to vinyl enthusiasts everywhere.
+**VINYLflowplus** is a fork of the amazing [VINYLflow](https://github.com/olimic1000/vinylflow) project. Special thanks to the original author, **[olimic1000](https://github.com/olimic1000)**, for inventing such a powerful tool for the vinyl community. We are building on that solid foundation to bring even more features to vinyl enthusiasts everywhere.
 
 ---
 
