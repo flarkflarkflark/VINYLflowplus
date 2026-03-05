@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-VINYLflow+ - Automated Vinyl Record Digitization
+VINYLflowplus - Automated Vinyl Record Digitization
 
 Command-line interface for converting vinyl recordings to tagged FLAC files.
 Features intelligent silence detection, Discogs metadata integration, and batch processing.
@@ -539,7 +539,7 @@ def check_dependencies():
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
-        description="VINYLflow+ - Automated vinyl record digitization",
+        description="VINYLflowplus - Automated vinyl record digitization",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
 

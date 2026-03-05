@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-VINYLflow+ Desktop Launcher
+VINYLflowplus Desktop Launcher
 
-Runs VINYLflow+ in a no-Docker local desktop mode:
+Runs VINYLflowplus in a no-Docker local desktop mode:
 - Uses writable user directories for config/temp/output
 - Starts the FastAPI backend locally
 - Opens a native desktop app window (WebView2 on Windows, WKWebView on macOS)
@@ -44,7 +44,7 @@ except Exception as exc:
     _WEBVIEW_IMPORT_ERROR = exc
 
 
-APP_NAME = "VINYLflow+"
+APP_NAME = "VINYLflowplus"
 
 
 class DesktopApi:
@@ -200,7 +200,7 @@ def _kill_existing_server(host: str, port: int) -> None:
     # Simple check if port is in use
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         if s.connect_ex((host, port)) == 0:
-            print(f"[VINYLflow+] Port {port} is in use. Attempting to kill existing process...")
+            print(f"[VINYLflowplus] Port {port} is in use. Attempting to kill existing process...")
             if sys.platform.startswith("win"):
                 # Windows implementation
                 try:
@@ -236,14 +236,14 @@ def main() -> None:
     server_thread.start()
 
     if not _wait_for_server(host, port):
-        raise RuntimeError(f"VINYLflow+ backend failed to start on http://{host}:{port}")
+        raise RuntimeError(f"VINYLflowplus backend failed to start on http://{host}:{port}")
 
     app_url = f"http://{host}:{port}"
 
     # --- webview not importable at all ---
     if webview is None:
         print(
-            f"[VINYLflow+] pywebview unavailable ({_WEBVIEW_IMPORT_ERROR}). "
+            f"[VINYLflowplus] pywebview unavailable ({_WEBVIEW_IMPORT_ERROR}). "
             "Opening in default browser.",
             file=sys.stderr,
         )
@@ -253,7 +253,7 @@ def main() -> None:
     # --- Windows: check WebView2 Runtime before attempting to start ---
     if sys.platform.startswith("win") and not _check_webview2_available():
         print(
-            "[VINYLflow+] Microsoft WebView2 Runtime not found.\n"
+            "[VINYLflowplus] Microsoft WebView2 Runtime not found.\n"
             "  Download: https://developer.microsoft.com/microsoft-edge/webview2/\n"
             "  Opening in default browser as fallback.",
             file=sys.stderr,
@@ -264,7 +264,7 @@ def main() -> None:
     # --- Try native desktop window ---
     try:
         webview.create_window(
-            "VINYLflow+",
+            "VINYLflowplus",
             app_url,
             width=1280,
             height=900,
@@ -277,7 +277,7 @@ def main() -> None:
             webview.start()
     except Exception as exc:
         print(
-            f"[VINYLflow+] Native window failed ({exc}). Opening in default browser.",
+            f"[VINYLflowplus] Native window failed ({exc}). Opening in default browser.",
             file=sys.stderr,
         )
         _open_browser_fallback(app_url, server_thread)

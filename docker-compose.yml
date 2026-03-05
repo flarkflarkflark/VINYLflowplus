@@ -1,13 +1,13 @@
 services:
-  vinylflow+:
+  vinylflowplus:
     build: .
-    container_name: vinylflow+
+    container_name: vinylflowplus
     ports:
       - "${PORT:-8000}:8000"
     environment:
       # Discogs API Configuration
       - DISCOGS_USER_TOKEN=${DISCOGS_USER_TOKEN}
-      - DISCOGS_USER_AGENT=${DISCOGS_USER_AGENT:-VINYLflow+/1.0}
+      - DISCOGS_USER_AGENT=${DISCOGS_USER_AGENT:-VINYLflowplus/1.0}
 
       # Audio Processing Settings
       - DEFAULT_SILENCE_THRESHOLD=${DEFAULT_SILENCE_THRESHOLD:--40}
@@ -36,8 +36,8 @@ services:
       retries: 3
       start_period: 40s
     networks:
-      - vinylflow+-network
+      - vinylflowplus-network
 
 networks:
-  vinylflow+-network:
+  vinylflowplus-network:
     driver: bridge

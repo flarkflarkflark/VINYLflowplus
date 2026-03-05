@@ -11,24 +11,24 @@ def replace_in_file(filepath):
     original_content = content
 
     # Pre-process some specific URLs first
-    content = content.replace("github.com/flarkflarkflark/VINYLflow+", "github.com/flarkflarkflark/VINYLflow+")
-    content = content.replace("github.com/flarkflarkflark/VINYLflow+", "github.com/flarkflarkflark/VINYLflow+")
+    content = content.replace("github.com/flarkflarkflark/VINYLflowplus", "github.com/flarkflarkflark/VINYLflowplus")
+    content = content.replace("github.com/flarkflarkflark/VINYLflowplus", "github.com/flarkflarkflark/VINYLflowplus")
     
     # Avoid replacing the domain name if possible, but let's change app name occurrences
     # We will use regex to avoid double +'s
-    content = re.sub(r'VINYLflow+(?!\+)', 'VINYLflow+', content)
-    content = re.sub(r'VINYLflow+(?!\+)(?![\w.-])', 'VINYLflow+', content) # avoid VINYLflow+.app if possible, actually let's just replace VINYLflow+ to VINYLflow+ except in URLs if we can.
+    content = re.sub(r'VINYLflowplus(?!\+)', 'VINYLflowplus', content)
+    content = re.sub(r'VINYLflowplus(?!\+)(?![\w.-])', 'VINYLflowplus', content) # avoid VINYLflowplus.app if possible, actually let's just replace VINYLflowplus to VINYLflowplus except in URLs if we can.
     
     # Simple replace with careful lookahead for + to avoid duplicates
-    content = re.sub(r'VINYLflow+(?!\+)', 'VINYLflow+', content)
+    content = re.sub(r'VINYLflowplus(?!\+)', 'VINYLflowplus', content)
     
-    # Replace lowercase vinylflow+ to vinylflow+ where it's a standalone word or command, 
+    # Replace lowercase vinylflowplus to vinylflowplus where it's a standalone word or command, 
     # but not inside vinylflow.app
-    content = re.sub(r'vinylflow+(?!\+)(?!\.app)(?!\.com)', 'vinylflow+', content)
+    content = re.sub(r'vinylflowplus(?!\+)(?!\.app)(?!\.com)', 'vinylflowplus', content)
     
     # Fix any accidental double ++
-    content = content.replace("VINYLflow+", "VINYLflow+")
-    content = content.replace("vinylflow+", "vinylflow+")
+    content = content.replace("VINYLflowplus", "VINYLflowplus")
+    content = content.replace("vinylflowplus", "vinylflowplus")
 
     if content != original_content:
         with open(filepath, 'w', encoding='utf-8') as f:

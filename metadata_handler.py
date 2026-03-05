@@ -1,5 +1,5 @@
 """
-VINYLflow+ - Metadata Handling Module
+VINYLflowplus - Metadata Handling Module
 
 Handles Discogs API integration, metadata tagging, and cover art embedding.
 Manages release searches, track mapping, and file tagging for FLAC, MP3, and AIFF.

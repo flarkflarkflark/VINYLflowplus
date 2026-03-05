@@ -1,5 +1,5 @@
 """
-PyInstaller runtime hook for VINYLflow+.
+PyInstaller runtime hook for VINYLflowplus.
 
 Runs before any application code and configures the environment for
 bundled dependencies:

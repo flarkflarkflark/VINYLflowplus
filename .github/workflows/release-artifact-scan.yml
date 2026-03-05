@@ -10,7 +10,7 @@ on:
       assets:
         description: "Comma-separated asset names"
         required: true
-        default: "VINYLflow+-macos-unsigned.zip,VINYLflow+-windows-unsigned.zip"
+        default: "VINYLflowplus-macos-unsigned.zip,VINYLflowplus-windows-unsigned.zip"
       forbidden_strings:
         description: "Comma-separated strings that must never appear in artifacts"
         required: false

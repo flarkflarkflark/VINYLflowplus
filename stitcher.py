@@ -4,7 +4,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-def stitch_files(input_dir, output_name="VINYLflow+_master.wav"):
+def stitch_files(input_dir, output_name="VINYLflowplus_master.wav"):
     input_path = Path(input_dir)
     files = sorted([f for f in input_path.glob("*") if f.suffix.lower() in [".wav", ".flac", ".mp3", ".aiff", ".aif"]])
     
@@ -38,7 +38,7 @@ def stitch_files(input_dir, output_name="VINYLflow+_master.wav"):
     print("Bezig met samenvoegen...")
     subprocess.run(cmd, capture_output=True)
     os.remove(silence_file)
-    print(f"Klaar! Je kunt nu '{output_name}' uploaden in VINYLflow+.")
+    print(f"Klaar! Je kunt nu '{output_name}' uploaden in VINYLflowplus.")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:

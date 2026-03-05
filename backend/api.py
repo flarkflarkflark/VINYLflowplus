@@ -1,5 +1,5 @@
 """
-VINYLflow+ - FastAPI Backend
+VINYLflowplus - FastAPI Backend
 
 Provides REST API and WebSocket endpoints for automated vinyl record digitization.
 Handles file uploads, audio analysis, metadata fetching, and track processing.
@@ -38,7 +38,7 @@ from audio_processor import AudioProcessor, Track, SUPPORTED_INPUT_EXTENSIONS, O
 from metadata_handler import MetadataHandler
 
 # Initialize FastAPI app
-app = FastAPI(title="VINYLflow+ API", version="1.0.0")
+app = FastAPI(title="VINYLflowplus API", version="1.0.0")
 
 # Enable CORS
 # Note: allow_origins=["*"] is fine for local/self-hosted use.
@@ -295,7 +295,7 @@ class ConfigUpdate(BaseModel):
 
 class DiscogsSetupRequest(BaseModel):
     token: str
-    user_agent: Optional[str] = "VINYLflow+/1.0"
+    user_agent: Optional[str] = "VINYLflowplus/1.0"
 
 
 @app.post("/api/multi-process")
@@ -475,7 +475,7 @@ async def read_root():
     if html_path.exists():
         return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
     return HTMLResponse(
-        content="<h1>VINYLflow+</h1><p>Frontend not found. Please create static/index.html</p>"
+        content="<h1>VINYLflowplus</h1><p>Frontend not found. Please create static/index.html</p>"
     )
 
 

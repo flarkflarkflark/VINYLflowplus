@@ -1,5 +1,5 @@
 """
-VINYLflow+ - Audio Processing Module
+VINYLflowplus - Audio Processing Module
 
 Handles silence detection, track splitting, and audio format conversion.
 Uses FFmpeg for audio analysis and format conversion.

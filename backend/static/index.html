@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VINYLflow+</title>
+    <title>VINYLflowplus</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://unpkg.com/wavesurfer.js@7.8.10/dist/wavesurfer.min.js"></script>
@@ -210,7 +210,7 @@
             <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
                 <div class="flex justify-between items-center">
                     <h1 class="text-3xl font-bold tracking-tight" style="color: #E5A100;">
-                        VINYLflow+
+                        VINYLflowplus
                     </h1>
                     <button @click="showSettings = !showSettings" class="px-4 py-2 bg-white bg-opacity-10 hover:bg-opacity-20 text-white rounded-lg transition">
                         ⚙️ Settings
@@ -232,7 +232,7 @@
         <div x-show="setupRequired" x-cloak class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
             <div class="bg-card rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
                 <div class="text-center mb-6">
-                    <h2 class="text-3xl font-bold text-primary mb-2">Welcome to VINYLflow+</h2>
+                    <h2 class="text-3xl font-bold text-primary mb-2">Welcome to VINYLflowplus</h2>
                     <p class="text-secondary">Let's get you set up in seconds</p>
                 </div>
 
@@ -252,7 +252,7 @@
                             @keyup.enter="submitSetup()"
                         >
                         <p class="text-xs text-muted mt-1">
-                            VINYLflow+ needs this free token to search album metadata.
+                            VINYLflowplus needs this free token to search album metadata.
                         </p>
                     </div>
 
@@ -324,7 +324,7 @@
                         <div>
                             <label class="block text-sm font-medium text-secondary mb-1">Output Directory</label>
                             <div class="flex gap-2">
-                                <input type="text" x-model="config.output_dir" class="flex-1 px-3 py-2 border focus-primary rounded-md" style="border-color: #8A8A86;" placeholder="/Users/you/Music/VINYLflow+">
+                                <input type="text" x-model="config.output_dir" class="flex-1 px-3 py-2 border focus-primary rounded-md" style="border-color: #8A8A86;" placeholder="/Users/you/Music/VINYLflowplus">
                                 <button @click="chooseOutputFolder()" class="px-3 py-2 bg-[#F0EFEB] hover:bg-gray-200 rounded-md text-primary text-sm">Browse</button>
                             </div>
                         </div>
@@ -600,7 +600,7 @@
                     <a href="https://vinylflow.app/contact" target="_blank" class="text-gray-400 hover:text-white">Contact</a>
                     <a href="https://buymeacoffee.com/olimic1000" target="_blank" class="text-[#E5A100] hover:underline">Support the Project</a>
                 </div>
-                <p class="text-gray-600 text-[10px] mt-8">© 2026 VINYLflow+</p>
+                <p class="text-gray-600 text-[10px] mt-8">© 2026 VINYLflowplus</p>
             </div>
         </footer>
     </div>

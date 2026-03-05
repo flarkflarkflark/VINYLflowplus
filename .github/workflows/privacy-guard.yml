@@ -30,8 +30,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if grep -q "('config', 'config')" VINYLflow+.spec; then
-            echo "❌ VINYLflow+.spec must not bundle config directory"
+          if grep -q "('config', 'config')" VINYLflowplus.spec; then
+            echo "❌ VINYLflowplus.spec must not bundle config directory"
             exit 1
           fi
 

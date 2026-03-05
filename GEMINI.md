@@ -1,12 +1,12 @@
-# 🎵 VINYLflow+ Workspace State
+# 🎵 VINYLflowplus Workspace State
 
 Dit bestand bevat de configuratie en aanpassingen die zijn doorgevoerd voor deze specifieke installatie.
 
 ## 🛠 Systeem Configuratie
-- **Projectlocatie:** `/mnt/PRODUCTION/GIT/VINYLflow+` (exFAT partitie)
-- **Virtuele Omgeving (venv):** `/home/flark/.gemini/tmp/vinylflow+/venv`
-- **Output Map:** `/mnt/PRODUCTION/GIT/VINYLflow+/output/`
-- **Persistent Settings:** `/mnt/PRODUCTION/GIT/VINYLflow+/config/settings.json`
+- **Projectlocatie:** `/mnt/PRODUCTION/GIT/VINYLflowplus` (exFAT partitie)
+- **Virtuele Omgeving (venv):** `/home/flark/.gemini/tmp/vinylflowplus/venv`
+- **Output Map:** `/mnt/PRODUCTION/GIT/VINYLflowplus/output/`
+- **Persistent Settings:** `/mnt/PRODUCTION/GIT/VINYLflowplus/config/settings.json`
 
 ## ✨ Nieuwe Features & Aanpassingen
 ### 1. Audio Support
@@ -31,5 +31,5 @@ Dit bestand bevat de configuratie en aanpassingen die zijn doorgevoerd voor deze
 - Automatische poort-vrijgave bij opstarten (killt oude server op 8000).
 
 ## 🚀 Commando's
-- **Start Server:** `/home/flark/.gemini/tmp/vinylflow+/venv/bin/python -m uvicorn backend.api:app --host 0.0.0.0 --port 8000`
-- **Stitcher Script:** `/mnt/PRODUCTION/GIT/VINYLflow+/stitcher.py` (hulpscript voor handmatig mergen)
+- **Start Server:** `/home/flark/.gemini/tmp/vinylflowplus/venv/bin/python -m uvicorn backend.api:app --host 0.0.0.0 --port 8000`
+- **Stitcher Script:** `/mnt/PRODUCTION/GIT/VINYLflowplus/stitcher.py` (hulpscript voor handmatig mergen)

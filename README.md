@@ -1,14 +1,14 @@
-# 🎵 VINYLflow+
+# 🎵 VINYLflowplus
 
 **Digitize vinyl 10x faster. Open source.**
 
-Turn your vinyl recordings into perfectly tagged, organized digital files in minutes — not hours. VINYLflow+ automates track splitting, Discogs metadata tagging, cover art embedding, and vinyl-style numbering (A1, A2, B1, B2).
+Turn your vinyl recordings into perfectly tagged, organized digital files in minutes — not hours. VINYLflowplus automates track splitting, Discogs metadata tagging, cover art embedding, and vinyl-style numbering (A1, A2, B1, B2).
 
-![VINYLflow+ Demo](docs/demo.gif)
+![VINYLflowplus Demo](docs/demo.gif)
 
 ---
 
-## Use VINYLflow+
+## Use VINYLflowplus
 
 - 🖥️ **Desktop apps:** install builds from [vinylflow.app/install](https://vinylflow.app/install)
 - 🐳 **Docker (self-hosted):** run locally via [Quick Start (Docker)](#quick-start-docker)
@@ -22,7 +22,7 @@ Digitizing a vinyl record manually takes **20–30 minutes per album**: record i
 
 ## The Solution
 
-VINYLflow+ does it in **3 minutes**. Upload your recording, let it detect the tracks, pick the album from Discogs, and hit process. Done.
+VINYLflowplus does it in **3 minutes**. Upload your recording, let it detect the tracks, pick the album from Discogs, and hit process. Done.
 
 ---
 
@@ -50,37 +50,37 @@ VINYLflow+ does it in **3 minutes**. Upload your recording, let it detect the tr
 You'll need:
 - **Docker Desktop** (free) — [Download here](https://www.docker.com/products/docker-desktop/)
 
-That's it! Git is optional (see Step 1 below). No need to mess with configuration files — VINYLflow+ will guide you through setup in your browser.
+That's it! Git is optional (see Step 1 below). No need to mess with configuration files — VINYLflowplus will guide you through setup in your browser.
 
-## 1. Get VINYLflow+
+## 1. Get VINYLflowplus
 
 ### Option A: Download ZIP (easiest — no Git required)
 
-1. Go to [github.com/flarkflarkflark/VINYLflow+](https://github.com/flarkflarkflark/VINYLflow+)
+1. Go to [github.com/flarkflarkflark/VINYLflowplus](https://github.com/flarkflarkflark/VINYLflowplus)
 2. Click the green **Code** button, then **Download ZIP**
 3. Unzip the folder to a location you can find (like your Downloads or Desktop)
-4. Open the unzipped `vinylflow+` folder
+4. Open the unzipped `vinylflowplus` folder
 
 ### Option B: Clone with Git (for terminal users)
 
 ```bash
-git clone https://github.com/flarkflarkflark/VINYLflow+.git
-cd vinylflow+
+git clone https://github.com/flarkflarkflark/VINYLflowplus.git
+cd vinylflowplus
 ```
 
-## 2. Start VINYLflow+
+## 2. Start VINYLflowplus
 
 1. **Open your terminal:**
    - **Mac:** Open "Terminal" app (or iTerm)
    - **Windows:** Open "Command Prompt" or "PowerShell"
    - **Linux:** Open your terminal application
 
-2. **Navigate to the VINYLflow+ folder:**
-   - If you downloaded the ZIP, type `cd ` (with a space after) and drag the `vinylflow+` folder into the terminal window, then press Enter
-   - Or type the full path, like: `cd ~/Downloads/vinylflow+` or `cd C:\Users\YourName\Downloads\vinylflow+`
-   - **Windows shortcut:** In File Explorer, open the vinylflow+ folder, click the address bar, type `cmd` and press Enter
+2. **Navigate to the VINYLflowplus folder:**
+   - If you downloaded the ZIP, type `cd ` (with a space after) and drag the `vinylflowplus` folder into the terminal window, then press Enter
+   - Or type the full path, like: `cd ~/Downloads/vinylflowplus` or `cd C:\Users\YourName\Downloads\vinylflowplus`
+   - **Windows shortcut:** In File Explorer, open the vinylflowplus folder, click the address bar, type `cmd` and press Enter
 
-3. **Start VINYLflow+:**
+3. **Start VINYLflowplus:**
    ```bash
    docker compose up -d
    ```
@@ -89,22 +89,22 @@ cd vinylflow+
 
 ## 3. First-Run Setup
 
-When you open VINYLflow+ for the first time, you'll see a welcome screen that guides you through setup in seconds:
+When you open VINYLflowplus for the first time, you'll see a welcome screen that guides you through setup in seconds:
 
-![VINYLflow+ Setup Screen](docs/modal.jpg)
+![VINYLflowplus Setup Screen](docs/modal.jpg)
 
 1. **Get your free Discogs API token** — Click the link in the setup screen or visit [discogs.com/settings/developers](https://www.discogs.com/settings/developers)
 2. **Generate a new token** — Click "Generate new token" on the Discogs settings page
-3. **Copy and paste** — Paste your token into VINYLflow+'s setup screen
-4. **Click Continue** — Done! VINYLflow+ validates the token and you're ready to digitize
+3. **Copy and paste** — Paste your token into VINYLflowplus's setup screen
+4. **Click Continue** — Done! VINYLflowplus validates the token and you're ready to digitize
 
 **That's it!** 🎵 No hidden files, no terminal commands, no restart needed. Your token is saved securely and persists across Docker restarts.
 
-**Tip:** You can update your token anytime from the Settings (⚙️) menu in VINYLflow+.
+**Tip:** You can update your token anytime from the Settings (⚙️) menu in VINYLflowplus.
 
 ## Desktop Apps (Beta)
 
-VINYLflow+ desktop apps are available for macOS and Windows (beta track).
+VINYLflowplus desktop apps are available for macOS and Windows (beta track).
 
 - Installer downloads: [vinylflow.app/install](https://vinylflow.app/install)
 
@@ -160,8 +160,8 @@ sudo apt-get install python3.11 python3.11-venv ffmpeg flac libsndfile1-dev
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/flarkflarkflark/VINYLflow+.git
-cd vinylflow+
+git clone https://github.com/flarkflarkflark/VINYLflowplus.git
+cd vinylflowplus
 
 # 2. Create and activate a Python virtual environment
 python3 -m venv venv
@@ -178,10 +178,10 @@ Open **http://localhost:8000** in your browser.
 
 ### First-Run Setup (Non-Docker)
 
-Just like with Docker, VINYLflow+ will show you a welcome screen on first run:
+Just like with Docker, VINYLflowplus will show you a welcome screen on first run:
 
 1. Visit [discogs.com/settings/developers](https://www.discogs.com/settings/developers) and generate a free API token
-2. Paste it into the VINYLflow+ setup screen
+2. Paste it into the VINYLflowplus setup screen
 3. Click Continue — done!
 
 Your token is saved to `config/settings.json` and works immediately without restart.
@@ -196,7 +196,7 @@ Edit `.env` and add your token:
 
 ```ini
 DISCOGS_USER_TOKEN=your_token_here
-DEFAULT_OUTPUT_DIR=~/Music/VINYLflow+
+DEFAULT_OUTPUT_DIR=~/Music/VINYLflowplus
 ```
 
 **Notes:**
@@ -209,7 +209,7 @@ DEFAULT_OUTPUT_DIR=~/Music/VINYLflow+
 ## How It Works
 
 1. **Upload** — drag and drop your WAV or AIFF recording
-2. **Analyze** — VINYLflow+ detects track boundaries using silence detection
+2. **Analyze** — VINYLflowplus detects track boundaries using silence detection
 3. **Search** — find your album on Discogs with visual artwork results
 4. **Map** — match detected tracks to Discogs track listings
 5. **Choose format** — FLAC, MP3, or AIFF output
@@ -278,7 +278,7 @@ DEFAULT_FLAC_COMPRESSION=8
 # View logs
 docker compose logs -f
 
-# Stop VINYLflow+
+# Stop VINYLflowplus
 docker compose stop
 
 # Restart
@@ -293,17 +293,17 @@ docker compose down
 ## Troubleshooting
 
 **See the setup screen on first run?**
-This is normal! VINYLflow+ guides you through adding your Discogs token via the web interface. Just follow the on-screen instructions — it takes 30 seconds.
+This is normal! VINYLflowplus guides you through adding your Discogs token via the web interface. Just follow the on-screen instructions — it takes 30 seconds.
 
 **"command not found: git"?**
-You don't need Git! Use the **Download ZIP** option in [Step 1](#1-get-vinylflow+) instead.
+You don't need Git! Use the **Download ZIP** option in [Step 1](#1-get-vinylflowplus) instead.
 
 **"command not found: docker"?**
 Make sure Docker Desktop is installed and **running**. You should see the Docker icon in your system tray (Mac menu bar or Windows taskbar).
 
-**Can't navigate to the VINYLflow+ folder in terminal?**
-- **Mac/Linux:** Type `cd ` (with a space) and drag the vinylflow+ folder into the terminal window, then press Enter
-- **Windows:** Open the vinylflow+ folder in File Explorer, click the address bar, type `cmd` and press Enter — this opens a terminal already in the right folder
+**Can't navigate to the VINYLflowplus folder in terminal?**
+- **Mac/Linux:** Type `cd ` (with a space) and drag the vinylflowplus folder into the terminal window, then press Enter
+- **Windows:** Open the vinylflowplus folder in File Explorer, click the address bar, type `cmd` and press Enter — this opens a terminal already in the right folder
 
 **Container won't start?**
 Check if port 8000 is in use: `lsof -i :8000` (Mac/Linux) or `netstat -ano | findstr :8000` (Windows). Change the port in `.env` with `PORT=8080`.
@@ -359,7 +359,7 @@ Try adjusting silence detection in Settings (⚙️), or use duration-based spli
 
 ## Contributing
 
-Found a bug? Have a feature idea? [Open an issue](https://github.com/flarkflarkflark/VINYLflow+/issues) — contributions welcome.
+Found a bug? Have a feature idea? [Open an issue](https://github.com/flarkflarkflark/VINYLflowplus/issues) — contributions welcome.
 
 ---
 
@@ -369,4 +369,4 @@ Found a bug? Have a feature idea? [Open an issue](https://github.com/flarkflarkf
 
 ---
 
-**VINYLflow+** — Built with ❤️ by DJs, for DJs.
+**VINYLflowplus** — Built with ❤️ by DJs, for DJs.

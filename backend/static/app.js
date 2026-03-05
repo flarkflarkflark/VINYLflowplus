@@ -1,5 +1,5 @@
 /**
- * VINYLflow+ Frontend Application
+ * VINYLflowplus Frontend Application
  * Alpine.js application for managing vinyl digitization workflow
  */
 
@@ -95,7 +95,7 @@ function vinylApp() {
         setupLoading: false,
         setupError: null,
         setupToken: '',
-        setupUserAgent: 'VINYLflow+/1.0',
+        setupUserAgent: 'VINYLflowplus/1.0',
 
         /**
          * Get all detected tracks across all selected files
@@ -271,7 +271,7 @@ function vinylApp() {
                         this.processingProgress = 1.0;
                         this.processingMessage = 'Complete!';
                         this.isProcessing = false;
-                        this.successMessage = `✅ ${data.tracks.length} tracks saved to your VINYLflow+/output folder\n\nTracks: ${data.tracks.join(', ')}`;
+                        this.successMessage = `✅ ${data.tracks.length} tracks saved to your VINYLflowplus/output folder\n\nTracks: ${data.tracks.join(', ')}`;
 
                         const file = this.uploadedFiles.find(f => f.id === data.file_id);
                         if (file) {
@@ -1664,9 +1664,9 @@ function vinylApp() {
 
                         const tracks = Array.isArray(job.tracks) ? job.tracks : [];
                         if (tracks.length > 0) {
-                            this.successMessage = `✅ ${tracks.length} tracks saved to your VINYLflow+/output folder\n\nTracks: ${tracks.join(', ')}`;
+                            this.successMessage = `✅ ${tracks.length} tracks saved to your VINYLflowplus/output folder\n\nTracks: ${tracks.join(', ')}`;
                         } else {
-                            this.successMessage = '✅ Processing complete. Files saved to your VINYLflow+/output folder.';
+                            this.successMessage = '✅ Processing complete. Files saved to your VINYLflowplus/output folder.';
                         }
 
                         const file = this.uploadedFiles.find(f => f.id === job.file_id);
