@@ -26,9 +26,13 @@ DATA_FILES = [
 HIDDEN_IMPORTS = [
     'backend.api',
     'webview',
-    'PyQt5',
-    'PyQt5.QtWebEngineWidgets',
 ]
+
+if os.environ.get('SKIP_GUI', 'False').lower() != 'true':
+    HIDDEN_IMPORTS += [
+        'PyQt5',
+        'PyQt5.QtWebEngineWidgets',
+    ]
 
 # No modules are excluded — previous exclusion of pythonnet/clr/clr_loader
 # was the root cause of the edgechromium backend failing silently and the
