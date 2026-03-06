@@ -10,11 +10,11 @@ on:
       assets:
         description: "Comma-separated asset names"
         required: true
-        default: "VINYLflowplus-macos-unsigned.zip,VINYLflowplus-windows-unsigned.zip"
+        default: "VINYLflowplus-macOS.zip,VINYLflowplus-Windows.zip"
       forbidden_strings:
         description: "Comma-separated strings that must never appear in artifacts"
         required: false
-        default: "your_token_here,your_user_name,/Users/your_user_name"
+        default: "your_token_here,you,/Users/you"
 
 permissions:
   contents: read
