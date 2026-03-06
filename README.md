@@ -19,7 +19,7 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ---
 
-## v1.0.0 Stable Release
+## v1.0.1 Stable Release
 
 - **📦 Click & Run Desktop Apps** — No installation required. Portable executables for Windows, macOS, and Linux with everything (including FFmpeg) bundled inside.
 - **🎧 Multi-Format Support** — Native export to **MP3 320kbps (CBR)**, **MP3 V0 (Extreme VBR)**, **AIFF**, and **FLAC 24-bit**.

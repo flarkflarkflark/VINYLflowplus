@@ -26,6 +26,8 @@ DATA_FILES = [
 HIDDEN_IMPORTS = [
     'backend.api',
     'webview',
+    'PyQt5',
+    'PyQt5.QtWebEngineWidgets',
 ]
 
 # No modules are excluded — previous exclusion of pythonnet/clr/clr_loader

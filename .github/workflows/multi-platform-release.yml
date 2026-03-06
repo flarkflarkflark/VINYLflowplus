@@ -45,7 +45,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg libglib2.0-0 libnss3 libfontconfig1 libx11-xcb1 libxcomposite1 libxdamage1 libxrender1 libxrandr2 libxtst6 libxss1 libgconf-2-4 libasound2 libatk1.0-0 libgtk-3-0 libcairo2-dev libgirepository1.0-dev pkg-config python3-dev gir1.2-gtk-3.0 gir1.2-webkit2-4.1
+          sudo apt-get install -y ffmpeg libglib2.0-0 libnss3 libfontconfig1 libx11-xcb1 libxcomposite1 libxdamage1 libxrender1 libxrandr2 libxtst6 libxss1 libgconf-2-4 libasound2 libatk1.0-0 libgtk-3-0 libcairo2-dev libgirepository1.0-dev pkg-config python3-dev gir1.2-gtk-3.0 gir1.2-webkit2-4.1 libegl1 libxkbcommon-x11-0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 libxcb-randr0 libxcb-render-util0 libxcb-xinerama0 libxcb-xinput0 libxcb-xfixes0
 
       - name: Install FFmpeg (Windows)
         if: runner.os == 'Windows'
