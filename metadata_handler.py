@@ -90,6 +90,18 @@ class DiscogsRelease:
         
         return name
 
+    @staticmethod
+    def _format_title(title: str) -> str:
+        """
+        Format titles by replacing " / " with " & " as requested.
+        This handles split EPs and double titles more cleanly for filenames and tags.
+        """
+        if not title:
+            return title
+        
+        # Replace " / " with " & " (ensuring spaces are handled)
+        return title.replace(" / ", " & ")
+
     def __init__(self, release):
         """
         Initialize from discogs_client Release object.
@@ -98,7 +110,7 @@ class DiscogsRelease:
             release: discogs_client Release object
         """
         self.id = release.id
-        self.title = self._clean_discogs_name(release.title)
+        self.title = self._format_title(self._clean_discogs_name(release.title))
         self.year = getattr(release, "year", "")
 
         # Get URI for Discogs link - construct from release ID
@@ -107,7 +119,7 @@ class DiscogsRelease:
         # Get artists
         artists = getattr(release, "artists", [])
         raw_artist = artists[0].name if artists else "Unknown Artist"
-        self.artist = self._clean_discogs_name(raw_artist)
+        self.artist = self._format_title(self._clean_discogs_name(raw_artist))
 
         # Handle various artists
         if self.artist.lower() in ["various", "various artists"]:
@@ -119,7 +131,7 @@ class DiscogsRelease:
         labels = getattr(release, "labels", [])
         if labels:
             first_label = labels[0]
-            self.label = self._clean_discogs_name(first_label.name)
+            self.label = self._format_title(self._clean_discogs_name(first_label.name))
             
             # Exhaustive search for catalog number
             self.catno = ""
@@ -167,7 +179,7 @@ class DiscogsRelease:
 
         for track in tracklist:
             position = getattr(track, "position", "")
-            title = getattr(track, "title", "Unknown")
+            title = self._format_title(getattr(track, "title", "Unknown"))
             duration = getattr(track, "duration", "")
 
             # Handle vinyl positions (A1, B2, etc.)

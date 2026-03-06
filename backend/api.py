@@ -22,7 +22,7 @@ import logging
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -477,6 +477,13 @@ async def read_root():
     return HTMLResponse(
         content="<h1>VINYLflowplus</h1><p>Frontend not found. Please create static/index.html</p>"
     )
+
+
+@app.get("/install")
+@app.get("/download")
+async def redirect_to_install():
+    """Redirect to the installation page or latest releases."""
+    return RedirectResponse(url="https://github.com/flarkflarkflark/VINYLflowplus/releases")
 
 
 @app.get("/api/formats")
