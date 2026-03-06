@@ -83,11 +83,10 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           mkdir -p AppDir/usr/bin
-          cp -r dist/VINYLflowplus/* AppDir/usr/bin/
+          cp dist/VINYLflowplus AppDir/usr/bin/
           cat << 'EOF' > AppDir/AppRun
           #!/bin/sh
           HERE="$(dirname "$(readlink -f "${0}")")"
-          export LD_LIBRARY_PATH="${HERE}/usr/lib:${LD_LIBRARY_PATH}"
           exec "${HERE}/usr/bin/VINYLflowplus" "$@"
           EOF
           chmod +x AppDir/AppRun
