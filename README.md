@@ -13,7 +13,7 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ## Use VINYLflowplus
 
-- 🖥️ **Desktop apps:** install builds from [vinylflowplus.app/install](https://vinylflowplus.app/install)
+- 🖥️ **Desktop apps:** install builds from [flarkflarkflark.github.io/VINYLflowplus](https://flarkflarkflark.github.io/VINYLflowplus/)
 - 🐳 **Docker (self-hosted):** run locally via [Quick Start (Docker)](#quick-start-docker)
 - ⚙️ **Python local mode:** see [Manual Setup (Non-Docker)](#manual-setup-non-docker)
 
@@ -109,7 +109,7 @@ When you open VINYLflowplus for the first time, you'll see a welcome screen that
 
 VINYLflowplus desktop apps are available for macOS and Windows (beta track).
 
-- Installer downloads: [vinylflowplus.app/install](https://vinylflowplus.app/install)
+- Installer downloads: [flarkflarkflark.github.io/VINYLflowplus](https://flarkflarkflark.github.io/VINYLflowplus/)
 
 - Desktop beta work is published from `desktop-beta`
 - `main` remains the stable Docker-first channel
