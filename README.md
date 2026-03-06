@@ -13,19 +13,18 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ## Use VINYLflowplus
 
-- 🖥️ **Desktop apps:** install builds from [flarkflarkflark.github.io/VINYLflowplus](https://flarkflarkflark.github.io/VINYLflowplus/)
-- 🐳 **Docker (self-hosted):** run locally via [Quick Start (Docker)](#quick-start-docker)
+- 🖥️ **Desktop apps (Recommended):** Download all-containing "Click & Run" builds from [flarkflarkflark.github.io/VINYLflowplus](https://flarkflarkflark.github.io/VINYLflowplus/)
+- 🐳 **Docker (Server):** run locally via [Quick Start (Docker)](#quick-start-docker)
 - ⚙️ **Python local mode:** see [Manual Setup (Non-Docker)](#manual-setup-non-docker)
 
 ---
 
-## The Problem
+## What's New in v1.1.5
 
-Digitizing a vinyl record manually takes **20–30 minutes per album**: record in Audacity, manually find track boundaries, split, export, look up metadata, type it all in, find cover art, embed it. Multiply that by a collection of hundreds of records and it's a weekend project that never ends.
-
-## The Solution
-
-VINYLflowplus does it in **3 minutes**. Upload your recording, let it detect the tracks, pick the album from Discogs, and hit process. Done.
+- **📦 Click & Run Desktop Apps** — No installation required. Portable executables for Windows, macOS, and Linux with everything (including FFmpeg) bundled inside.
+- **🎧 Multi-Format Support** — Native export to **MP3 320kbps (CBR)**, **MP3 V0 (Extreme VBR)**, **AIFF**, and **FLAC 24-bit**.
+- **🏷️ Ironclad Vinyl Tagging** — Automated A1, B2 numbering that matches your filenames perfectly. Professional folder naming conventions: `Artist - Album [Label - CatNo][Year][Format]`.
+- **🌗 Responsive UI** — Full Dark/Light mode support with improved accessibility and high-contrast design.
 
 ---
 
@@ -34,19 +33,19 @@ VINYLflowplus does it in **3 minutes**. Upload your recording, let it detect the
 - **Automatic silence detection** — intelligently finds track boundaries in your recording
 - **Duration-based splitting** — fallback for seamlessly mixed tracks with no gaps
 - **Discogs integration** — visual search with album artwork, metadata, and track listings
-- **Multiple output formats** — FLAC (lossless), MP3 (320kbps), or AIFF (lossless)
-- **Multiple input formats** — WAV and AIFF recordings supported
-- **Vinyl-style numbering** — proper A1, A2, B1, B2 track notation
-- **Cover art** — downloads and embeds album artwork automatically
+- **Professional Output Formats** — FLAC (16/24-bit), MP3 (320/V0), or AIFF (Lossless)
+- **Ironclad Metadata** — Proper A1, A2, B1, B2 track notation, year, label, and catalog number
+- **Cover art** — downloads and embeds high-quality album artwork automatically
 - **Interactive waveform editor** — drag regions to fine-tune track boundaries
 - **Batch queue** — process multiple records with real-time progress
+- **Restoration Tools** — Optional highpass rumble filter and loudness normalization
 - **Remote access** — control from any device on your network (phone, tablet, laptop)
 
 ---
 
 ## Quick Start (Docker)
 
-**Recommended path:** Docker (stable). If you prefer local Python, see [Manual Setup (Non-Docker)](#manual-setup-non-docker).
+**Recommended path for servers:** Docker (stable). For a portable desktop experience, use the [Desktop Apps](https://flarkflarkflark.github.io/VINYLflowplus/).
 
 ### Prerequisites
 
@@ -105,27 +104,6 @@ When you open VINYLflowplus for the first time, you'll see a welcome screen that
 
 **Tip:** You can update your token anytime from the Settings (⚙️) menu in VINYLflowplus.
 
-## Desktop Apps (Beta)
-
-VINYLflowplus desktop apps are available for macOS and Windows (beta track).
-
-- Installer downloads: [flarkflarkflark.github.io/VINYLflowplus](https://flarkflarkflark.github.io/VINYLflowplus/)
-
-- Desktop beta work is published from `desktop-beta`
-- `main` remains the stable Docker-first channel
-- For local desktop mode, run: `python desktop_launcher.py`
-- Packaging/release scripts are in `scripts/`
-
-### Developer Branch Note
-
-To avoid accidental promotion of beta app work:
-
-- Open desktop feature PRs into `desktop-beta`
-- Keep `main` for stable/docs/release-safe changes
-- Promote desktop work to `main` only when explicitly ready
-
-For full branching and release details, see [docs/BRANCHING_STRATEGY.md](docs/BRANCHING_STRATEGY.md).
-
 ---
 
 ## Manual Setup (Non-Docker)
@@ -179,34 +157,6 @@ python -m uvicorn backend.api:app --host 0.0.0.0 --port 8000
 
 Open **http://localhost:8000** in your browser.
 
-### First-Run Setup (Non-Docker)
-
-Just like with Docker, VINYLflowplus will show you a welcome screen on first run:
-
-1. Visit [discogs.com/settings/developers](https://www.discogs.com/settings/developers) and generate a free API token
-2. Paste it into the VINYLflowplus setup screen
-3. Click Continue — done!
-
-Your token is saved to `config/settings.json` and works immediately without restart.
-
-**Alternative (for advanced users):** You can still use a `.env` file if you prefer:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` and add your token:
-
-```ini
-DISCOGS_USER_TOKEN=your_token_here
-DEFAULT_OUTPUT_DIR=~/Music/VINYLflowplus
-```
-
-**Notes:**
-- The `output/` and `temp_uploads/` directories are created automatically
-- You can adjust silence detection and other settings in `.env` (see [Configuration](#configuration) below)
-- To stop the server, press `Ctrl+C` in the terminal
-
 ---
 
 ## How It Works
@@ -219,31 +169,6 @@ DEFAULT_OUTPUT_DIR=~/Music/VINYLflowplus
 6. **Process** — tracks are split, converted, tagged, and saved with cover art
 
 Your files appear in the `output/` folder, organized as `Artist - Album/A1-Track Name.flac`.
-
----
-
-## Output Example
-
-```
-output/
-└── Aril Brikha - Departure/
-    ├── A1-Groove La Chord.flac
-    ├── A2-Art Of Vengeance.flac
-    ├── B1-Ambiogenesis.flac
-    ├── B2-Deeparture In Mars.flac
-    └── folder.jpg
-```
-
-Each file includes embedded metadata: artist, album, title, track number, year, label, Discogs ID, and cover art.
-
----
-
-## Who Is This For?
-
-- **DJs** digitizing crate finds for digital sets
-- **Vinyl collectors** preserving and cataloguing collections
-- **Record labels** archiving back catalogs
-- **Music lovers** who want their vinyl in lossless digital
 
 ---
 
@@ -265,61 +190,6 @@ DEFAULT_FLAC_COMPRESSION=8
 
 **Config Priority**: `config/settings.json` (UI-editable) → `.env` (manual) → environment variables (Docker)
 
-### Silence Detection Tips
-
-| Problem | Fix |
-|---|---|
-| Tracks merging together | Increase threshold (e.g. `-35` instead of `-40`) |
-| Too many splits | Decrease threshold (e.g. `-45` instead of `-40`) |
-| Splitting on brief silence | Increase min silence duration (e.g. `2.0`) |
-
----
-
-## Managing Docker
-
-```bash
-# View logs
-docker compose logs -f
-
-# Stop VINYLflowplus
-docker compose stop
-
-# Restart
-docker compose restart
-
-# Remove containers (keeps your files in ./output)
-docker compose down
-```
-
----
-
-## Troubleshooting
-
-**See the setup screen on first run?**
-This is normal! VINYLflowplus guides you through adding your Discogs token via the web interface. Just follow the on-screen instructions — it takes 30 seconds.
-
-**"command not found: git"?**
-You don't need Git! Use the **Download ZIP** option in [Step 1](#1-get-vinylflowplus) instead.
-
-**"command not found: docker"?**
-Make sure Docker Desktop is installed and **running**. You should see the Docker icon in your system tray (Mac menu bar or Windows taskbar).
-
-**Can't navigate to the VINYLflowplus folder in terminal?**
-- **Mac/Linux:** Type `cd ` (with a space) and drag the vinylflowplus folder into the terminal window, then press Enter
-- **Windows:** Open the vinylflowplus folder in File Explorer, click the address bar, type `cmd` and press Enter — this opens a terminal already in the right folder
-
-**Container won't start?**
-Check if port 8000 is in use: `lsof -i :8000` (Mac/Linux) or `netstat -ano | findstr :8000` (Windows). Change the port in `.env` with `PORT=8080`.
-
-**Files not appearing in output/?**
-Make sure the `output/` directory exists and has write permissions: `chmod -R 755 ./output`
-
-**Discogs search returns no results?**
-Your API token might be invalid or revoked. Click the Settings (⚙️) button and update your token, or generate a new one at [discogs.com/settings/developers](https://www.discogs.com/settings/developers)
-
-**Tracks not splitting correctly?**
-Try adjusting silence detection in Settings (⚙️), or use duration-based splitting after selecting a Discogs release.
-
 ---
 
 ## Technology Stack
@@ -333,30 +203,6 @@ Try adjusting silence detection in Settings (⚙️), or use duration-based spli
 | Frontend | Alpine.js, Tailwind CSS |
 | Waveform display | WaveSurfer.js |
 | Deployment | Docker |
-
----
-
-## Roadmap
-
-### Shipped (v1.0)
-- Core digitization workflow
-- Discogs integration with visual search
-- Interactive waveform editor with draggable track boundaries
-- Manual track splitting and deletion
-- Vinyl-style track numbering (A1, A2, B1, B2)
-- FLAC, MP3, and AIFF output
-- WAV and AIFF input
-- Duration-based splitting fallback
-- WebSocket real-time progress
-- Docker one-command setup
-- **Web-based first-run setup** — no more hidden `.env` files!
-
-### Planned
-- BPM and key detection
-- Rekordbox / Traktor export
-- Click and pop removal
-- MusicBrainz integration
-- Cloud-hosted option
 
 ---
 
@@ -378,4 +224,4 @@ Found a bug? Have a feature idea? [Open an issue](https://github.com/flarkflarkf
 
 ---
 
-**VINYLflowplus** — Built with ❤️ by DJs, for DJs...
+**VINYLflowplus** — Built with ❤️ by DJs, for DJs.

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Install VINYLflowplus | Professional Vinyl Digitization</title>
+    <title>Install VINYLflowplus v1.1.5 | Professional Vinyl Digitization</title>
     <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/flarkflarkflark/VINYLflowplus/main/assets/VFplus.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -23,6 +23,18 @@
         .bg-brand { background-color: var(--brand-gold); }
         .border-brand { border-color: var(--brand-gold); }
         
+        .badge-new {
+            background: linear-gradient(45deg, #E5A100, #ffcc00);
+            color: black;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: 900;
+            text-transform: uppercase;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+
         .btn-primary {
             background-color: var(--brand-gold);
             color: #000;
@@ -102,7 +114,7 @@
 
         <!-- Quick Jump -->
         <div class="flex flex-wrap justify-center gap-4 mb-16">
-            <a href="#desktop" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-full text-sm border border-slate-700">🖥️ Desktop App (Beta)</a>
+            <a href="#desktop" class="px-4 py-2 bg-brand text-black font-bold rounded-full text-sm border border-brand shadow-[0_0_20px_rgba(229,161,0,0.2)] hover:scale-105 transition-transform">🖥️ Click & Run (Recommended)</a>
             <a href="#docker" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-full text-sm border border-slate-700">🐳 Docker (Stable)</a>
             <a href="#manual" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-full text-sm border border-slate-700">⚙️ Manual Python</a>
         </div>
@@ -115,7 +127,7 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
                 </div>
-                <h2 class="text-3xl font-bold">Desktop App</h2>
+                <h2 class="text-3xl font-bold">Desktop App <span class="badge-new">Click & Run</span></h2>
             </div>
 
             <div class="card border-l-4 border-brand">
@@ -123,7 +135,7 @@
                     <h3 class="text-xl font-bold mb-4 flex items-center">
                         <span class="step-number">1</span> Download
                     </h3>
-                    <p class="text-slate-400 mb-6">Select the installer for your operating system.</p>
+                    <p class="text-slate-400 mb-6">No installation required. Everything (including Python and FFmpeg) is bundled inside.</p>
                     
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <a href="https://github.com/flarkflarkflark/VINYLflowplus/releases/latest" class="flex items-center justify-between p-4 bg-slate-900 border border-slate-700 rounded-xl hover:border-brand transition-colors group">
@@ -152,22 +164,26 @@
 
                 <div class="mb-8">
                     <h3 class="text-xl font-bold mb-4 flex items-center">
-                        <span class="step-number">2</span> Install & Setup
+                        <span class="step-number">2</span> Run & Digitize
                     </h3>
                     <ul class="space-y-4 text-slate-400">
                         <li class="flex items-start gap-2">
-                            <span class="text-brand mt-1">→</span>
-                            <span>Run the installer. If Windows warns about an "Unrecognized App", click <strong>More Info</strong> and then <strong>Run Anyway</strong>.</span>
+                            <span class="text-brand mt-1 font-bold">→</span>
+                            <span><strong>Windows:</strong> Download the <code>.exe</code> and double-click to start. Everything is pre-configured.</span>
                         </li>
                         <li class="flex items-start gap-2">
-                            <span class="text-brand mt-1">→</span>
-                            <span>On first launch, you'll be prompted for a <strong>Discogs API Token</strong>.</span>
+                            <span class="text-brand mt-1 font-bold">→</span>
+                            <span><strong>macOS:</strong> Unzip and drag the <code>.app</code> to your Applications folder.</span>
+                        </li>
+                        <li class="flex items-start gap-2">
+                            <span class="text-brand mt-1 font-bold">→</span>
+                            <span><strong>Linux:</strong> Download the <code>.AppImage</code>, make it executable (<code>chmod +x</code>), and run.</span>
                         </li>
                     </ul>
                 </div>
 
                 <div class="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-                    <p class="text-sm text-slate-500 italic">Note: The desktop app is currently in Beta. For the most stable experience, we recommend the Docker installation.</p>
+                    <p class="text-sm text-brand italic font-semibold">New in v1.1.5: Ironclad vinyl tagging (A1, B2, etc.) and support for MP3 (320 & V0), AIFF, and FLAC 24-bit.</p>
                 </div>
             </div>
         </section>
