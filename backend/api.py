@@ -1,6 +1,6 @@
 """
 VINYLflowplus - FastAPI Backend
-v1.1.3 - Multi-Format Iron Queue (STABLE)
+v1.0.0 - Multi-Format Iron Queue (STABLE)
 """
 
 import os
@@ -33,7 +33,7 @@ from config import Config
 from audio_processor import AudioProcessor, Track, SUPPORTED_INPUT_EXTENSIONS, OUTPUT_FORMATS
 from metadata_handler import MetadataHandler
 
-app = FastAPI(title="VINYLflowplus API", version="1.1.3")
+app = FastAPI(title="VINYLflowplus API", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,

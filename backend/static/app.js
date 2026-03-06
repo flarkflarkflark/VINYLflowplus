@@ -1,5 +1,5 @@
 /**
- * VINYLflowplus Frontend Application v1.1.3
+ * VINYLflowplus Frontend Application v1.0.0
  * Multi-Format Edition
  */
 
