@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VINYLflowplus v1.0.1</title>
+    <title>VINYLflowplus v1.0.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -123,7 +123,16 @@
         <!-- Header -->
         <header class="shadow-2xl p-4 transition-colors duration-300" :class="darkMode ? 'bg-black border-b border-gray-800' : 'bg-white border-b border-gray-200'">
             <div class="max-w-7xl mx-auto flex justify-between items-center">
-                <h1 class="text-3xl font-black tracking-tighter text-brand">VINYLflowplus</h1>
+                <div class="flex items-center gap-4">
+                    <div class="bg-brand w-10 h-10 flex items-center justify-center rounded-sm shadow-lg">
+                        <span class="text-black font-black text-xs">VF+</span>
+                    </div>
+                    <h1 class="text-3xl font-black tracking-tight flex items-center">
+                        <span :class="darkMode ? 'text-white' : 'text-slate-900'">VINYL</span>
+                        <span class="text-brand">flow</span>
+                        <span :class="darkMode ? 'text-white' : 'text-slate-900'">plus</span>
+                    </h1>
+                </div>
                 <div class="flex items-center gap-4">
                     <button @click="toggleDarkMode()" class="p-2 rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-transparent hover:bg-slate-50 dark:hover:bg-slate-700 transition text-slate-900 dark:text-slate-100 shadow-sm">
                         <span x-show="!darkMode">🌙</span><span x-show="darkMode">☀️</span>
@@ -306,17 +315,20 @@
             </main>
         </div>
 
-        <footer class="p-8 border-t dark:border-gray-800 text-center opacity-60">
+        <footer class="p-8 border-t dark:border-gray-800 text-center">
             <div class="flex justify-center gap-8 text-[10px] font-black uppercase tracking-widest mb-4">
-                <a href="https://flarkflarkflark.github.io/VINYLflowplus/" target="_blank" class="text-slate-600 dark:text-slate-400 hover:text-brand transition">VF+ Home</a>
-                <a href="https://github.com/flarkflarkflark/VINYLflowplus/issues" target="_blank" class="text-slate-600 dark:text-slate-400 hover:text-brand transition">Support</a>
+                <a href="https://flarkflarkflark.github.io/VINYLflowplus/" target="_blank" class="text-slate-500 dark:text-slate-300 hover:text-brand transition">VF+ Home</a>
+                <a href="https://github.com/flarkflarkflark/VINYLflowplus/issues" target="_blank" class="text-slate-500 dark:text-slate-300 hover:text-brand transition">Support</a>
             </div>
-            <p class="text-[9px] font-black uppercase tracking-[0.2em] text-slate-600 dark:text-slate-400">© 2026 VINYLflowplus | v1.0.1 STABLE</p>
+            <p class="text-[9px] font-black uppercase tracking-[0.2em] text-slate-500 dark:text-slate-400">© 2026 VINYLflowplus | v1.0.2 STABLE</p>
         </footer>
 
         <div x-show="showSettings" x-cloak class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div @click.away="showSettings = false" class="bg-card rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden border dark:border-gray-800">
-                <div class="p-8 border-b dark:border-gray-800 flex justify-between items-center bg-black/5">
+            <div @click.away="showSettings = false" 
+                 class="rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden border transition-colors duration-300"
+                 :class="darkMode ? 'bg-slate-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-slate-900'">
+                <div class="p-8 border-b flex justify-between items-center transition-colors duration-300"
+                     :class="darkMode ? 'bg-black/20 border-gray-800' : 'bg-slate-50 border-gray-200'">
                     <h2 class="text-2xl font-black uppercase tracking-tighter">System Settings</h2>
                     <button @click="showSettings = false" class="text-3xl opacity-50 hover:opacity-100 transition">✕</button>
                 </div>
@@ -325,11 +337,11 @@
                         <h3 class="text-sm font-black text-brand uppercase tracking-widest">📻 Audio Analysis</h3>
                         <div class="space-y-6">
                             <div>
-                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase">Silence Threshold (dB)</label>
+                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">Silence Threshold (dB)</label>
                                 <input type="number" x-model="config.silence_threshold" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg">
                             </div>
                             <div>
-                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase">Min Silence Duration (s)</label>
+                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">Min Silence Duration (s)</label>
                                 <input type="number" step="0.1" x-model="config.min_silence_duration" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg">
                             </div>
                         </div>
@@ -338,21 +350,21 @@
                         <h3 class="text-sm font-black text-brand uppercase tracking-widest">📁 Export & Output</h3>
                         <div class="space-y-6">
                             <div>
-                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase">Output Folder</label>
+                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">Output Folder</label>
                                 <div class="flex gap-2 items-center">
                                     <input type="text" x-model="config.output_dir" class="settings-input flex-1 min-w-0 p-4 rounded-xl font-black border-2 outline-none text-[10px]">
                                     <button @click="chooseOutputFolder()" class="settings-btn-secondary shrink-0 px-6 py-4 rounded-xl text-[10px] font-black uppercase shadow-md transition active:scale-95">Browse</button>
                                 </div>
                             </div>
                             <div>
-                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase">FLAC Compression (0-8)</label>
+                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">FLAC Compression (0-8)</label>
                                 <input type="number" min="0" max="8" x-model="config.flac_compression" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg">
                             </div>
                         </div>
                     </div>
                 </div>
                 <div class="p-8 pt-0 flex justify-end gap-6">
-                    <button @click="showSettings = false" class="px-8 py-4 font-black text-xs uppercase opacity-50 hover:opacity-100 transition">Cancel</button>
+                    <button @click="showSettings = false" class="px-8 py-4 font-black text-xs uppercase opacity-50 hover:opacity-100 transition" :class="darkMode ? 'text-white' : 'text-slate-900'">Cancel</button>
                     <button @click="saveConfig()" class="btn-primary px-12 py-4 rounded-2xl font-black text-sm uppercase shadow-xl transition transform hover:scale-105 active:scale-95">Save Changes</button>
                 </div>
             </div>

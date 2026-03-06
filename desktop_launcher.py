@@ -36,9 +36,16 @@ def _configure_ssl_certs() -> None:
 
 _configure_ssl_certs()
 
+# Handle SKIP_GUI environment variable (Lite builds)
+_SKIP_GUI = os.environ.get("SKIP_GUI", "False").lower() == "true"
+
 try:
-    import webview
-    _WEBVIEW_IMPORT_ERROR: Exception | None = None
+    if _SKIP_GUI:
+        webview = None
+        _WEBVIEW_IMPORT_ERROR = "Bypassed by SKIP_GUI=True"
+    else:
+        import webview
+        _WEBVIEW_IMPORT_ERROR: Exception | None = None
 except Exception as exc:
     webview = None
     _WEBVIEW_IMPORT_ERROR = exc
@@ -187,9 +194,27 @@ def _wait_for_server(host: str, port: int, timeout: float = 10.0) -> bool:
 
 def _open_browser_fallback(app_url: str, server_thread: threading.Thread) -> None:
     """Open app in default browser and keep the server alive."""
-    webbrowser.open(app_url)
+    # On Linux AppImages, LD_LIBRARY_PATH might interfere with the system browser.
+    # We try to clean it before opening.
+    env = os.environ.copy()
+    if sys.platform.startswith("linux") and "LD_LIBRARY_PATH" in env:
+        env.pop("LD_LIBRARY_PATH")
+        try:
+            import subprocess
+            # Use subprocess to call xdg-open with clean env
+            subprocess.Popen(["xdg-open", app_url], env=env)
+        except Exception:
+            webbrowser.open(app_url)
+    else:
+        webbrowser.open(app_url)
+        
+    print(f"[VINYLflowplus] Browser should be open at {app_url}. Keep this window open to keep the server running.")
     while server_thread.is_alive():
-        time.sleep(0.5)
+        try:
+            time.sleep(1.0)
+        except KeyboardInterrupt:
+            print("\n[VINYLflowplus] Shutting down...")
+            break
 
 
 def _kill_existing_server(host: str, port: int) -> None:
