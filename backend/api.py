@@ -1,9 +1,6 @@
 """
 VINYLflowplus - FastAPI Backend
-
-Provides REST API and WebSocket endpoints for automated vinyl record digitization.
-Handles file uploads, audio analysis, metadata fetching, and track processing.
-Supports WAV and AIFF input, with FLAC, MP3, and AIFF output.
+v1.1.3 - Multi-Format Iron Queue (STABLE)
 """
 
 import os
@@ -14,10 +11,8 @@ import subprocess
 import asyncio
 from pathlib import Path
 from typing import Dict, List, Optional
-import asyncio
 import json
 from datetime import datetime, timedelta
-
 import logging
 
 from fastapi import FastAPI, File, UploadFile, HTTPException, WebSocket, WebSocketDisconnect
@@ -26,23 +21,20 @@ from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-logger = logging.getLogger(__name__)
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("VINYLflowplus")
 
-# Import our existing modules
+# --- INITIALIZATION ---
 import sys
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import Config
 from audio_processor import AudioProcessor, Track, SUPPORTED_INPUT_EXTENSIONS, OUTPUT_FORMATS
 from metadata_handler import MetadataHandler
 
-# Initialize FastAPI app
-app = FastAPI(title="VINYLflowplus API", version="1.0.0")
+app = FastAPI(title="VINYLflowplus API", version="1.1.3")
 
-# Enable CORS
-# Note: allow_origins=["*"] is fine for local/self-hosted use.
-# If exposing publicly, restrict this to your specific domain.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -51,12 +43,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global state management
+# --- GLOBAL STATE ---
 uploaded_files: Dict[str, dict] = {}
 processing_jobs: Dict[str, dict] = {}
 websocket_connections: List[WebSocket] = []
 
-# Initialize config and handlers
+# --- PATHS ---
+_upload_dir_env = os.getenv("VINYLFLOW_UPLOAD_DIR")
+UPLOAD_DIR = Path(_upload_dir_env) if _upload_dir_env else Path(__file__).parent.parent / "temp_uploads"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+QUEUE_STATE_FILE = Path(__file__).parent.parent / "config" / "queue_state.json"
+QUEUE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+
+# --- CONFIG & HANDLERS ---
 config = Config()
 audio_processor = AudioProcessor(
     silence_threshold=config.default_silence_threshold,
@@ -66,111 +66,67 @@ audio_processor = AudioProcessor(
 )
 metadata_handler = MetadataHandler(config.discogs_token, config.discogs_user_agent)
 
-# Temp directory for uploads.
-# In desktop/bundled mode the launcher sets VINYLFLOW_UPLOAD_DIR to a
-# writable location inside the user's AppData folder.  Fall back to a path
-# relative to the source tree when running in development.
-_upload_dir_env = os.getenv("VINYLFLOW_UPLOAD_DIR")
-UPLOAD_DIR = Path(_upload_dir_env) if _upload_dir_env else Path(__file__).parent.parent / "temp_uploads"
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+# --- PERSISTENCE LOGIC ---
 
+def save_queue_state():
+    try:
+        serializable = {}
+        for fid, info in uploaded_files.items():
+            item = info.copy()
+            if "detected_tracks" in item:
+                tracks_raw = []
+                for t in item["detected_tracks"]:
+                    if hasattr(t, 'to_dict'): tracks_raw.append(t.to_dict())
+                    elif isinstance(t, dict): tracks_raw.append(t)
+                    else: tracks_raw.append({"number": getattr(t, 'number', 0), "start": getattr(t, 'start', 0), "end": getattr(t, 'end', 0), "duration": getattr(t, 'duration', 0)})
+                item["detected_tracks"] = tracks_raw
+            serializable[fid] = item
+        with open(QUEUE_STATE_FILE, "w") as f: json.dump(serializable, f, indent=2)
+    except Exception as e: logger.error(f"Sync Failure: {e}")
+
+def load_queue_state():
+    global uploaded_files
+    if not QUEUE_STATE_FILE.exists(): return
+    try:
+        with open(QUEUE_STATE_FILE, "r") as f: data = json.load(f)
+        verified = {}
+        for fid, info in data.items():
+            if (UPLOAD_DIR / fid).exists():
+                if "detected_tracks" in info: info["detected_tracks"] = [Track(number=t.get("number", 0), start=t.get("start", 0), end=t.get("end", 0)) for t in info["detected_tracks"]]
+                verified[fid] = info
+        uploaded_files = verified
+    except Exception as e: logger.error(f"Failed to load queue state: {e}")
+
+load_queue_state()
+
+# --- HELPER FUNCTIONS ---
 
 def get_session_path(file_id: str, filename: str = None) -> Path:
-    """Get path within session directory."""
     session_dir = UPLOAD_DIR / file_id
     return session_dir if filename is None else session_dir / filename
 
-
 def cleanup_session(file_id: str) -> bool:
-    """Clean up session folder and remove from uploaded_files dict."""
     try:
         session_dir = get_session_path(file_id)
-        if session_dir.exists():
-            shutil.rmtree(session_dir)
-        if file_id in uploaded_files:
-            del uploaded_files[file_id]
-        return True
-    except FileNotFoundError:
-        if file_id in uploaded_files:
-            del uploaded_files[file_id]
+        if session_dir.exists(): shutil.rmtree(session_dir)
+        if file_id in uploaded_files: del uploaded_files[file_id]
+        save_queue_state()
         return True
     except Exception as e:
-        print(f"Cleanup failed for {file_id}: {e}")
-        if file_id in uploaded_files:
-            del uploaded_files[file_id]
+        if file_id in uploaded_files: del uploaded_files[file_id]
+        save_queue_state()
         return False
 
-
-# Background cleanup task
-async def cleanup_old_files():
-    """Delete uploaded session folders older than configured TTL."""
-    while True:
-        try:
-            cutoff = datetime.now() - timedelta(hours=config.temp_ttl_hours)
-
-            expired_ids = []
-            for entry in UPLOAD_DIR.iterdir():
-                if not entry.is_dir():
-                    continue
-
-                file_id = entry.name
-                try:
-                    file_info = uploaded_files.get(file_id, {})
-                    if file_info.get("status") == "processing":
-                        continue
-
-                    source_files = list(entry.glob("source.*"))
-                    mtime_path = source_files[0] if source_files else entry
-
-                    if datetime.fromtimestamp(mtime_path.stat().st_mtime) < cutoff:
-                        expired_ids.append(file_id)
-                except (FileNotFoundError, OSError):
-                    expired_ids.append(file_id)
-
-            for file_id in expired_ids:
-                cleanup_session(file_id)
-
-            # Clean up in-memory state for missing session folders
-            missing_ids = []
-            for file_id in uploaded_files:
-                if not get_session_path(file_id).exists():
-                    missing_ids.append(file_id)
-
-            for file_id in missing_ids:
-                del uploaded_files[file_id]
-
-        except Exception as e:
-            print(f"Cleanup error: {e}")
-
-        # Run every 30 minutes
-        await asyncio.sleep(30 * 60)
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Start background tasks on app startup."""
-    asyncio.create_task(cleanup_old_files())
-
-
-# Pydantic models for API requests/responses
-class AnalyzeRequest(BaseModel):
-    file_id: str
-
-
-class DurationBasedAnalyzeRequest(BaseModel):
-    file_id: str
-    discogs_durations: List[float]
-
+# --- API MODELS ---
 
 class SearchRequest(BaseModel):
     query: str
-    max_results: int = 5
-
+    max_results: Optional[int] = 12
 
 class TrackMapping(BaseModel):
     detected: int
     discogs: str
-
+    title: Optional[str] = ""
 
 class TrackBoundary(BaseModel):
     number: int
@@ -178,1079 +134,291 @@ class TrackBoundary(BaseModel):
     end: float
     duration: float
 
-
 class ProcessRequest(BaseModel):
     file_id: str
     release_id: int
     track_mapping: List[TrackMapping]
-    reversed: bool = False
     track_boundaries: Optional[List[TrackBoundary]] = None
-    output_format: str = "flac"  # 'flac', 'mp3', or 'aiff'
-    restoration_level: int = 0   # 0=none, 1=light clean, 2=full restore
-    hum_freq: int = 50           # Electrical hum frequency in Hz (50=EU, 60=US)
-
+    output_formats: List[str] = ["flac"]
+    restoration_level: int = 0
+    hum_freq: int = 50
 
 class MultiTrackMapping(BaseModel):
     source_file_id: str
     detected: int
     discogs: str
-
+    title: Optional[str] = ""
 
 class MultiProcessRequest(BaseModel):
     release_id: int
     track_mapping: List[MultiTrackMapping]
-    track_boundaries_map: Dict[str, List[TrackBoundary]]  # Map of file_id to its boundaries
-    output_format: str = "flac"
+    track_boundaries_map: Dict[str, List[TrackBoundary]]
+    output_formats: List[str] = ["flac"]
     restoration_level: int = 0
     hum_freq: int = 50
 
+# --- API ROUTES ---
 
-class StitchRequest(BaseModel):
-    file_ids: List[str]
+@app.get("/favicon.ico")
+async def favicon():
+    from fastapi.responses import FileResponse
+    favicon_path = Path(__file__).parent / "static" / "favicon.ico"
+    if favicon_path.exists():
+        return FileResponse(favicon_path)
+    # Fallback to PNG if ico doesn't exist
+    png_path = Path(__file__).parent.parent / "assets" / "VFplus.png"
+    if png_path.exists():
+        return FileResponse(png_path)
+    raise HTTPException(status_code=404)
 
-
-@app.post("/api/stitch")
-async def stitch_files(request: StitchRequest):
-    """
-    Merge multiple uploaded files into one master file with 3s silence gaps.
-    Returns the new file ID and metadata.
-    """
-    if not request.file_ids:
-        raise HTTPException(status_code=400, detail="No files selected for stitching")
-
-    # Get file paths for selected IDs
-    valid_files = []
-    for fid in request.file_ids:
-        if fid in uploaded_files:
-            valid_files.append(uploaded_files[fid])
-    
-    if not valid_files:
-        raise HTTPException(status_code=404, detail="Selected files not found")
-
-    # Sort them to ensure A, B, C, D order
-    valid_files.sort(key=lambda x: x['filename'])
-
-    # Create new session for the master file
-    master_id = str(uuid.uuid4())
-    master_dir = get_session_path(master_id)
-    master_dir.mkdir(parents=True, exist_ok=True)
-    
-    # We use .wav for the master to avoid re-encoding issues during stitching
-    master_path = master_dir / "source.wav"
-    
-    try:
-        # Create a 3-second silence file
-        silence_path = master_dir / "silence.wav"
-        subprocess.run([
-            "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", 
-            "-t", "3", str(silence_path)
-        ], check=True, capture_output=True)
-
-        # Build FFmpeg filter complex to join with silence
-        filter_complex = ""
-        inputs = []
-        for i, f_info in enumerate(valid_files):
-            inputs.extend(["-i", f_info['path']])
-            filter_complex += f"[{i}:a][{len(valid_files)}:a]" # Audio + Silence
-        
-        inputs.extend(["-i", str(silence_path)])
-        filter_complex += f"concat=n={len(valid_files)*2}:v=0:a=1[outa]"
-        
-        cmd = ["ffmpeg", "-y"] + inputs + ["-filter_complex", filter_complex, "-map", "[outa]", str(master_path)]
-        
-        await asyncio.to_thread(subprocess.run, cmd, check=True, capture_output=True)
-        
-        # Cleanup silence file
-        if silence_path.exists():
-            silence_path.unlink()
-
-        # Get metadata for the new master
-        file_size = master_path.stat().st_size
-        duration = audio_processor.get_audio_duration(master_path) or 0
-
-        # Register the new master file
-        new_filename = f"MASTER_MERGE_{len(valid_files)}_files.wav"
-        uploaded_files[master_id] = {
-            "id": master_id,
-            "filename": new_filename,
-            "path": str(master_path),
-            "size": file_size,
-            "duration": duration,
-            "status": "uploaded",
-        }
-
-        return {"id": master_id, "filename": new_filename, "size": file_size, "duration": duration}
-
-    except Exception as e:
-        print(f"Stitching failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to merge files: {str(e)}")
-
-
-class ConfigUpdate(BaseModel):
-    silence_threshold: Optional[float] = None
-    min_silence_duration: Optional[float] = None
-    min_track_length: Optional[float] = None
-    output_dir: Optional[str] = None
-
-
-class DiscogsSetupRequest(BaseModel):
-    token: str
-    user_agent: Optional[str] = "VINYLflowplus/1.0"
-
-
-@app.post("/api/multi-process")
-async def multi_process_files(request: MultiProcessRequest):
-    """
-    Process multiple source files: split tracks and map them to a single release.
-    """
-    # Create a unique job ID for the batch
-    job_id = str(uuid.uuid4())
-    
-    # We'll use the first file_id as a reference for the session
-    primary_file_id = request.track_mapping[0].source_file_id
-    
-    processing_jobs[job_id] = {
-        "job_id": job_id,
-        "file_id": primary_file_id,
-        "status": "processing",
-        "progress": 0.1,
-        "message": "Starting multi-file processing...",
-    }
-
-    asyncio.create_task(multi_process_file_background(request, job_id))
-
-    return {"job_id": job_id, "status": "processing"}
-
-
-async def multi_process_file_background(request: MultiProcessRequest, job_id: str):
-    """Background task to process multiple files for one release."""
-    try:
-        # Fetch release metadata once
-        release = metadata_handler.get_release_by_id(request.release_id)
-        if not release:
-            raise Exception("Failed to fetch Discogs release")
-
-        # Create output directory
-        output_base = Path(config.default_output_dir).expanduser()
-        album_folder = output_base / metadata_handler.create_album_folder_name(release, output_format)
-        album_folder.mkdir(parents=True, exist_ok=True)
-
-        # Download cover art
-        cover_data = None
-        if release.cover_url:
-            cover_path = album_folder / "folder.jpg"
-            if metadata_handler.download_cover_art(release.cover_url, cover_path):
-                cover_data = metadata_handler.prepare_cover_for_embedding(cover_path)
-
-        format_config = OUTPUT_FORMATS[request.output_format]
-        ext = format_config["extension"]
-        output_files = []
-
-        total_tracks = len(request.track_mapping)
-        
-        for i, mapping in enumerate(request.track_mapping):
-            progress = 0.2 + (i / total_tracks) * 0.7
-            
-            file_info = uploaded_files.get(mapping.source_file_id)
-            if not file_info:
-                print(f"Warning: File {mapping.source_file_id} not found in queue, skipping track {mapping.discogs}")
-                continue
-                
-            file_path = Path(file_info["path"])
-            
-            # Find the boundary for this specific detected track in its source file
-            boundaries = request.track_boundaries_map.get(mapping.source_file_id, [])
-            boundary = next((b for b in boundaries if b.number == mapping.detected), None)
-            
-            if not boundary:
-                print(f"Warning: Boundary for track {mapping.detected} in file {mapping.source_file_id} not found")
-                continue
-
-            track_obj = Track(
-                number=mapping.detected,
-                start=boundary.start,
-                end=boundary.end
-            )
-            track_obj.vinyl_number = mapping.discogs
-
-            msg = f"Processing track {i+1}/{total_tracks} ({mapping.discogs}) from {file_info['filename']}..."
-            processing_jobs[job_id]["progress"] = progress
-            processing_jobs[job_id]["message"] = msg
-            
-            await broadcast_message({
-                "type": "progress",
-                "file_id": mapping.source_file_id,
-                "progress": progress,
-                "message": msg
-            })
-
-            temp_output = album_folder / f"temp_{track_obj.vinyl_number}{ext}"
-
-            # Split and convert
-            audio_processor.extract_track(
-                file_path, track_obj, temp_output, request.output_format,
-                restoration_level=request.restoration_level,
-                hum_freq=request.hum_freq,
-            )
-
-            # Tag
-            print(f"DEBUG (Multi): Tagging track {track_obj.vinyl_number} with Artist: {release.artist}, Album: {release.title}")
-            metadata_handler.tag_file(temp_output, track_obj, release, cover_data, request.output_format)
-
-            # Rename
-            final_filename = metadata_handler.create_track_filename(track_obj, release, request.output_format)
-            final_path = album_folder / final_filename
-            
-            import time
-            time.sleep(0.2)
-            if final_path.exists():
-                final_path.unlink()
-            temp_output.rename(final_path)
-
-            output_files.append(final_filename)
-
-        # Finish up
-        processing_jobs[job_id]["status"] = "complete"
-        processing_jobs[job_id]["progress"] = 1.0
-        processing_jobs[job_id]["message"] = "Multi-file processing complete!"
-        processing_jobs[job_id]["output_path"] = str(album_folder)
-        processing_jobs[job_id]["tracks"] = output_files
-
-        await broadcast_message({
-            "type": "complete",
-            "file_id": "multi-session",
-            "output_path": str(album_folder),
-            "tracks": output_files,
-        })
-
-    except Exception as e:
-        processing_jobs[job_id]["status"] = "error"
-        processing_jobs[job_id]["message"] = f"Multi-processing failed: {str(e)}"
-        await broadcast_message({
-            "type": "error",
-            "message": f"Multi-processing failed: {str(e)}"
-        })
-
-
-# WebSocket broadcast helper
-async def broadcast_message(message: dict):
-    """Broadcast message to all connected WebSocket clients."""
-    disconnected = []
-    for ws in websocket_connections:
-        try:
-            await ws.send_json(message)
-        except Exception:
-            disconnected.append(ws)
-
-    # Clean up disconnected clients
-    for ws in disconnected:
-        if ws in websocket_connections:
-            websocket_connections.remove(ws)
-
-
-# WebSocket endpoint
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    websocket_connections.append(websocket)
-
-    try:
-        await websocket.send_json({"type": "connected", "message": "WebSocket connected"})
-
-        while True:
-            data = await websocket.receive_text()
-            if data == "ping":
-                await websocket.send_text("pong")
-
-    except WebSocketDisconnect:
-        if websocket in websocket_connections:
-            websocket_connections.remove(websocket)
-
-
-# API Routes
 @app.get("/")
 async def read_root():
-    """Serve the main HTML page."""
     html_path = Path(__file__).parent / "static" / "index.html"
-    if html_path.exists():
-        return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
-    return HTMLResponse(
-        content="<h1>VINYLflowplus</h1><p>Frontend not found. Please create static/index.html</p>"
-    )
+    return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
 
-
-@app.get("/install")
-@app.get("/download")
-async def redirect_to_install():
-    """Redirect to the installation page or latest releases."""
-    return RedirectResponse(url="https://github.com/flarkflarkflark/VINYLflowplus/releases")
-
-
-@app.get("/api/formats")
-async def get_output_formats():
-    """Return available output formats for the UI."""
-    return {
-        "formats": [
-            {"id": fmt_id, "label": fmt["label"], "extension": fmt["extension"]}
-            for fmt_id, fmt in OUTPUT_FORMATS.items()
-        ]
-    }
-
-
-async def preconvert_to_mp3(file_id: str, file_path: Path):
-    """
-    Convert audio to MP3 in background for faster waveform loading.
-    Uses lower bitrate (128k) for quick conversion and smaller file size.
-    """
-    import subprocess
-
-    mp3_path = get_session_path(file_id, "full.mp3")
-
-    if not mp3_path.exists():
-        try:
-            await asyncio.to_thread(
-                subprocess.run,
-                [
-                    "ffmpeg",
-                    "-y",
-                    "-i",
-                    str(file_path),
-                    "-ac",
-                    "2",
-                    "-acodec",
-                    "libmp3lame",
-                    "-b:a",
-                    "192k",
-                    str(mp3_path),
-                ],
-                check=True,
-                capture_output=True,
-            )
-            print(
-                f"Pre-converted {file_id} to MP3 ({mp3_path.stat().st_size // 1024 // 1024}MB)"
-            )
-        except Exception as e:
-            print(f"MP3 conversion failed for {file_id}: {e}")
-
+@app.get("/api/queue")
+async def get_queue():
+    items = list(uploaded_files.values())
+    items.sort(key=lambda x: x.get('filename', ''))
+    return {"uploaded": items, "processing": list(processing_jobs.values())}
 
 @app.post("/api/upload")
 async def upload_files(files: List[UploadFile] = File(...)):
-    """
-    Upload audio file(s) for processing.
-    Supports WAV and AIFF formats.
-    Returns file IDs and metadata.
-    """
     uploaded = []
-
     for file in files:
-        # Check file extension against supported formats
         file_ext = Path(file.filename).suffix.lower()
-        print(f"DEBUG: Uploading {file.filename}, extension: {file_ext}")
-        print(f"DEBUG: Supported extensions: {SUPPORTED_INPUT_EXTENSIONS}")
-        
-        if file_ext not in [ext.lower() for ext in SUPPORTED_INPUT_EXTENSIONS]:
-            print(f"DEBUG: Skipping {file.filename} - extension not in supported list")
-            continue
-
-        # Generate unique file ID, create session folder
+        if file_ext not in [ext.lower() for ext in SUPPORTED_INPUT_EXTENSIONS]: continue
         file_id = str(uuid.uuid4())
         session_dir = get_session_path(file_id)
         session_dir.mkdir(parents=True, exist_ok=True)
         file_path = session_dir / f"source{file_ext}"
-
-        # Save uploaded file
         with open(file_path, "wb") as buffer:
-            while content := await file.read(1024 * 1024):  # Read in 1MB chunks
-                buffer.write(content)
-
-        # Get file metadata
-        file_size = file_path.stat().st_size
-
-        # Get duration using audio processor
-        try:
-            duration = audio_processor.get_audio_duration(file_path)
-            if duration is None:
-                duration = 0
-        except Exception:
-            duration = 0
-
-        # Store file info
-        uploaded_files[file_id] = {
-            "id": file_id,
-            "filename": file.filename,
-            "path": str(file_path),
-            "size": file_size,
-            "duration": duration,
-            "status": "uploaded",
-        }
-
-        # Start MP3 conversion in background (for fast waveform loading)
+            while content := await file.read(1024 * 1024): buffer.write(content)
+        uploaded_files[file_id] = {"id": file_id, "filename": file.filename, "path": str(file_path), "size": file_path.stat().st_size, "duration": audio_processor.get_audio_duration(file_path) or 0, "status": "uploaded"}
         asyncio.create_task(preconvert_to_mp3(file_id, file_path))
-
-        uploaded.append(
-            {"id": file_id, "filename": file.filename, "size": file_size, "duration": duration}
-        )
-
+        uploaded.append(uploaded_files[file_id])
+    save_queue_state()
     return {"files": uploaded}
-
-
-@app.post("/api/analyze")
-async def analyze_file(request: AnalyzeRequest):
-    """
-    Analyze audio file for silence detection and track boundaries.
-    Returns detected track segments.
-    """
-    file_info = uploaded_files.get(request.file_id)
-    if not file_info:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    file_path = Path(file_info["path"])
-
-    await broadcast_message(
-        {
-            "type": "progress",
-            "file_id": request.file_id,
-            "step": "detecting",
-            "progress": 0.1,
-            "message": "Detecting silence boundaries...",
-        }
-    )
-
-    try:
-        tracks = audio_processor.detect_silence(file_path, verbose=False)
-
-        tracks_data = [
-            {"number": i + 1, "start": track.start, "end": track.end, "duration": track.duration}
-            for i, track in enumerate(tracks)
-        ]
-
-        file_info["detected_tracks"] = tracks
-        file_info["status"] = "analyzed"
-
-        await broadcast_message(
-            {
-                "type": "step_complete",
-                "file_id": request.file_id,
-                "step": "detection",
-                "message": f"Detected {len(tracks)} tracks",
-            }
-        )
-
-        return {"tracks": tracks_data}
-
-    except Exception as e:
-        await broadcast_message(
-            {
-                "type": "error",
-                "file_id": request.file_id,
-                "message": f"Silence detection failed: {str(e)}",
-                "recoverable": True,
-            }
-        )
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/analyze-duration-based")
-async def analyze_duration_based(request: DurationBasedAnalyzeRequest):
-    """
-    Create track boundaries based on Discogs track durations.
-    Fallback method when silence detection fails.
-    """
-    file_info = uploaded_files.get(request.file_id)
-    if not file_info:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    file_path = Path(file_info["path"])
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Audio file not found")
-
-    try:
-        # Use existing duration-based splitting method
-        processor = AudioProcessor(
-            silence_threshold=config.default_silence_threshold,
-            min_silence_duration=config.default_min_silence_duration,
-            min_track_length=config.default_min_track_length,
-        )
-
-        tracks = processor.split_tracks_duration_based(
-            file_path,
-            request.discogs_durations,
-            verbose=True
-        )
-
-        # Store tracks for this file
-        file_info["detected_tracks"] = tracks
-        file_info["detection_method"] = "duration_based"
-        file_info["status"] = "analyzed"
-
-        # Broadcast via WebSocket
-        await broadcast_message({
-            "type": "analysis_complete",
-            "file_id": request.file_id,
-            "track_count": len(tracks),
-            "method": "duration_based"
-        })
-
-        return {
-            "tracks": [
-                {
-                    "number": track.number,
-                    "start": track.start,
-                    "end": track.end,
-                    "duration": track.duration,
-                }
-                for track in tracks
-            ]
-        }
-
-    except Exception as e:
-        logger.error(f"Duration-based analysis failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/preview/{file_id}/{track_number}")
-async def preview_track(
-    file_id: str, track_number: int, start: Optional[float] = None, end: Optional[float] = None
-):
-    """
-    Generate and serve a preview of a detected track (first 30 seconds).
-    Supports custom start/end times for manual adjustments.
-    """
-    from fastapi.responses import FileResponse
-    import subprocess
-
-    file_info = uploaded_files.get(file_id)
-    if not file_info:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    detected_tracks = file_info.get("detected_tracks", [])
-    if track_number < 1 or track_number > len(detected_tracks):
-        raise HTTPException(status_code=404, detail="Track not found")
-
-    track = detected_tracks[track_number - 1]
-    file_path = Path(file_info["path"])
-
-    track_start = start if start is not None else track.start
-    track_end = end if end is not None else track.end
-    track_duration = track_end - track_start
-
-    import hashlib
-
-    params_hash = hashlib.md5(f"{track_start}_{track_end}".encode()).hexdigest()[:8]
-    preview_path = get_session_path(file_id, f"preview_track{track_number}_{params_hash}.mp3")
-
-    try:
-        duration = min(30, track_duration)
-
-        subprocess.run(
-            [
-                "ffmpeg",
-                "-y",
-                "-i",
-                str(file_path),
-                "-ss",
-                str(track_start),
-                "-t",
-                str(duration),
-                "-acodec",
-                "libmp3lame",
-                "-b:a",
-                "128k",
-                str(preview_path),
-            ],
-            check=True,
-            capture_output=True,
-        )
-
-        return FileResponse(
-            preview_path,
-            media_type="audio/mpeg",
-            headers={"Content-Disposition": f"inline; filename=track{track_number}_preview.mp3"},
-        )
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Preview generation failed: {str(e)}")
-
-
-@app.get("/api/waveform-peaks/{file_id}")
-async def get_waveform_peaks(file_id: str):
-    """Generate waveform peaks for visualization."""
-    import subprocess
-    import numpy as np
-
-    file_info = uploaded_files.get(file_id)
-    if not file_info:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    file_path = Path(file_info["path"])
-
-    peaks_cache_path = get_session_path(file_id, "peaks.json")
-    if peaks_cache_path.exists():
-        with open(peaks_cache_path, "r") as f:
-            cached_data = json.load(f)
-            return JSONResponse(content=cached_data)
-
-    try:
-        cmd = [
-            "ffmpeg",
-            "-i",
-            str(file_path),
-            "-map",
-            "0:a:0",
-            "-f",
-            "s16le",
-            "-ac",
-            "1",
-            "-acodec",
-            "pcm_s16le",
-            "-ar",
-            "8000",
-            "-",
-        ]
-
-        result = subprocess.run(cmd, capture_output=True, check=True, timeout=60)
-        audio_data = np.frombuffer(result.stdout, dtype=np.int16)
-
-        target_peaks = 3000
-        samples_per_peak = max(1, len(audio_data) // target_peaks)
-
-        peaks = []
-        for i in range(0, len(audio_data), samples_per_peak):
-            chunk = audio_data[i : i + samples_per_peak]
-            if len(chunk) > 0:
-                peak_value = np.max(np.abs(chunk))
-                normalized = peak_value / 32768.0
-                peaks.append(normalized)
-
-        if len(peaks) == 0:
-            peaks = [0.0]
-
-        response_data = {
-            "peaks": peaks,
-            "length": len(peaks),
-            "duration": file_info.get("duration", 0),
-        }
-
-        with open(peaks_cache_path, "w") as f:
-            json.dump(response_data, f)
-
-        return JSONResponse(content=response_data)
-
-    except subprocess.CalledProcessError as e:
-        raise HTTPException(status_code=500, detail=f"FFmpeg failed: {e.stderr.decode()}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Peaks generation failed: {str(e)}")
-
-
-@app.get("/api/audio/{file_id}")
-async def get_audio_file(file_id: str):
-    """Serve audio file for waveform playback."""
-    from fastapi.responses import FileResponse
-
-    file_info = uploaded_files.get(file_id)
-    if not file_info:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    file_path = Path(file_info["path"])
-
-    # Determine media type from extension
-    ext = file_path.suffix.lower()
-    media_types = {
-        ".wav": "audio/wav",
-        ".aiff": "audio/aiff",
-        ".aif": "audio/aiff",
-        ".flac": "audio/flac",
-        ".mp3": "audio/mpeg",
-    }
-    media_type = media_types.get(ext, "audio/wav")
-
-    # Safe filename for headers (encode to UTF-8 for RFC 5987 support)
-    from urllib.parse import quote
-    safe_filename = quote(file_info['filename'])
-
-    return FileResponse(
-        file_path,
-        media_type=media_type,
-        headers={"Content-Disposition": f"inline; filename*=UTF-8''{safe_filename}"},
-    )
-
-
-@app.post("/api/search")
-async def search_discogs(request: SearchRequest):
-    """Search Discogs for releases."""
-    try:
-        releases = metadata_handler.search_releases(request.query, max_results=request.max_results)
-
-        results = []
-        for idx, release in releases:
-            results.append(
-                {
-                    "id": release.id,
-                    "artist": release.artist,
-                    "title": release.title,
-                    "year": release.year,
-                    "label": release.label,
-                    "format": release.format,
-                    "cover_url": release.cover_url,
-                    "uri": release.uri,
-                    "tracks": [
-                        {"position": t.position, "title": t.title, "duration": t.duration_str}
-                        for t in release.tracks
-                    ],
-                }
-            )
-
-        return {"results": results}
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/process")
-async def process_file(request: ProcessRequest):
-    """
-    Process file: split tracks, tag with metadata, and save.
-    Supports FLAC, MP3, and AIFF output formats.
-    """
-    file_info = uploaded_files.get(request.file_id)
-    if not file_info:
-        raise HTTPException(status_code=404, detail="File not found")
-
-    # Validate output format
-    if request.output_format not in OUTPUT_FORMATS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported output format: {request.output_format}. "
-            f"Choose from: {', '.join(OUTPUT_FORMATS.keys())}",
-        )
-
-    job_id = str(uuid.uuid4())
-    processing_jobs[job_id] = {
-        "job_id": job_id,
-        "file_id": request.file_id,
-        "status": "processing",
-        "progress": 0.1,
-        "message": "Starting processing...",
-    }
-    uploaded_files[request.file_id]["status"] = "processing"
-
-    asyncio.create_task(process_file_background(request, job_id))
-
-    return {"job_id": job_id, "status": "processing"}
-
-
-async def process_file_background(request: ProcessRequest, job_id: str):
-    """Background task to process the file."""
-    file_info = uploaded_files[request.file_id]
-    file_path = Path(file_info["path"])
-    output_format = request.output_format
-
-    try:
-        await broadcast_message(
-            {
-                "type": "progress",
-                "file_id": request.file_id,
-                "step": "fetching",
-                "progress": 0.2,
-                "message": "Fetching release metadata from Discogs...",
-            }
-        )
-        processing_jobs[job_id]["progress"] = 0.2
-        processing_jobs[job_id]["message"] = "Fetching release metadata from Discogs..."
-
-        release = metadata_handler.get_release_by_id(request.release_id)
-        if not release:
-            raise Exception("Failed to fetch Discogs release")
-
-        # Build detected tracks from boundaries sent by frontend
-        # This handles manually split tracks correctly
-        if request.track_boundaries:
-            # Create fresh Track objects from boundaries
-            detected_tracks = []
-            for boundary in request.track_boundaries:
-                detected_tracks.append(
-                    Track(
-                        number=boundary.number,
-                        start=boundary.start,
-                        end=boundary.end,
-                    )
-                )
-        else:
-            # Fall back to original detected tracks if no boundaries provided
-            detected_tracks = copy.deepcopy(file_info.get("detected_tracks", []))
-
-        # Apply vinyl numbers from track mapping
-        for mapping in request.track_mapping:
-            # Find track by number (not by index, since numbers may not be sequential)
-            track = next((t for t in detected_tracks if t.number == mapping.detected), None)
-            if track:
-                track.vinyl_number = mapping.discogs
-
-        # Create output directory
-        output_base = Path(config.default_output_dir).expanduser()
-        album_folder = output_base / metadata_handler.create_album_folder_name(release, output_format)
-        album_folder.mkdir(parents=True, exist_ok=True)
-
-        # Download cover art
-        await broadcast_message(
-            {
-                "type": "progress",
-                "file_id": request.file_id,
-                "step": "cover_art",
-                "progress": 0.3,
-                "message": "Downloading cover art...",
-            }
-        )
-        processing_jobs[job_id]["progress"] = 0.3
-        processing_jobs[job_id]["message"] = "Downloading cover art..."
-
-        cover_data = None
-        if release.cover_url:
-            cover_path = album_folder / "folder.jpg"
-            if metadata_handler.download_cover_art(release.cover_url, cover_path):
-                cover_data = metadata_handler.prepare_cover_for_embedding(cover_path)
-
-        # Split and tag tracks
-        format_config = OUTPUT_FORMATS[output_format]
-        ext = format_config["extension"]
-        output_files = []
-
-        for i, track in enumerate(detected_tracks):
-            progress = 0.4 + (i / len(detected_tracks)) * 0.5
-
-            await broadcast_message(
-                {
-                    "type": "progress",
-                    "file_id": request.file_id,
-                    "step": "splitting",
-                    "progress": progress,
-                    "message": f"Processing track {i+1}/{len(detected_tracks)}...",
-                }
-            )
-            processing_jobs[job_id]["progress"] = progress
-            processing_jobs[job_id]["message"] = f"Processing track {i+1}/{len(detected_tracks)}..."
-
-            temp_output = album_folder / f"temp_{track.vinyl_number}{ext}"
-
-            # Split and convert to chosen format
-            audio_processor.extract_track(
-                file_path, track, temp_output, output_format,
-                restoration_level=request.restoration_level,
-                hum_freq=request.hum_freq,
-            )
-
-            # Tag with metadata
-            print(f"DEBUG: Tagging track {track.vinyl_number} with Artist: {release.artist}, Album: {release.title}")
-            metadata_handler.tag_file(temp_output, track, release, cover_data, output_format)
-
-            # Rename to final filename (with retry/error handling for file locks)
-            final_filename = metadata_handler.create_track_filename(track, release, output_format)
-            final_path = album_folder / final_filename
-            
-            try:
-                # Give the OS a split second to release any locks from the tagging step
-                import time
-                time.sleep(0.2)
-                
-                if final_path.exists():
-                    final_path.unlink()
-                temp_output.rename(final_path)
-            except Exception as e:
-                print(f"Rename failed, trying copy: {e}")
-                shutil.copy2(temp_output, final_path)
-                temp_output.unlink()
-
-            output_files.append(final_filename)
-
-        await broadcast_message(
-            {
-                "type": "complete",
-                "file_id": request.file_id,
-                "output_path": str(album_folder),
-                "tracks": output_files,
-            }
-        )
-
-        processing_jobs[job_id]["status"] = "complete"
-        processing_jobs[job_id]["progress"] = 1.0
-        processing_jobs[job_id]["message"] = "Complete!"
-        processing_jobs[job_id]["output_path"] = str(album_folder)
-        processing_jobs[job_id]["tracks"] = output_files
-        if request.file_id in uploaded_files:
-            uploaded_files[request.file_id]["status"] = "completed"
-
-    except Exception as e:
-        await broadcast_message(
-            {
-                "type": "error",
-                "file_id": request.file_id,
-                "message": f"Processing failed: {str(e)}",
-                "recoverable": False,
-            }
-        )
-        processing_jobs[job_id]["status"] = "error"
-        processing_jobs[job_id]["error"] = str(e)
-        processing_jobs[job_id]["message"] = f"Processing failed: {str(e)}"
-        if request.file_id in uploaded_files:
-            uploaded_files[request.file_id]["status"] = "error"
-
-
-@app.get("/api/process/{job_id}")
-async def get_process_job(job_id: str):
-    """Get processing job status and progress for polling fallbacks."""
-    job = processing_jobs.get(job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    return job
-
-
-@app.get("/api/queue")
-async def get_queue():
-    """Get current processing queue status."""
-    return {"uploaded": list(uploaded_files.values()), "processing": list(processing_jobs.values())}
-
 
 @app.delete("/api/queue/{file_id}")
 async def remove_from_queue(file_id: str):
-    """Remove file from queue."""
-    if file_id in uploaded_files:
-        await asyncio.to_thread(cleanup_session, file_id)
-        return {"status": "removed"}
-    raise HTTPException(status_code=404, detail="File not found")
+    cleanup_session(file_id)
+    return {"status": "removed"}
 
+@app.post("/api/analyze")
+async def analyze_file(request: dict):
+    fid = request.get("file_id")
+    info = uploaded_files.get(fid)
+    if not info: raise HTTPException(status_code=404)
+    await broadcast_message({"type": "progress", "file_id": fid, "progress": 0.1, "message": "Analyzing..."})
+    try:
+        tracks = audio_processor.detect_silence(Path(info["path"]))
+        info["detected_tracks"] = tracks
+        info["status"] = "analyzed"
+        save_queue_state()
+        return {"tracks": [{"number": i+1, "start": t.start, "end": t.end, "duration": t.duration} for i, t in enumerate(tracks)]}
+    except Exception as e: raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/api/temp/clear-all")
-async def clear_all_temp():
-    """Clear all temp session folders and uploaded file state."""
-    cleared = 0
+@app.post("/api/search")
+async def search_discogs_api(request: SearchRequest):
+    releases = metadata_handler.search_releases(request.query, max_results=request.max_results)
+    return {"results": [{"id": r.id, "artist": r.artist, "title": r.title, "year": r.year, "label": r.label, "cover_url": r.cover_url, "uri": r.uri, "tracks": [{"position": t.position, "title": t.title, "duration": t.duration_str} for t in r.tracks]} for _, r in releases]}
 
-    processing_ids = {
-        file_id
-        for file_id, info in uploaded_files.items()
-        if info.get("status") == "processing"
-    }
+@app.post("/api/process")
+async def process_file_api(request: ProcessRequest):
+    job_id = str(uuid.uuid4())
+    processing_jobs[job_id] = {"job_id": job_id, "file_id": request.file_id, "status": "processing", "progress": 0.1}
+    asyncio.create_task(process_file_background(request, job_id))
+    return {"job_id": job_id}
 
-    for entry in list(UPLOAD_DIR.iterdir()):
-        if entry.is_dir() and entry.name not in processing_ids:
-            try:
-                shutil.rmtree(entry)
-                cleared += 1
-            except Exception as e:
-                print(f"Failed to remove {entry.name}: {e}")
+async def process_file_background(request: ProcessRequest, job_id: str):
+    try:
+        file_info = uploaded_files[request.file_id]
+        release = metadata_handler.get_release_by_id(request.release_id)
+        det_tracks = [Track(number=b.number, start=b.start, end=b.end) for b in request.track_boundaries] if request.track_boundaries else copy.deepcopy(file_info.get("detected_tracks", []))
+        for m in request.track_mapping:
+            t = next((x for x in det_tracks if x.number == m.detected), None)
+            if t:
+                t.vinyl_number = m.discogs
+                t.title = m.title
 
-    for file_id in list(uploaded_files.keys()):
-        if file_id not in processing_ids:
-            del uploaded_files[file_id]
+        output_base = Path(config.default_output_dir).expanduser()
+        all_outs = []
+        total = len(request.output_formats) * len(det_tracks)
+        count = 0
 
-    return {"status": "cleared", "sessions_removed": cleared}
+        for fmt in request.output_formats:
+            album_folder = output_base / metadata_handler.create_album_folder_name(release, fmt)
+            album_folder.mkdir(parents=True, exist_ok=True)
+            cover_data = None
+            if release.cover_url:
+                cp = album_folder / "folder.jpg"
+                if metadata_handler.download_cover_art(release.cover_url, cp): cover_data = metadata_handler.prepare_cover_for_embedding(cp)
 
+            for track in det_tracks:
+                count += 1
+                prog = 0.1 + (count/total)*0.8
+                msg = f"[{fmt.upper()}] Processing Track {track.vinyl_number}..."
+                processing_jobs[job_id].update({"progress": prog, "message": msg})
+                await broadcast_message({"type": "progress", "file_id": request.file_id, "progress": prog, "message": msg})
+                
+                temp = album_folder / f"temp_{track.vinyl_number}{OUTPUT_FORMATS[fmt]['extension']}"
+                audio_processor.extract_track(Path(file_info["path"]), track, temp, fmt, restoration_level=request.restoration_level, hum_freq=request.hum_freq)
+                metadata_handler.tag_file(temp, track, release, cover_data, fmt)
+                final_name = metadata_handler.create_track_filename(track, release, fmt)
+                final_path = album_folder / final_name
+                if final_path.exists(): final_path.unlink()
+                temp.rename(final_path)
+                # Final safety check: force track tag from final filename
+                metadata_handler.fix_track_tags_from_filename(final_path, fmt)
+                all_outs.append(f"[{fmt.upper()}] {final_name}")
 
-@app.get("/api/config")
-async def get_config():
-    """Get current configuration."""
-    return {
-        "silence_threshold": audio_processor.silence_threshold,
-        "min_silence_duration": audio_processor.min_silence_duration,
-        "min_track_length": audio_processor.min_track_length,
-        "flac_compression": audio_processor.flac_compression,
-        "output_dir": config.default_output_dir,
-    }
+        processing_jobs[job_id].update({"status": "complete", "progress": 1.0, "tracks": all_outs})
+        if request.file_id in uploaded_files: 
+            uploaded_files[request.file_id]["status"] = "completed"
+            save_queue_state()
+        await broadcast_message({"type": "complete", "file_id": request.file_id, "tracks": all_outs})
+    except Exception as e:
+        processing_jobs[job_id].update({"status": "error", "error": str(e)})
+        await broadcast_message({"type": "error", "file_id": request.file_id, "message": str(e)})
 
+@app.post("/api/multi-process")
+async def multi_process_api(request: MultiProcessRequest):
+    job_id = str(uuid.uuid4())
+    processing_jobs[job_id] = {"job_id": job_id, "status": "processing", "progress": 0.1}
+    asyncio.create_task(multi_process_background(request, job_id))
+    return {"job_id": job_id}
 
-@app.put("/api/config")
-async def update_config(updates: ConfigUpdate):
-    """Update configuration parameters."""
-    if updates.silence_threshold is not None:
-        audio_processor.silence_threshold = updates.silence_threshold
-    if updates.min_silence_duration is not None:
-        audio_processor.min_silence_duration = updates.min_silence_duration
-    if updates.min_track_length is not None:
-        audio_processor.min_track_length = updates.min_track_length
-    if updates.output_dir is not None:
-        output_dir = str(Path(updates.output_dir).expanduser())
-        config.default_output_dir = output_dir
-        config.save_output_dir(output_dir)
+async def multi_process_background(request: MultiProcessRequest, job_id: str):
+    try:
+        release = metadata_handler.get_release_by_id(request.release_id)
+        output_base = Path(config.default_output_dir).expanduser()
+        all_outs = []
+        total = len(request.output_formats) * len(request.track_mapping)
+        count = 0
 
-    return await get_config()
+        for fmt in request.output_formats:
+            album_folder = output_base / metadata_handler.create_album_folder_name(release, fmt)
+            album_folder.mkdir(parents=True, exist_ok=True)
+            cover_data = None
+            if release.cover_url:
+                cp = album_folder / "folder.jpg"
+                if metadata_handler.download_cover_art(release.cover_url, cp): cover_data = metadata_handler.prepare_cover_for_embedding(cp)
 
+            for m in request.track_mapping:
+                count += 1
+                prog = 0.1 + (count/total)*0.8
+                msg = f"[{fmt.upper()}] Processing {m.discogs}..."
+                processing_jobs[job_id].update({"progress": prog, "message": msg})
+                await broadcast_message({"type": "progress", "file_id": "multi", "progress": prog, "message": msg})
+                
+                f_info = uploaded_files.get(m.source_file_id)
+                if not f_info: continue
+                bounds = request.track_boundaries_map.get(m.source_file_id, [])
+                b = next((x for x in bounds if x.number == m.detected), None)
+                if not b: continue
+                
+                track_obj = Track(number=m.detected, start=b.start, end=b.end)
+                track_obj.vinyl_number = m.discogs
+                track_obj.title = m.title
+                temp = album_folder / f"temp_{m.discogs}{OUTPUT_FORMATS[fmt]['extension']}"
+                audio_processor.extract_track(Path(f_info["path"]), track_obj, temp, fmt, restoration_level=request.restoration_level, hum_freq=request.hum_freq)
+                metadata_handler.tag_file(temp, track_obj, release, cover_data, fmt)
+                final_name = metadata_handler.create_track_filename(track_obj, release, fmt)
+                final_path = album_folder / final_name
+                if final_path.exists(): final_path.unlink()
+                temp.rename(final_path)
+                # Final safety check: force track tag from final filename
+                metadata_handler.fix_track_tags_from_filename(final_path, fmt)
+                all_outs.append(f"[{fmt.upper()}] {final_name}")
+
+        processing_jobs[job_id].update({"status": "complete", "progress": 1.0, "tracks": all_outs})
+        for fid in set(m.source_file_id for m in request.track_mapping):
+            if fid in uploaded_files: uploaded_files[fid]["status"] = "completed"
+        save_queue_state()
+        await broadcast_message({"type": "complete", "file_id": "multi", "tracks": all_outs})
+    except Exception as e:
+        processing_jobs[job_id].update({"status": "error", "error": str(e)})
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    websocket_connections.append(websocket)
+    try:
+        await websocket.send_json({"type": "connected"})
+        while True:
+            data = await websocket.receive_text()
+            if data == "ping": await websocket.send_text("pong")
+    except: websocket_connections.remove(websocket)
+
+async def broadcast_message(message: dict):
+    for ws in websocket_connections[:]:
+        try: await ws.send_json(message)
+        except: websocket_connections.remove(ws)
+
+async def preconvert_to_mp3(fid: str, path: Path):
+    mp3 = get_session_path(fid, "full.mp3")
+    if not mp3.exists():
+        try: await asyncio.to_thread(subprocess.run, ["ffmpeg", "-y", "-i", str(path), "-ac", "2", "-acodec", "libmp3lame", "-b:a", "192k", str(mp3)], capture_output=True)
+        except: pass
+
+@app.post("/api/utils/select-folder")
+async def select_folder_api():
+    import shutil
+    cmd = ["kdialog", "--getexistingdirectory", os.path.expanduser("~")] if shutil.which("kdialog") else ["zenity", "--file-selection", "--directory"]
+    try:
+        res = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True)
+        return {"path": res.stdout.strip() or None}
+    except: return {"path": None}
 
 @app.get("/api/status")
-async def get_status():
-    """Check app configuration status."""
-    token_exists = bool(config.discogs_token and config.discogs_token != "your_token_here")
+async def get_status(): return {"discogs_configured": bool(config.discogs_token and config.discogs_token != "your_token_here")}
 
-    response = {"discogs_configured": token_exists}
+@app.get("/api/formats")
+async def get_formats(): return {"formats": [{"id": k, "label": v["label"]} for k, v in OUTPUT_FORMATS.items()]}
 
-    # If configured, try to get username
-    if token_exists:
-        try:
-            success, message = config.test_discogs_connection()
-            if success and ": " in message:
-                username = message.split(": ")[-1]
-                response["discogs_username"] = username
-        except:
-            pass
+@app.get("/api/config")
+async def get_config_api(): return {"silence_threshold": audio_processor.silence_threshold, "min_silence_duration": audio_processor.min_silence_duration, "min_track_length": audio_processor.min_track_length, "output_dir": config.default_output_dir, "flac_compression": audio_processor.flac_compression}
 
-    return response
+@app.put("/api/config")
+async def update_config_api(updates: dict):
+    if "output_dir" in updates: 
+        config.default_output_dir = updates["output_dir"]
+        config.save_output_dir(updates["output_dir"])
+    if "flac_compression" in updates: audio_processor.flac_compression = int(updates["flac_compression"])
+    return await get_config_api()
 
-
-@app.post("/api/setup/discogs-token")
-async def setup_discogs_token(request: DiscogsSetupRequest):
-    """
-    Configure Discogs API token via web UI.
-    Validates token, saves to persistent config, reinitializes without restart.
-    """
+@app.get("/api/waveform-peaks/{file_id}")
+async def get_peaks(file_id: str):
+    info = uploaded_files.get(file_id)
+    if not info: raise HTTPException(status_code=404)
+    peaks_cache_path = get_session_path(file_id, "peaks.json")
+    if peaks_cache_path.exists():
+        with open(peaks_cache_path, "r") as f: return JSONResponse(content=json.load(f))
     try:
-        # Validate token
-        import discogs_client
+        cmd = ["ffmpeg", "-i", info["path"], "-map", "0:a:0", "-f", "s16le", "-ac", "1", "-acodec", "pcm_s16le", "-ar", "8000", "-"]
+        result = subprocess.run(cmd, capture_output=True, check=True, timeout=60)
+        import numpy as np
+        audio_data = np.frombuffer(result.stdout, dtype=np.int16)
+        samples_per_peak = max(1, len(audio_data) // 3000)
+        peaks = [float(np.max(np.abs(audio_data[i : i + samples_per_peak])) / 32768.0) for i in range(0, len(audio_data), samples_per_peak) if len(audio_data[i : i + samples_per_peak]) > 0]
+        res = {"peaks": peaks or [0.0], "length": len(peaks), "duration": info.get("duration", 0)}
+        with open(peaks_cache_path, "w") as f: json.dump(res, f)
+        return JSONResponse(content=res)
+    except: raise HTTPException(status_code=500)
 
-        test_client = discogs_client.Client(
-            request.user_agent,
-            user_token=request.token
-        )
+@app.get("/api/audio/{file_id}")
+async def get_audio(file_id: str):
+    info = uploaded_files.get(file_id)
+    if not info: raise HTTPException(status_code=404)
+    from fastapi.responses import FileResponse
+    return FileResponse(info["path"])
 
-        try:
-            identity = test_client.identity()
-            username = identity.username
-        except Exception as e:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Invalid Discogs token: {str(e)}"
-            )
+@app.get("/api/process/{job_id}")
+async def get_job(job_id: str): return processing_jobs.get(job_id, {"status": "not_found"})
 
-        # Save to persistent config
-        if not config.save_token(request.token, request.user_agent):
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to save token to config file"
-            )
-
-        # Reload config and reinitialize handler
-        config.reload()
-        global metadata_handler
-        metadata_handler.reinitialize(config.discogs_token, config.discogs_user_agent)
-
-        return {
-            "success": True,
-            "username": username,
-            "message": f"Connected as {username}"
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Setup failed: {str(e)}"
-        )
-
-
-# Mount static files (must be last)
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
-
 
 if __name__ == "__main__":
     import uvicorn
-
-    port = int(os.getenv("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))

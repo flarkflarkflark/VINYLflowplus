@@ -26,7 +26,7 @@ Dit bestand bevat de configuratie en aanpassingen die zijn doorgevoerd voor deze
   - Bestanden: `Position - Artist - Title.ext`
 
 ### 4. Desktop Integratie
-- KDE Desktop snelkoppeling met goudgeel icoon (`assets/icon.png`).
+- KDE Desktop snelkoppeling met goudgeel icoon (`assets/VFplus.png`).
 - Start in een open Terminal venster voor realtime voortgangscontrole.
 - Automatische poort-vrijgave bij opstarten (killt oude server op 8000).
 

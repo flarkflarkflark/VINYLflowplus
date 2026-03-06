@@ -1,1768 +1,265 @@
 /**
- * VINYLflowplus Frontend Application
- * Alpine.js application for managing vinyl digitization workflow
+ * VINYLflowplus Frontend Application v1.1.3
+ * Multi-Format Edition
  */
 
 function vinylApp() {
     return {
-        // WebSocket connection
-        ws: null,
-
-        // UI State
-        dragging: false,
-        showSettings: false,
-        uploadProgress: 0,
-        searchLoading: false,
-        trackCountMismatch: false,
-        autoRetryAttempts: 0,
-        maxAutoRetries: 3,
-
-        // Files and Queue
-        uploadedFiles: [],
-        currentFileId: null,
-        currentFile: null,
-        selectedFileIds: [], // Multi-file selection
-        allFilesAnalyzed: false,
-
-        // Analysis
-        detectedTracks: [],
-        currentPlayingTrack: null,
-
-        // Waveform
-        waveform: null,
-        waveformLoading: false,
-        waveformRegions: null,
-        currentZoom: 50,
-
-        // Context Menu for waveform splits
-        contextMenu: {
-            show: false,
-            x: 0,
-            y: 0,
-            time: 0
-        },
-
-        // Context Menu for region actions
-        regionContextMenu: {
-            show: false,
-            x: 0,
-            y: 0,
-            trackNumber: null,
-            isIgnored: false,
-            time: 0  // Position for split functionality
-        },
-
-        // Discogs Search
-        searchQuery: '',
-        searchResults: [],
-        selectedRelease: null,
-        trackMappingReversed: false,
-        customMapping: [],
-
-        // Processing
-        isProcessing: false,
-        processingProgress: 0,
-        processingMessage: '',
-        successMessage: '',
-        currentJobId: null,
-        processPollTimer: null,
-        lastProgressAt: null,
-
-        // Output format
-        outputFormat: 'flac',
-        availableFormats: [],
-
-        // Audio restoration
-        restorationLevel: 0,   // 0=disabled, 1=enabled
-
-        // Config
-        config: {
-            silence_threshold: -40,
-            min_silence_duration: 1.5,
-            min_track_length: 30,
-            flac_compression: 8,
-            output_dir: ''
-        },
-
-        // Supported input file extensions
+        ws: null, dragging: false, showSettings: false, uploadProgress: 0, searchLoading: false,
+        trackCountMismatch: false, uploadedFiles: [], currentFileId: null, currentFile: null,
+        selectedFileIds: [], detectedTracks: [], currentPlayingTrack: null, waveform: null,
+        waveformLoading: false, waveformRegions: null, currentZoom: 50, searchQuery: '',
+        searchResults: [], selectedRelease: null, customMapping: [], searchAbortController: null,
+        isProcessing: false, processingProgress: 0, processingMessage: '', successMessage: '',
+        lastProcessedIds: [], outputFormats: ['flac'], availableFormats: [], restorationLevel: 0,
+        config: { silence_threshold: -40, min_silence_duration: 1.5, output_dir: '', flac_compression: 8 },
         supportedExtensions: ['.wav', '.aiff', '.aif', '.flac', '.mp3'],
+        discogsConfigured: true, darkMode: localStorage.getItem('darkMode') !== 'false',
 
-        // Status
-        discogsConfigured: true,
-
-        // Setup (first-run)
-        setupRequired: false,
-        setupLoading: false,
-        setupError: null,
-        setupToken: '',
-        setupUserAgent: 'VINYLflowplus/1.0',
-
-        /**
-         * Get all detected tracks across all selected files
-         */
-        get allDetectedTracks() {
-            // If we only have one file selected (like after a Merge), just use that file's tracks
-            if (this.selectedFileIds.length <= 1) {
-                return this.detectedTracks.map(t => ({
-                    ...t,
-                    file_id: this.currentFileId,
-                    filename: this.currentFile?.filename
-                }));
-            }
-
-            let tracks = [];
-            this.selectedFileIds.forEach(id => {
-                const file = this.uploadedFiles.find(f => f.id === id);
-                if (file && file.detected_tracks) {
-                    file.detected_tracks.forEach(track => {
-                        tracks.push({
-                            ...track,
-                            file_id: id,
-                            filename: file.filename
-                        });
-                    });
-                }
-            });
-            // Also include current file's tracks if not in uploadedFiles detected_tracks yet
-            if (this.selectedFileIds.includes(this.currentFileId) && this.detectedTracks.length > 0) {
-                this.detectedTracks.forEach(track => {
-                    if (!tracks.some(t => t.file_id === this.currentFileId && t.number === track.number)) {
-                        tracks.push({
-                            ...track,
-                            file_id: this.currentFileId,
-                            filename: this.currentFile?.filename
-                        });
-                    }
-                });
-            }
-            return tracks;
-        },
-
-        /**
-         * Get count of active (not ignored) tracks across all selected files
-         */
-        get allActiveTrackCount() {
-            return this.allDetectedTracks.filter(t => !t.ignored).length;
-        },
-
-        /**
-         * Check if all selected files have been analyzed
-         */
-        checkAllAnalyzed() {
-            this.allFilesAnalyzed = this.selectedFileIds.every(id => {
-                const file = this.uploadedFiles.find(f => f.id === id);
-                return file && (file.status === 'analyzed' || file.status === 'completed' || (id === this.currentFileId && this.detectedTracks.length > 0));
-            });
-            return this.allFilesAnalyzed;
-        },
-
-        /**
-         * Initialize the application
-         */
         async init() {
-            // Suppress the native WebKit/WKWebView context menu globally.
-            // WaveSurfer v7 renders inside a shadow DOM; by the time the
-            // 'contextmenu' event bubbles to our container listener WKWebView
-            // has already decided to show its native menu.  Calling
-            // preventDefault() in the capture phase (before any shadow-DOM
-            // handler fires) is the only reliable way to stop it.
-            document.addEventListener('contextmenu', e => e.preventDefault(), true);
-
-            await this.loadConfig();
-            await this.loadFormats();
-            await this.checkStatus();
-            this.connectWebSocket();
-
-            this.$watch('currentFile', (file) => {
-                if (file && !this.searchQuery) {
-                    this.searchQuery = this.cleanFilename(file.filename);
-                }
-            });
-
-            this.$watch('currentFileId', (id) => {
-                if (id && !this.selectedFileIds.includes(id)) {
-                    this.selectedFileIds = [id];
-                }
-            });
+            this.updateDarkMode();
+            document.addEventListener('contextmenu', e => { if (!e.target.closest('input, textarea')) e.preventDefault(); }, true);
+            await this.loadConfig(); await this.loadFormats(); await this.fetchQueue(); this.connectWebSocket();
+            this.$watch('currentFile', (f) => { if (f && !this.searchQuery) this.searchQuery = this.cleanFilename(f.filename); });
+            this.$watch('currentFileId', (id) => { if (id && !this.selectedFileIds.includes(id)) this.selectedFileIds = [id]; });
         },
 
-        /**
-         * Load available output formats from API
-         */
-        async loadFormats() {
+        toggleDarkMode() { 
+            this.darkMode = !this.darkMode; 
+            localStorage.setItem('darkMode', this.darkMode); 
+            this.updateDarkMode(); 
+        },
+        updateDarkMode() { 
+            if (this.darkMode) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        },
+
+        toggleFormat(id) {
+            if (this.outputFormats.includes(id)) {
+                if (this.outputFormats.length > 1) this.outputFormats = this.outputFormats.filter(f => f !== id);
+            } else {
+                this.outputFormats.push(id);
+            }
+        },
+
+        async fetchQueue() {
             try {
-                const response = await fetch('/api/formats');
-                const data = await response.json();
-                this.availableFormats = data.formats;
-            } catch (error) {
-                console.error('Failed to load formats:', error);
-                this.availableFormats = [
-                    { id: 'flac', label: 'FLAC (Lossless)', extension: '.flac' },
-                    { id: 'mp3', label: 'MP3 (320kbps)', extension: '.mp3' },
-                    { id: 'aiff', label: 'AIFF (Lossless)', extension: '.aiff' },
-                ];
-            }
+                const r = await fetch('/api/queue'); const d = await r.json();
+                this.uploadedFiles = d.uploaded || [];
+                this.uploadedFiles.sort((a, b) => a.filename.localeCompare(b.filename));
+                if (this.uploadedFiles.length > 0 && !this.currentFileId) this.selectFile(this.uploadedFiles[0].id);
+            } catch (e) {}
         },
 
-        /**
-         * Connect to WebSocket for real-time updates
-         */
-        connectWebSocket() {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
-
-            this.ws = new WebSocket(wsUrl);
-
-            this.ws.onopen = () => {
-                console.log('WebSocket connected');
-            };
-
-            this.ws.onmessage = (event) => {
-                if (event.data === 'pong') return;
-
-                try {
-                    const data = JSON.parse(event.data);
-                    this.handleWebSocketMessage(data);
-                } catch (error) {
-                    console.warn('Non-JSON WebSocket message:', event.data);
-                }
-            };
-
-            this.ws.onerror = (error) => {
-                console.error('WebSocket error:', error);
-            };
-
-            this.ws.onclose = () => {
-                console.log('WebSocket disconnected, reconnecting...');
-                setTimeout(() => this.connectWebSocket(), 3000);
-            };
-
-            setInterval(() => {
-                if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-                    this.ws.send('ping');
-                }
-            }, 30000);
+        selectFile(id) {
+            this.currentFileId = id; this.currentFile = this.uploadedFiles.find(f => f.id === id);
+            this.detectedTracks = this.currentFile?.detected_tracks ? JSON.parse(JSON.stringify(this.currentFile.detected_tracks)) : [];
+            this.searchResults = []; this.selectedRelease = null; this.successMessage = '';
+            this.processingProgress = 0; this.processingMessage = ''; this.destroyWaveform();
+            if (this.currentFile) { this.searchQuery = this.cleanFilename(this.currentFile.filename); if (this.detectedTracks.length > 0) this.initWaveform(); }
         },
 
-        /**
-         * Handle WebSocket messages
-         */
-        handleWebSocketMessage(data) {
-            console.log('WebSocket message:', data);
-
-            switch (data.type) {
-                case 'progress':
-                    if (data.file_id === this.currentFileId) {
-                        this.processingProgress = data.progress;
-                        this.processingMessage = data.message;
-                        this.lastProgressAt = Date.now();
-                    }
-                    break;
-
-                case 'step_complete':
-                    if (data.file_id === this.currentFileId) {
-                        console.log(data.message);
-                    }
-                    break;
-
-                case 'complete':
-                    if (data.file_id === this.currentFileId) {
-                        this.stopProcessPolling();
-                        this.processingProgress = 1.0;
-                        this.processingMessage = 'Complete!';
-                        this.isProcessing = false;
-                        this.successMessage = `✅ ${data.tracks.length} tracks saved to your VINYLflowplus/output folder\n\nTracks: ${data.tracks.join(', ')}`;
-
-                        const file = this.uploadedFiles.find(f => f.id === data.file_id);
-                        if (file) {
-                            file.status = 'completed';
-                        }
-                    }
-                    break;
-
-                case 'error':
-                    if (data.file_id === this.currentFileId) {
-                        this.stopProcessPolling();
-                        this.isProcessing = false;
-                        this.processingMessage = `Error: ${data.message}`;
-                        alert(`Processing error: ${data.message}`);
-
-                        const file = this.uploadedFiles.find(f => f.id === data.file_id);
-                        if (file) {
-                            file.status = 'error';
-                        }
-                    }
-                    break;
-            }
+        async removeFile(id) {
+            if (!confirm('Remove file?')) return;
+            try { await fetch(`/api/queue/${id}`, { method: 'DELETE' }); await this.fetchQueue(); } catch (e) {}
         },
 
-        /**
-         * Load configuration from API
-         */
-        async loadConfig() {
-            try {
-                const response = await fetch('/api/config');
-                const data = await response.json();
-                this.config = data;
-            } catch (error) {
-                console.error('Failed to load config:', error);
-            }
-        },
-
-        /**
-         * Check app configuration status
-         */
-        async checkStatus() {
-            try {
-                const response = await fetch('/api/status');
-                const data = await response.json();
-                this.discogsConfigured = data.discogs_configured;
-
-                // Show setup modal if not configured
-                if (!this.discogsConfigured) {
-                    this.setupRequired = true;
-                }
-            } catch (error) {
-                console.error('Failed to check status:', error);
-            }
-        },
-
-        /**
-         * Submit setup with Discogs token
-         */
-        async submitSetup() {
-            this.setupLoading = true;
-            this.setupError = null;
-
-            try {
-                const response = await fetch('/api/setup/discogs-token', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        token: this.setupToken,
-                        user_agent: this.setupUserAgent
-                    })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    const errorMsg = data.detail || (typeof data === 'object' ? JSON.stringify(data) : 'Setup failed');
-                    throw new Error(errorMsg);
-                }
-
-                // Success!
-                this.discogsConfigured = true;
-                this.setupRequired = false;
-                this.setupToken = '';
-
-                alert(`✅ Successfully connected as ${data.username}!`);
-
-            } catch (error) {
-                this.setupError = error.message;
-            } finally {
-                this.setupLoading = false;
-            }
-        },
-
-        /**
-         * Save configuration to API
-         */
-        async saveConfig() {
-            try {
-                const response = await fetch('/api/config', {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(this.config)
-                });
-                const data = await response.json();
-                this.config = data;
-                this.showSettings = false;
-                alert('Settings saved!');
-            } catch (error) {
-                console.error('Failed to save config:', error);
-                alert('Failed to save settings');
-            }
-        },
-
-        /**
-         * Open desktop folder picker for output directory
-         */
-        async chooseOutputFolder() {
-            try {
-                if (!window.pywebview || !window.pywebview.api || !window.pywebview.api.select_output_folder) {
-                    alert('Folder picker is available in the desktop app only.');
-                    return;
-                }
-
-                const selected = await window.pywebview.api.select_output_folder(this.config.output_dir || '');
-                if (selected) {
-                    this.config.output_dir = selected;
-                }
-            } catch (error) {
-                console.error('Failed to choose output folder:', error);
-                alert('Failed to open folder picker');
-            }
-        },
-
-        /**
-         * Check if a file has a supported extension
-         */
-        isSupportedFile(filename) {
-            const ext = filename.toLowerCase().substring(filename.lastIndexOf('.'));
-            return this.supportedExtensions.includes(ext);
-        },
-
-        /**
-         * Handle file drop
-         */
-        async handleDrop(event) {
-            this.dragging = false;
-            const files = Array.from(event.dataTransfer.files).filter(f =>
-                this.isSupportedFile(f.name)
-            );
-            await this.uploadFiles(files);
-        },
-
-        /**
-         * Handle file selection from input
-         */
-        async handleFileSelect(event) {
-            const files = Array.from(event.target.files);
-            await this.uploadFiles(files);
-            event.target.value = '';
-        },
-
-        /**
-         * Upload files to server with progress tracking
-         */
         async uploadFiles(files) {
             if (files.length === 0) return;
-
-            const formData = new FormData();
-            files.forEach(file => formData.append('files', file));
-
-            return new Promise((resolve, reject) => {
-                const xhr = new XMLHttpRequest();
-
-                // Track upload progress
-                xhr.upload.addEventListener('progress', (e) => {
-                    if (e.lengthComputable) {
-                        this.uploadProgress = (e.loaded / e.total) * 100;
-                    }
-                });
-
-                // Handle completion
-                xhr.addEventListener('load', () => {
-                    this.uploadProgress = 100;
-
-                    if (xhr.status >= 200 && xhr.status < 300) {
-                        try {
-                            const data = JSON.parse(xhr.responseText);
-
-                            data.files.forEach(file => {
-                                this.uploadedFiles.push({
-                                    ...file,
-                                    status: 'uploaded'
-                                });
-                            });
-
-                            // Sort files alphabetically by filename
-                            this.uploadedFiles.sort((a, b) => a.filename.localeCompare(b.filename));
-
-                            if (!this.currentFile && data.files.length > 0) {
-                                this.selectFile(data.files[0].id);
-                            }
-
-                            alert(`Uploaded ${data.files.length} file(s)`);
-
-                            // Reset progress after a short delay
-                            setTimeout(() => {
-                                this.uploadProgress = 0;
-                            }, 1000);
-
-                            resolve(data);
-                        } catch (error) {
-                            console.error('Upload failed:', error);
-                            alert('Upload failed: Invalid response');
-                            this.uploadProgress = 0;
-                            reject(error);
-                        }
-                    } else {
-                        console.error('Upload failed:', xhr.statusText);
-                        alert('Upload failed');
-                        this.uploadProgress = 0;
-                        reject(new Error(xhr.statusText));
-                    }
-                });
-
-                // Handle errors
-                xhr.addEventListener('error', () => {
-                    console.error('Upload failed');
-                    alert('Upload failed');
-                    this.uploadProgress = 0;
-                    reject(new Error('Upload failed'));
-                });
-
-                // Send the request
-                xhr.open('POST', '/api/upload');
-                xhr.send(formData);
-            });
+            const fd = new FormData(); files.forEach(f => fd.append('files', f));
+            this.isProcessing = true; this.processingMessage = 'Uploading...';
+            try { await fetch('/api/upload', { method: 'POST', body: fd }); await this.fetchQueue(); } catch (e) {}
+            finally { this.isProcessing = false; this.processingMessage = ''; }
         },
 
-        /**
-         * Merge selected files into one and analyze
-         */
-        async stitchFiles() {
-            if (this.selectedFileIds.length < 2 || this.isProcessing) return;
-
-            this.isProcessing = true;
-            this.processingMessage = 'Merging files...';
-
-            try {
-                const response = await fetch('/api/stitch', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ file_ids: this.selectedFileIds })
-                });
-
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.detail || 'Merge failed');
-
-                // Add the new master file to the queue
-                this.uploadedFiles.push({
-                    ...data,
-                    status: 'uploaded'
-                });
-
-                // Crucial: Clear multi-selection and focus only on the new master
-                this.selectedFileIds = [data.id];
-                this.selectFile(data.id);
-                
-                // Trigger analysis on the new master
-                await this.analyzeFile();
-
-            } catch (error) {
-                console.error('Merge failed:', error);
-                alert('Merge failed: ' + error.message);
-            } finally {
-                this.isProcessing = false;
-            }
-        },
-
-        /**
-         * Select all files in the queue
-         */
-        selectAllFiles() {
-            this.selectedFileIds = this.uploadedFiles.map(f => f.id);
-            if (this.selectedFileIds.length > 0) {
-                this.selectFile(this.selectedFileIds[0]);
-            }
-        },
-
-        /**
-         * Deselect all files in the queue
-         */
-        deselectAllFiles() {
-            this.selectedFileIds = this.currentFileId ? [this.currentFileId] : [];
-        },
-
-        /**
-         * Toggle file selection for multi-file processing
-         */
-        toggleFileSelection(fileId) {
-            if (this.selectedFileIds.includes(fileId)) {
-                if (this.selectedFileIds.length > 1) {
-                    this.selectedFileIds = this.selectedFileIds.filter(id => id !== fileId);
-                    if (this.currentFileId === fileId) {
-                        this.selectFile(this.selectedFileIds[0]);
-                    }
-                }
-            } else {
-                this.selectedFileIds.push(fileId);
-                this.selectFile(fileId);
-            }
-        },
-
-        /**
-         * Select a file from the queue
-         */
-        selectFile(fileId) {
-            // Save current state before switching
-            if (this.currentFileId && this.detectedTracks.length > 0) {
-                const prevFile = this.uploadedFiles.find(f => f.id === this.currentFileId);
-                if (prevFile) {
-                    prevFile.detected_tracks = JSON.parse(JSON.stringify(this.detectedTracks));
-                    prevFile.status = 'analyzed';
-                }
-            }
-
-            this.currentFileId = fileId;
-            this.currentFile = this.uploadedFiles.find(f => f.id === fileId);
-            
-            // Restore tracks if they exist
-            this.detectedTracks = this.currentFile?.detected_tracks ? JSON.parse(JSON.stringify(this.currentFile.detected_tracks)) : [];
-            
-            this.searchResults = [];
-            this.selectedRelease = null;
-            this.successMessage = '';
-            this.processingProgress = 0;
-            this.processingMessage = '';
-
-            this.destroyWaveform();
-
-            if (this.currentFile) {
-                this.searchQuery = this.cleanFilename(this.currentFile.filename);
-                if (this.detectedTracks.length > 0) {
-                    this.initWaveform();
-                }
-            }
-        },
-
-        /**
-         * Analyze all selected files that haven't been analyzed yet
-         */
-        async analyzeAllSelected() {
-            const toAnalyze = this.selectedFileIds.filter(id => {
-                const file = this.uploadedFiles.find(f => f.id === id);
-                return file && file.status !== 'analyzed' && file.status !== 'completed';
-            });
-
-            if (toAnalyze.length === 0) return;
-
-            for (const fileId of toAnalyze) {
-                this.selectFile(fileId);
-                await this.analyzeFile();
-            }
-        },
-
-        /**
-         * Remove file from queue
-         */
-        async removeFile(fileId) {
-            if (!confirm('Remove this file from the queue?')) return;
-
-            try {
-                await fetch(`/api/queue/${fileId}`, { method: 'DELETE' });
-                this.uploadedFiles = this.uploadedFiles.filter(f => f.id !== fileId);
-
-                if (this.currentFileId === fileId) {
-                    this.currentFileId = null;
-                    this.currentFile = null;
-                    this.detectedTracks = [];
-                }
-            } catch (error) {
-                console.error('Failed to remove file:', error);
-            }
-        },
-
-        /**
-         * Analyze file for silence detection
-         */
         async analyzeFile() {
             if (!this.currentFileId) return;
-
-            this.processingMessage = 'Analyzing...';
-
-            try {
-                const response = await fetch('/api/analyze', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ file_id: this.currentFileId })
-                });
-                const data = await response.json();
-
-                if (!response.ok || !data.tracks) {
-                    throw new Error(data.detail || 'Analysis failed');
-                }
-
-                this.detectedTracks = data.tracks.map(track => ({
-                    ...track,
-                    editing: false,
-                    ignored: false
-                }));
-                this.processingMessage = '';
-
-                const file = this.uploadedFiles.find(f => f.id === this.currentFileId);
-                if (file) {
-                    file.status = 'analyzed';
-                    file.detected_tracks = JSON.parse(JSON.stringify(this.detectedTracks));
-                }
-
-                await this.initWaveform();
-
-                if (this.searchQuery) {
-                    await this.searchDiscogs();
-                }
-            } catch (error) {
-                console.error('Analysis failed:', error);
-                alert('Analysis failed: ' + error.message);
-                this.processingMessage = '';
-            }
-        },
-
-        /**
-         * Re-analyze file with current settings
-         */
-        async reanalyzeFile() {
-            if (!this.currentFileId) return;
-
-            if (!confirm('Re-analyze this file? Current track boundaries and search results will be reset.')) {
-                return;
-            }
-
-            this.detectedTracks = [];
-            this.selectedRelease = null;
-            this.searchResults = [];
-            this.currentPlayingTrack = null;
-            this.trackMappingReversed = false;
-            this.customMapping = [];
-
-            if (this.$refs.audioPlayer) {
-                this.$refs.audioPlayer.pause();
-                this.$refs.audioPlayer.currentTime = 0;
-            }
-
-            this.destroyWaveform();
-            await this.analyzeFile();
-        },
-
-        /**
-         * Search Discogs for releases
-         */
-        async searchDiscogs() {
-            if (!this.searchQuery.trim()) {
-                alert('Please enter a search query');
-                return;
-            }
-
-            this.searchLoading = true;
-            this.searchResults = [];
-
-            try {
-                const response = await fetch('/api/search', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        query: this.searchQuery,
-                        max_results: 12
-                    })
-                });
-                const data = await response.json();
-
-                this.searchResults = data.results;
-
-                // Debug: Check URI field
-                console.log('Search results:', this.searchResults.map(r => ({
-                    title: r.title,
-                    uri: r.uri
-                })));
-
-                if (this.searchResults.length === 0) {
-                    alert('No results found. Try a different search query.');
-                }
-            } catch (error) {
-                console.error('Search failed:', error);
-                alert('Search failed: ' + error.message);
-            } finally {
-                this.searchLoading = false;
-            }
-        },
-
-        /**
-         * Select a release from search results
-         */
-        selectRelease(release) {
-            this.selectedRelease = release;
-            this.trackMappingReversed = false;
-            
-            // Re-initialize custom mapping based on all detected tracks (single or multi-file)
-            const tracksToMap = this.selectedFileIds.length > 1 ? this.allDetectedTracks.filter(t => !t.ignored) : this.detectedTracks;
-            this.customMapping = Array.from({ length: tracksToMap.length }, (_, i) => i);
-
-            const activeTrackCount = tracksToMap.length;
-            const discogsTrackCount = release.tracks.length;
-
-            // Check for track count mismatch
-            if (activeTrackCount !== discogsTrackCount) {
-                this.trackCountMismatch = true;
-            } else {
-                this.trackCountMismatch = false;
-            }
-
-            // Redraw regions if waveform exists
-            if (this.waveform && this.waveformRegions) {
-                const draw = () => {
-                    console.log('Drawing regions for', this.detectedTracks.length, 'tracks');
-                    this.addTrackRegions();
-                };
-
-                if (this.waveform.getDuration() > 0) {
-                    draw();
-                } else {
-                    this.waveform.once('ready', draw);
-                }
-            }
-        },
-
-        /**
-         * Offer duration-based splitting when silence detection fails
-         */
-        async offerDurationBasedSplitting() {
-            const activeTrackCount = this.detectedTracks.filter(t => !t.ignored).length;
-            const discogsTrackCount = this.selectedRelease.tracks.length;
-
-            // Check if Discogs has duration information
-            const hasDiscogsDurations = this.selectedRelease.tracks.every(t => t.duration);
-
-            if (!hasDiscogsDurations) {
-                alert(`❌ Duration-Based Splitting Unavailable\n\nDiscogs doesn't have duration information for this release.\n\nSuggestions:\n• Manually adjust track boundaries in the waveform\n• Search for a different release with duration data`);
-                return;
-            }
-
-            const message = `🎯 Try Duration-Based Splitting?\n\nSilence detection found ${activeTrackCount} tracks, but this release has ${discogsTrackCount} tracks.\n\nDuration-based splitting uses Discogs track lengths to divide the album instead of detecting silence.\n\nContinue?`;
-
-            if (confirm(message)) {
-                await this.analyzeFileDurationBased();
-            }
-        },
-
-        /**
-         * Analyze file using duration-based splitting from Discogs track lengths
-         */
-        async analyzeFileDurationBased() {
-            if (!this.currentFileId || !this.selectedRelease) return;
-
-            this.processingMessage = 'Creating duration-based splits...';
-
-            try {
-                // Extract durations from Discogs tracks
-                const durations = this.selectedRelease.tracks.map(t => {
-                    // Parse duration string: "5:24" -> 324 seconds
-                    if (!t.duration) return 0;
-
-                    const parts = t.duration.split(':');
-                    if (parts.length === 2) {
-                        return parseInt(parts[0]) * 60 + parseInt(parts[1]);
-                    } else if (parts.length === 3) {
-                        return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60 + parseInt(parts[2]);
-                    }
-                    return 0;
-                }).filter(d => d > 0);
-
-                if (durations.length !== this.selectedRelease.tracks.length) {
-                    throw new Error('Could not parse all track durations from Discogs');
-                }
-
-                // Call backend API
-                const response = await fetch('/api/analyze-duration-based', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        file_id: this.currentFileId,
-                        discogs_durations: durations
-                    })
-                });
-
-                const data = await response.json();
-
-                if (!response.ok) {
-                    throw new Error(data.detail || 'Duration-based analysis failed');
-                }
-
-                // Update detected tracks (same format as regular analysis)
-                this.detectedTracks = data.tracks.map(track => ({
-                    ...track,
-                    editing: false,
-                    ignored: false,
-                    durationBased: true  // Flag for UI indication
-                }));
-
-                this.processingMessage = '';
-
-                // Update file status
-                const file = this.uploadedFiles.find(f => f.id === this.currentFileId);
-                if (file) {
-                    file.status = 'analyzed (duration-based)';
-                }
-
-                // Reinitialize waveform
-                await this.initWaveform();
-
-                alert(`✅ Duration-Based Splitting Complete\n\nCreated ${this.detectedTracks.length} tracks based on Discogs durations.\n\nReview boundaries in the waveform and adjust if needed before processing.`);
-
-            } catch (error) {
-                console.error('Duration-based analysis failed:', error);
-                alert('❌ Duration-based analysis failed: ' + error.message);
-                this.processingMessage = '';
-            }
-        },
-
-        /**
-         * Reverse track mapping order
-         */
-        reverseMapping() {
-            this.trackMappingReversed = !this.trackMappingReversed;
-
-            if (this.trackMappingReversed) {
-                const numTracks = this.detectedTracks.length;
-                this.customMapping = Array.from({ length: numTracks }, (_, i) => numTracks - 1 - i);
-            } else {
-                this.customMapping = Array.from({ length: this.detectedTracks.length }, (_, i) => i);
-            }
-        },
-
-        /**
-         * Update custom mapping when user changes dropdown
-         */
-        updateCustomMapping() {
-            this.trackMappingReversed = false;
-        },
-
-        /**
-         * Play preview of detected track (30 seconds)
-         */
-        playPreview(trackNumber) {
-            if (!this.currentFileId) return;
-
-            const audioPlayer = this.$refs.audioPlayer;
-            const track = this.detectedTracks.find(t => t.number === trackNumber);
-
-            let previewUrl = `/api/preview/${this.currentFileId}/${trackNumber}`;
-            if (track && track.editing) {
-                previewUrl += `?start=${track.start}&end=${track.end}`;
-            }
-
-            audioPlayer.src = previewUrl;
-            audioPlayer.load();
-            audioPlayer.play().catch(err => {
-                console.error('Playback failed:', err);
-                alert('Failed to play preview');
-            });
-
-            this.currentPlayingTrack = trackNumber;
-        },
-
-        /**
-         * Stop audio preview
-         */
-        stopPreview() {
-            const audioPlayer = this.$refs.audioPlayer;
-            audioPlayer.pause();
-            audioPlayer.currentTime = 0;
-            this.currentPlayingTrack = null;
-        },
-
-        /**
-         * Update track start time
-         */
-        updateTrackStart(idx, value) {
-            const newStart = parseFloat(value);
-            if (isNaN(newStart) || newStart < 0) return;
-
-            this.detectedTracks[idx].start = newStart;
-            const end = this.detectedTracks[idx].end;
-            this.detectedTracks[idx].duration = end - newStart;
-        },
-
-        /**
-         * Update track end time
-         */
-        updateTrackEnd(idx, value) {
-            const newEnd = parseFloat(value);
-            if (isNaN(newEnd) || newEnd < 0) return;
-
-            this.detectedTracks[idx].end = newEnd;
-            const start = this.detectedTracks[idx].start;
-            this.detectedTracks[idx].duration = newEnd - start;
-
-            if (idx + 1 < this.detectedTracks.length) {
-                this.detectedTracks[idx + 1].start = newEnd;
-            }
-        },
-
-        /**
-         * Initialize waveform visualization
-         */
-        async initWaveform() {
-            if (!this.currentFileId || this.waveform) return;
-
             this.waveformLoading = true;
-
-            // Wait a tiny bit for Alpine to show the container if it was hidden
-            await new Promise(resolve => setTimeout(resolve, 50));
-
             try {
-                const container = document.getElementById('waveform');
-                if (!container) {
-                    console.warn('Waveform container not found, skipping init');
-                    this.waveformLoading = false;
-                    return;
-                }
-
-                if (this.waveform) {
-                    this.waveform.destroy();
-                }
-
-                this.waveform = WaveSurfer.create({
-                    container: '#waveform',
-                    waveColor: '#93c5fd',
-                    progressColor: '#3b82f6',
-                    cursorColor: '#1e40af',
-                    height: 'auto',
-                    normalize: true,
-                    backend: 'MediaElement',
-                    barWidth: 2,
-                    barGap: 1
-                });
-
-                if (typeof WaveSurfer === 'undefined') {
-                    throw new Error('WaveSurfer library not loaded. Please refresh the page.');
-                }
-
-                if (typeof WaveSurfer.Regions === 'undefined') {
-                    throw new Error('WaveSurfer Regions plugin not loaded. Please refresh the page.');
-                }
-
-                this.waveformRegions = this.waveform.registerPlugin(WaveSurfer.Regions.create());
-
-                const peaksResponse = await fetch(`/api/waveform-peaks/${this.currentFileId}`);
-                if (!peaksResponse.ok) {
-                    throw new Error('Failed to load waveform peaks');
-                }
-                const peaksData = await peaksResponse.json();
-
-                // Load audio with pre-generated peaks
-                this.waveform.load(`/api/audio/${this.currentFileId}`, peaksData.peaks);
-
-                this.waveform.on('ready', () => {
-                    console.log('Waveform ready');
-
-                    const duration = this.waveform.getDuration();
-                    const container = document.getElementById('waveform');
-                    const containerWidth = container ? container.offsetWidth : 1000;
-
-                    const calculatedZoom = containerWidth / duration;
-                    this.currentZoom = Math.max(1, Math.min(calculatedZoom, 200));
-                    this.waveform.zoom(this.currentZoom);
-
-                    const openWaveformContextMenu = (e) => {
-                        const isSecondaryClick = e.type === 'contextmenu' || e.button === 2 || (e.button === 0 && e.ctrlKey);
-                        if (!isSecondaryClick) {
-                            return;
-                        }
-
-                        e.preventDefault();
-
-                        const waveformWrapper = container.querySelector('[part="wrapper"]') || container.querySelector('div');
-
-                        if (!waveformWrapper) {
-                            console.error('Could not find waveform wrapper');
-                            return;
-                        }
-
-                        const rect = waveformWrapper.getBoundingClientRect();
-                        const x = e.clientX - rect.left + waveformWrapper.scrollLeft;
-                        const totalWidth = waveformWrapper.scrollWidth;
-                        const relativeX = Math.max(0, Math.min(1, x / totalWidth));
-                        const time = relativeX * this.waveform.getDuration();
-
-                        console.log('Split calculation:', {
-                            clickX: e.clientX - rect.left,
-                            scrollLeft: waveformWrapper.scrollLeft,
-                            scrollWidth: totalWidth,
-                            relativeX,
-                            time
-                        });
-
-                        this.contextMenu.x = e.clientX;
-                        this.contextMenu.y = e.clientY;
-                        this.contextMenu.time = time;
-                        this.contextMenu.show = true;
-                    };
-
-                    // Add right-click handler for manual splits
-                    container.addEventListener('contextmenu', openWaveformContextMenu);
-                    container.addEventListener('mousedown', openWaveformContextMenu);
-
-                    setTimeout(() => {
-                        this.addTrackRegions();
-                        this.waveformLoading = false;
-                    }, 100);
-                });
-
-                this.waveformRegions.on('region-updated', (region) => {
-                    this.updateTrackFromRegion(region);
-                });
-
-                // Add right-click handler for region actions
-                this.waveformRegions.on('region-created', (region) => {
-                    const regionElement = region.element;
-                    if (regionElement) {
-                        const openRegionContextMenu = (e) => {
-                            const isSecondaryClick = e.type === 'contextmenu' || e.button === 2 || (e.button === 0 && e.ctrlKey);
-                            if (!isSecondaryClick) {
-                                return;
-                            }
-
-                            if (e.target.classList.contains('wavesurfer-handle')) {
-                                return;
-                            }
-
-                            e.preventDefault();
-                            e.stopPropagation();
-
-                            const trackNumber = parseInt(region.id.replace('track-', ''), 10);
-                            if (!isNaN(trackNumber)) {
-                                const track = this.detectedTracks.find(t => t.number === trackNumber);
-                                const container = document.getElementById('waveform');
-                                const waveformWrapper = container?.querySelector('[part="wrapper"]') || container?.querySelector('div');
-                                let time = 0;
-
-                                if (waveformWrapper) {
-                                    const rect = waveformWrapper.getBoundingClientRect();
-                                    const x = e.clientX - rect.left + waveformWrapper.scrollLeft;
-                                    const totalWidth = waveformWrapper.scrollWidth;
-                                    const relativeX = Math.max(0, Math.min(1, x / totalWidth));
-                                    time = relativeX * this.waveform.getDuration();
-                                }
-
-                                this.regionContextMenu.x = e.clientX;
-                                this.regionContextMenu.y = e.clientY;
-                                this.regionContextMenu.trackNumber = trackNumber;
-                                this.regionContextMenu.isIgnored = track ? track.ignored : false;
-                                this.regionContextMenu.time = time;
-                                this.regionContextMenu.show = true;
-                            }
-                        };
-
-                        regionElement.addEventListener('contextmenu', openRegionContextMenu);
-                        regionElement.addEventListener('mousedown', openRegionContextMenu);
-                    }
-                });
-
-                await this.waveform.load(`/api/audio/${this.currentFileId}`, [peaksData.peaks]);
-
-            } catch (error) {
-                console.error('Waveform initialization failed:', error);
-                alert('Failed to load waveform: ' + error.message);
-                this.waveformLoading = false;
-            }
+                const r = await fetch('/api/analyze', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({file_id: this.currentFileId}) });
+                const d = await r.json(); this.detectedTracks = d.tracks.map(t => ({ ...t, editing: false, ignored: false }));
+                await this.initWaveform(); if (this.searchQuery) await this.searchDiscogs();
+            } catch (e) {} finally { this.waveformLoading = false; }
         },
 
-        /**
-         * Add draggable region markers for each track
-         */
-        addTrackRegions() {
-            if (!this.waveformRegions || !this.waveform) return;
-
-            const totalDuration = this.waveform.getDuration();
-
+        async searchDiscogs() {
+            if (!this.searchQuery.trim()) return;
+            if (this.searchAbortController) this.searchAbortController.abort();
+            this.searchAbortController = new AbortController(); this.searchLoading = true;
             try {
-                this.waveformRegions.clearRegions();
-            } catch (e) {
-                console.error('Error clearing regions:', e);
-            }
-
-            const colors = [
-                'rgba(59, 130, 246, 0.3)',
-                'rgba(16, 185, 129, 0.3)',
-                'rgba(245, 158, 11, 0.3)',
-                'rgba(139, 92, 246, 0.3)',
-                'rgba(236, 72, 153, 0.3)',
-                'rgba(239, 68, 68, 0.3)',
-            ];
-
-            this.detectedTracks.forEach((track, idx) => {
-                try {
-                    const clampedStart = Math.min(track.start, totalDuration);
-                    const clampedEnd = Math.min(track.end, totalDuration);
-
-                    if (clampedEnd <= clampedStart) return;
-
-                    // Get track label (from Discogs if available)
-                    let label = `Track ${track.number}`;
-                    if (this.selectedRelease) {
-                        const activeIdx = this.detectedTracks.filter((t, i) => !t.ignored && i < idx).length;
-                        if (!track.ignored) {
-                            const discogsIdx = this.customMapping[activeIdx] || activeIdx;
-                            const dt = this.selectedRelease.tracks[discogsIdx];
-                            if (dt) label = `${dt.position} - ${dt.title}`;
-                        }
-                    }
-
-                    this.waveformRegions.addRegion({
-                        start: clampedStart,
-                        end: clampedEnd,
-                        color: track.ignored ? 'rgba(138, 138, 134, 0.3)' : colors[idx % colors.length],
-                        drag: true,
-                        resize: true,
-                        id: `track-${track.number}`,
-                        content: label
-                    });
-                } catch (e) {
-                    console.error(`Failed to create region for Track ${track.number}:`, e);
-                }
-            });
+                const r = await fetch('/api/search', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({query: this.searchQuery}), signal: this.searchAbortController.signal });
+                const d = await r.json(); this.searchResults = d.results;
+            } catch (e) {} finally { if (!this.searchAbortController.signal.aborted) this.searchLoading = false; }
         },
 
-        /**
-         * Split track at context menu position
-         */
-        splitAtContextMenu() {
-            this.contextMenu.show = false;
-
-            const time = this.contextMenu.time;
-
-            // Find which track contains this time position (must be strictly inside)
-            const trackIndex = this.detectedTracks.findIndex(t =>
-                time > t.start && time < t.end
-            );
-
-            if (trackIndex === -1) {
-                alert('Cannot split here - position must be inside a track (not at boundaries)');
-                return;
-            }
-
-            const trackToSplit = this.detectedTracks[trackIndex];
-
-            // Create two new tracks from the split
-            const newTrack1 = {
-                number: trackToSplit.number,
-                start: trackToSplit.start,
-                end: time,
-                duration: time - trackToSplit.start,
-                editing: false,
-                ignored: false
-            };
-
-            const newTrack2 = {
-                number: trackToSplit.number + 1,
-                start: time,
-                end: trackToSplit.end,
-                duration: trackToSplit.end - time,
-                editing: false,
-                ignored: false
-            };
-
-            // Renumber tracks after the split
-            for (let i = trackIndex + 1; i < this.detectedTracks.length; i++) {
-                this.detectedTracks[i].number++;
-            }
-
-            // Replace the split track with two new tracks
-            this.detectedTracks.splice(trackIndex, 1, newTrack1, newTrack2);
-
-            // Refresh waveform regions
-            this.addTrackRegions();
-
-            // Clear any selected release (track count changed)
-            if (this.selectedRelease) {
-                this.selectedRelease = null;
-                this.trackCountMismatch = false;
-            }
+        selectRelease(r) { 
+            this.selectedRelease = r; 
+            const tMap = this.allDetectedTracks.filter(t => !t.ignored);
+            this.customMapping = Array.from({ length: tMap.length }, (_, i) => i);
+            if (this.waveform) this.addTrackRegions();
         },
 
-        /**
-         * Delete track from region context menu
-         */
-        deleteTrackFromRegionMenu() {
-            this.regionContextMenu.show = false;
-            
-            const trackNumber = this.regionContextMenu.trackNumber;
-            const trackIndex = this.detectedTracks.findIndex(t => t.number === trackNumber);
-
-            if (trackIndex === -1) {
-                return;
-            }
-
-            if (!confirm(`Delete Track ${trackNumber}? This cannot be undone.`)) {
-                return;
-            }
-
-            // Remove the track
-            this.detectedTracks.splice(trackIndex, 1);
-
-            // Renumber subsequent tracks
-            for (let i = trackIndex; i < this.detectedTracks.length; i++) {
-                this.detectedTracks[i].number = i + 1;
-            }
-
-            // Refresh waveform regions
-            this.addTrackRegions();
-
-            // Clear any selected release (track count changed)
-            if (this.selectedRelease) {
-                this.selectedRelease = null;
-                this.trackCountMismatch = false;
-            }
-        },
-
-        /**
-         * Split track at region context menu position
-         */
-        splitAtRegionContextMenu() {
-            this.regionContextMenu.show = false;
-
-            const time = this.regionContextMenu.time;
-
-            // Find which track contains this time position (must be strictly inside)
-            const trackIndex = this.detectedTracks.findIndex(t =>
-                time > t.start && time < t.end
-            );
-
-            if (trackIndex === -1) {
-                alert('Cannot split here - position must be inside a track (not at boundaries)');
-                return;
-            }
-
-            const trackToSplit = this.detectedTracks[trackIndex];
-
-            // Create two new tracks from the split
-            const newTrack1 = {
-                number: trackToSplit.number,
-                start: trackToSplit.start,
-                end: time,
-                duration: time - trackToSplit.start,
-                editing: false,
-                ignored: false
-            };
-
-            const newTrack2 = {
-                number: trackToSplit.number + 1,
-                start: time,
-                end: trackToSplit.end,
-                duration: trackToSplit.end - time,
-                editing: false,
-                ignored: false
-            };
-
-            // Renumber tracks after the split
-            for (let i = trackIndex + 1; i < this.detectedTracks.length; i++) {
-                this.detectedTracks[i].number++;
-            }
-
-            // Replace the split track with two new tracks
-            this.detectedTracks.splice(trackIndex, 1, newTrack1, newTrack2);
-
-            // Refresh waveform regions
-            this.addTrackRegions();
-
-            // Clear any selected release (track count changed)
-            if (this.selectedRelease) {
-                this.selectedRelease = null;
-                this.trackCountMismatch = false;
-            }
-        },
-
-        /**
-         * Delete a track and renumber remaining tracks
-         */
-        deleteTrack(trackNumber) {
-            const trackIndex = this.detectedTracks.findIndex(t => t.number === trackNumber);
-
-            if (trackIndex === -1) {
-                return;
-            }
-
-            if (!confirm(`Delete Track ${trackNumber}? This cannot be undone.`)) {
-                return;
-            }
-
-            // Remove the track
-            this.detectedTracks.splice(trackIndex, 1);
-
-            // Renumber subsequent tracks
-            for (let i = trackIndex; i < this.detectedTracks.length; i++) {
-                this.detectedTracks[i].number = i + 1;
-            }
-
-            // Refresh waveform regions
-            this.addTrackRegions();
-
-            // Clear any selected release (track count changed)
-            if (this.selectedRelease) {
-                this.selectedRelease = null;
-                this.trackCountMismatch = false;
-            }
-        },
-
-        /**
-         * Get count of non-ignored tracks
-         */
-        get activeTrackCount() {
-            return this.detectedTracks.filter(t => !t.ignored).length;
-        },
-
-        /**
-         * Toggle track ignored status and update region color
-         */
-        toggleTrackIgnored(track) {
-            track.ignored = !track.ignored;
-
-            if (this.waveformRegions) {
-                const region = this.waveformRegions.getRegions().find(r => r.id === `track-${track.number}`);
-                if (region) {
-                    const newColor = track.ignored
-                        ? 'rgba(239, 68, 68, 0.2)'
-                        : this.getTrackColor(track.number - 1);
-                    region.setOptions({ color: newColor });
-                }
-            }
-        },
-
-        /**
-         * Get color for track by index
-         */
-        getTrackColor(idx) {
-            const colors = [
-                'rgba(59, 130, 246, 0.3)',
-                'rgba(16, 185, 129, 0.3)',
-                'rgba(245, 158, 11, 0.3)',
-                'rgba(139, 92, 246, 0.3)',
-                'rgba(236, 72, 153, 0.3)',
-                'rgba(239, 68, 68, 0.3)',
-            ];
-            return colors[idx % colors.length];
-        },
-
-        /**
-         * Update track data when region is dragged/resized
-         */
-        updateTrackFromRegion(region) {
-            const trackNumber = parseInt(region.id.replace('track-', ''));
-            const track = this.detectedTracks.find(t => t.number === trackNumber);
-
-            if (track) {
-                track.start = region.start;
-                track.end = region.end;
-                track.duration = region.end - region.start;
-                track.editing = true;
-
-                const idx = this.detectedTracks.findIndex(t => t.number === trackNumber);
-                if (idx >= 0 && idx + 1 < this.detectedTracks.length) {
-                    this.detectedTracks[idx + 1].start = region.end;
-
-                    const nextRegion = this.waveformRegions.getRegions().find(r => r.id === `track-${trackNumber + 1}`);
-                    if (nextRegion) {
-                        nextRegion.setOptions({ start: region.end });
-                    }
-                }
-            }
-        },
-
-        playWaveform() {
-            if (this.waveform) this.waveform.play();
-        },
-
-        stopWaveform() {
-            if (this.waveform) this.waveform.pause();
-        },
-
-        zoomIn() {
-            if (this.waveform) {
-                this.currentZoom = Math.min(this.currentZoom * 1.5, 500);
-                this.waveform.zoom(this.currentZoom);
-            }
-        },
-
-        zoomOut() {
-            if (this.waveform) {
-                this.currentZoom = Math.max(this.currentZoom / 1.5, 1);
-                this.waveform.zoom(this.currentZoom);
-            }
-        },
-
-        destroyWaveform() {
-            if (this.waveform) {
-                this.waveform.destroy();
-                this.waveform = null;
-                this.waveformRegions = null;
-            }
-        },
-
-        /**
-         * Process files (handles both single and multi-file processing)
-         */
         async processFiles() {
-            if (this.selectedFileIds.length > 1) {
-                return this.multiProcessFiles();
-            }
+            if (this.selectedFileIds.length === 0 && this.currentFileId) this.selectedFileIds = [this.currentFileId];
+            if (this.selectedFileIds.length === 0) { alert('Select files first'); return; }
+            if (!this.selectedRelease) { alert('Select a release first'); return; }
+            this.lastProcessedIds = [...this.selectedFileIds];
+            if (this.selectedFileIds.length > 1) return this.multiProcessFiles();
             return this.processFile();
         },
 
-        async multiProcessFiles() {
-            if (!this.selectedRelease || this.isProcessing) return;
-
-            // Ensure all selected files have detected tracks in state
-            if (this.currentFile) {
-                this.currentFile.detected_tracks = JSON.parse(JSON.stringify(this.detectedTracks));
-            }
-
-            const activeTracks = this.allDetectedTracks.filter(t => !t.ignored);
-            if (activeTracks.length === 0) {
-                alert('Please select and analyze at least one track.');
-                return;
-            }
-
-            this.isProcessing = true;
-            this.processingProgress = 0.1;
-            this.processingMessage = 'Starting batch processing...';
-
-            const trackMapping = [];
-            const trackBoundariesMap = {};
-
-            this.selectedFileIds.forEach(id => {
-                const file = this.uploadedFiles.find(f => f.id === id);
-                if (file && file.detected_tracks) {
-                    trackBoundariesMap[id] = file.detected_tracks;
-                }
-            });
-
-            activeTracks.forEach((track, idx) => {
-                const mappedIdx = this.customMapping[idx] || 0;
-                const discogsTrack = this.selectedRelease.tracks[mappedIdx];
-                if (discogsTrack) {
-                    trackMapping.push({
-                        source_file_id: track.file_id,
-                        detected: track.number,
-                        discogs: discogsTrack.position
-                    });
-                }
-            });
-
-            try {
-                const response = await fetch('/api/multi-process', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        release_id: this.selectedRelease.id,
-                        track_mapping: trackMapping,
-                        track_boundaries_map: trackBoundariesMap,
-                        output_format: this.outputFormat,
-                        restoration_level: this.restorationLevel
-                    })
-                });
-
-                const data = await response.json();
-                if (!response.ok) throw new Error(data.detail || 'Batch processing failed');
-
-                this.currentJobId = data.job_id;
-                this.startProcessPolling(data.job_id);
-
-                this.selectedFileIds.forEach(id => {
-                    const file = this.uploadedFiles.find(f => f.id === id);
-                    if (file) file.status = 'processing';
-                });
-            } catch (error) {
-                console.error('Multi-process error:', error);
-                this.isProcessing = false;
-                alert('Processing failed: ' + error.message);
-            }
-        },
-
-        /**
-         * Process single file with selected release
-         */
         async processFile() {
-            if (!this.currentFileId || !this.selectedRelease) return;
-
-            const activeTracks = this.detectedTracks.filter(t => !t.ignored);
-
-            if (activeTracks.length === 0) {
-                alert('No tracks selected for processing. Please un-ignore at least one track.');
-                return;
-            }
-
-            const trackMapping = activeTracks.map((track, idx) => {
-                const originalIdx = this.detectedTracks.indexOf(track);
-                const discogsIdx = this.customMapping[originalIdx];
-                const discogsTrack = this.selectedRelease.tracks[discogsIdx];
-                return {
-                    detected: track.number,
-                    discogs: discogsTrack?.position || 'Unknown'
+            this.isProcessing = true; this.processingProgress = 0.02; this.processingMessage = 'Processing...';
+            const active = this.detectedTracks.filter(t => !t.ignored);
+            const mapping = active.map((t, i) => {
+                const discogsTrack = this.selectedRelease.tracks[this.customMapping[this.detectedTracks.indexOf(t)]];
+                return { 
+                    detected: t.number, 
+                    discogs: discogsTrack?.position || '?',
+                    title: discogsTrack?.title || ''
                 };
             });
-
-            const trackBoundaries = activeTracks.map(track => ({
-                number: track.number,
-                start: track.start,
-                end: track.end,
-                duration: track.duration
-            }));
-
+            const bounds = active.map(t => ({ number: t.number, start: t.start, end: t.end, duration: t.duration || (t.end-t.start) }));
             try {
-                this.isProcessing = true;
-                this.processingProgress = 0.1;
-                this.processingMessage = 'Starting...';
-                this.lastProgressAt = Date.now();
+                const res = await fetch('/api/process', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ 
+                    file_id: this.currentFileId, release_id: this.selectedRelease.id, track_mapping: mapping, 
+                    track_boundaries: bounds, output_formats: this.outputFormats, restoration_level: this.restorationLevel 
+                }) });
+                const data = await res.json(); this.startProcessPolling(data.job_id);
+            } catch (e) { this.isProcessing = false; }
+        },
 
-                const response = await fetch('/api/process', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        file_id: this.currentFileId,
-                        release_id: this.selectedRelease.id,
-                        track_mapping: trackMapping,
-                        reversed: this.trackMappingReversed,
-                        track_boundaries: trackBoundaries,
-                        output_format: this.outputFormat,
-                        restoration_level: this.restorationLevel
-                    })
+        async multiProcessFiles() {
+            this.isProcessing = true; this.processingProgress = 0.02; this.processingMessage = 'Processing batch...';
+            const mapping = []; const boundsMap = {};
+            this.selectedFileIds.forEach(id => {
+                const f = this.uploadedFiles.find(x => x.id === id);
+                if (f && f.detected_tracks) boundsMap[id] = f.detected_tracks.map(t => ({ number: t.number, start: t.start, end: t.end, duration: t.duration || (t.end-t.start) }));
+            });
+            this.allDetectedTracks.filter(t => !t.ignored).forEach((t, i) => {
+                const dt = this.selectedRelease.tracks[this.customMapping[i] || 0];
+                if (dt) mapping.push({ 
+                    source_file_id: t.file_id, 
+                    detected: t.number, 
+                    discogs: dt.position,
+                    title: dt.title 
                 });
-
-                const data = await response.json();
-                if (!response.ok || !data.job_id) {
-                    throw new Error(data.detail || 'Failed to start processing');
-                }
-                console.log('Processing started:', data);
-                this.currentJobId = data.job_id;
-                this.startProcessPolling(data.job_id);
-
-                const file = this.uploadedFiles.find(f => f.id === this.currentFileId);
-                if (file) {
-                    file.status = 'processing';
-                }
-            } catch (error) {
-                console.error('Processing failed:', error);
-                this.stopProcessPolling();
-                this.isProcessing = false;
-                this.processingProgress = 0;
-                this.processingMessage = '';
-                alert('Processing failed: ' + error.message);
-            }
+            });
+            try {
+                const res = await fetch('/api/multi-process', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ 
+                    release_id: this.selectedRelease.id, track_mapping: mapping, track_boundaries_map: boundsMap, 
+                    output_formats: this.outputFormats, restoration_level: this.restorationLevel 
+                }) });
+                const data = await res.json(); this.startProcessPolling(data.job_id);
+            } catch (e) { this.isProcessing = false; }
         },
 
         startProcessPolling(jobId) {
-            this.stopProcessPolling();
-
-            this.processPollTimer = setInterval(async () => {
-                if (!this.isProcessing || !jobId) {
-                    this.stopProcessPolling();
-                    return;
-                }
-
+            const timer = setInterval(async () => {
                 try {
-                    const response = await fetch(`/api/process/${jobId}`);
-                    if (!response.ok) {
-                        return;
+                    const r = await fetch(`/api/process/${jobId}`); const j = await r.json();
+                    if (j.status === 'processing') { this.processingProgress = j.progress || 0.1; this.processingMessage = j.message || 'Processing...'; }
+                    else if (j.status === 'complete') { 
+                        clearInterval(timer); this.isProcessing = false; 
+                        this.successMessage = `Successfully processed ${j.tracks.length} files.`; this.fetchQueue(); 
                     }
-
-                    const job = await response.json();
-
-                    if (job.status === 'processing') {
-                        this.processingProgress = Math.max(this.processingProgress, job.progress || 0.1);
-                        this.processingMessage = job.message || 'Processing...';
-                        return;
-                    }
-
-                    if (job.status === 'complete') {
-                        this.stopProcessPolling();
-                        this.processingProgress = 1.0;
-                        this.processingMessage = 'Complete!';
-                        this.isProcessing = false;
-
-                        const tracks = Array.isArray(job.tracks) ? job.tracks : [];
-                        if (tracks.length > 0) {
-                            this.successMessage = `✅ ${tracks.length} tracks saved to your VINYLflowplus/output folder\n\nTracks: ${tracks.join(', ')}`;
-                        } else {
-                            this.successMessage = '✅ Processing complete. Files saved to your VINYLflowplus/output folder.';
-                        }
-
-                        const file = this.uploadedFiles.find(f => f.id === job.file_id);
-                        if (file) {
-                            file.status = 'completed';
-                        }
-                        return;
-                    }
-
-                    if (job.status === 'error') {
-                        this.stopProcessPolling();
-                        this.isProcessing = false;
-                        this.processingMessage = `Error: ${job.error || 'Unknown error'}`;
-
-                        const file = this.uploadedFiles.find(f => f.id === job.file_id);
-                        if (file) {
-                            file.status = 'error';
-                        }
-
-                        alert(`Processing error: ${job.error || 'Unknown error'}`);
-                    }
-                } catch (error) {
-                    console.warn('Process polling failed:', error);
-                }
-            }, 1500);
+                    else if (j.status === 'error') { clearInterval(timer); this.isProcessing = false; alert('Error: ' + j.error); }
+                } catch (e) {}
+            }, 1000);
         },
 
-        stopProcessPolling() {
-            if (this.processPollTimer) {
-                clearInterval(this.processPollTimer);
-                this.processPollTimer = null;
+        stopProcessPolling() { if(this.processPollTimer) clearInterval(this.processPollTimer); this.processPollTimer = null; },
+
+        async resetForNextFile() {
+            const ids = [...this.lastProcessedIds]; this.successMessage = ''; this.isProcessing = false;
+            for (const id of ids) { await fetch(`/api/queue/${id}`, { method: 'DELETE' }).catch(()=>{}); }
+            await this.fetchQueue(); this.lastProcessedIds = [];
+            if (this.uploadedFiles.length > 0) {
+                this.selectFile(this.uploadedFiles[0].id);
+            } else {
+                this.currentFileId = null; 
+                this.currentFile = null; 
+                this.selectedFileIds = []; 
+                this.detectedTracks = [];
+                this.selectedRelease = null;
+                this.searchResults = [];
+                this.destroyWaveform();
             }
-            this.currentJobId = null;
         },
 
-        /**
-         * Reset UI for next file
-         */
-        resetForNextFile() {
-            this.stopProcessPolling();
-            this.successMessage = '';
-            this.isProcessing = false;
-            this.detectedTracks = [];
-            this.searchResults = [];
-            this.selectedRelease = null;
-            this.searchQuery = '';
-            this.processingProgress = 0;
-            this.processingMessage = '';
-            
-            // Clear the queue
-            this.uploadedFiles = [];
-            this.selectedFileIds = [];
-            this.currentFileId = null;
-            this.currentFile = null;
-            this.allFilesAnalyzed = false;
+        async initWaveform() {
+            if (!this.currentFileId || this.waveform) return;
+            this.waveformLoading = true; await new Promise(r => setTimeout(r, 100));
+            try {
+                this.waveform = WaveSurfer.create({ container: '#waveform', waveColor: '#2563eb', progressColor: '#E5A100', cursorColor: '#E5A100', height: 250, normalize: true, backend: 'MediaElement' });
+                this.waveformRegions = this.waveform.registerPlugin(WaveSurfer.Regions.create());
+                const p = await (await fetch(`/api/waveform-peaks/${this.currentFileId}`)).json();
+                this.waveform.load(`/api/audio/${this.currentFileId}`, p.peaks);
+                this.waveform.on('ready', () => { this.waveform.zoom(document.getElementById('waveform').offsetWidth / this.waveform.getDuration()); this.addTrackRegions(); this.waveformLoading = false; });
+            } catch (e) { this.waveformLoading = false; }
         },
 
-        /**
-         * Clean filename for Discogs search
-         */
-        cleanFilename(filename) {
-            // Remove all supported extensions
-            let name = filename.replace(/\.(wav|aiff|aif)$/i, '');
-            name = name.replace(/[-_]+/g, ' ');
-            name = name.replace(/\s+/g, ' ').trim();
-            return name;
+        getTrackColor(i) {
+            const colors = ['rgba(229, 161, 0, 0.8)', 'rgba(59, 130, 246, 0.8)', 'rgba(16, 185, 129, 0.8)', 'rgba(139, 92, 246, 0.8)', 'rgba(236, 72, 153, 0.8)'];
+            return colors[i % colors.length];
         },
 
-        formatSize(bytes) {
-            if (!bytes) return '0 B';
-            const k = 1024;
-            const sizes = ['B', 'KB', 'MB', 'GB'];
-            const i = Math.floor(Math.log(bytes) / Math.log(k));
-            return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+        addTrackRegions() {
+            if(!this.waveformRegions) return; this.waveformRegions.clearRegions();
+            this.detectedTracks.forEach((t, i) => { this.waveformRegions.addRegion({ start: t.start, end: t.end, color: t.ignored ? 'rgba(100, 100, 100, 0.3)' : this.getTrackColor(i).replace('0.8', '0.2'), drag: true, resize: true, id: `track-${t.number}`, content: `T${t.number}` }); });
         },
 
-        formatDuration(seconds) {
-            if (!seconds) return '0:00';
-            const mins = Math.floor(seconds / 60);
-            const secs = Math.floor(seconds % 60);
-            return `${mins}:${secs.toString().padStart(2, '0')}`;
+        jumpToTrack(t) { if(this.waveform) { this.waveform.setTime(t.start); this.waveform.play(); } },
+        playWaveform() { this.waveform?.play(); },
+        stopWaveform() { this.waveform?.pause(); },
+        destroyWaveform() { this.waveform?.destroy(); this.waveform = null; this.waveformRegions = null; },
+
+        async loadConfig() { try { this.config = await (await fetch('/api/config')).json(); } catch(e){} },
+        async loadFormats() { try { this.availableFormats = (await (await fetch('/api/formats')).json()).formats; } catch(e){} },
+        async saveConfig() { await fetch('/api/config', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.config) }); this.showSettings = false; },
+        async chooseOutputFolder() { const r = await fetch('/api/utils/select-folder', { method: 'POST' }); const d = await r.json(); if(d.path) this.config.output_dir = d.path; },
+        async checkStatus() { try { const r = await fetch('/api/status'); const d = await r.json(); this.discogsConfigured = d.discogs_configured; } catch(e){} },
+
+        handleDrop(e) { this.dragging = false; this.uploadFiles(Array.from(e.dataTransfer.files).filter(f => this.isSupportedFile(f.name))); },
+        handleFileSelect(e) { this.uploadFiles(Array.from(e.target.files)); },
+        isSupportedFile(f) { return this.supportedExtensions.includes(f.toLowerCase().substring(f.lastIndexOf('.'))); },
+        
+        selectAllFiles() { this.selectedFileIds = this.uploadedFiles.map(f => f.id); },
+        deselectAllFiles() { this.selectedFileIds = []; },
+        toggleFileSelection(id) { if (this.selectedFileIds.includes(id)) this.selectedFileIds = this.selectedFileIds.filter(x => x !== id); else { this.selectedFileIds.push(id); this.selectFile(id); } },
+
+        get allDetectedTracks() {
+            let tracks = [];
+            this.selectedFileIds.forEach(id => {
+                const file = this.uploadedFiles.find(f => f.id === id);
+                if (file && file.detected_tracks) file.detected_tracks.forEach(t => tracks.push({ ...t, file_id: id, filename: file.filename }));
+            });
+            if (tracks.length === 0 && this.detectedTracks.length > 0) return this.detectedTracks.map(t => ({ ...t, file_id: this.currentFileId, filename: this.currentFile?.filename }));
+            return tracks;
         },
 
-        formatTime(seconds) {
-            return this.formatDuration(seconds);
+        statusClass(s) {
+            if(s==='uploaded') return 'text-blue-400'; if(s==='analyzed') return 'text-purple-400';
+            if(s==='processing') return 'text-brand animate-pulse'; if(s==='completed') return 'text-green-400';
+            return 'text-gray-500';
         },
 
-        statusClass(status) {
-            switch (status) {
-                case 'uploaded': return 'text-blue-600 font-medium';
-                case 'analyzed': return 'text-purple-600 font-medium';
-                case 'processing': return 'text-yellow-600 font-medium';
-                case 'completed': return 'text-green-600 font-medium';
-                case 'error': return 'text-red-600 font-medium';
-                default: return 'text-gray-600';
-            }
-        }
+        connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+            ws.onmessage = (e) => { 
+                if (e.data === 'pong') return; try { const d = JSON.parse(e.data); 
+                if (d.type === 'progress' && this.isProcessing) { this.processingProgress = d.progress; this.processingMessage = d.message; } 
+                else if (d.type === 'complete' && (d.file_id === this.currentFileId || d.file_id === 'multi')) { this.isProcessing = false; this.successMessage = 'Success!'; } } catch (err) {} 
+            };
+            ws.onclose = () => setTimeout(() => this.connectWebSocket(), 3000);
+        },
+
+        cleanFilename(f) { return f.replace(/\.(wav|aiff|aif|flac|mp3)$/i, "").replace(/[-_]+/g, ' ').trim(); },
+        formatSize(b) { if(!b) return '0 B'; const k=1024, s=['B','KB','MB','GB'], i=Math.floor(Math.log(b)/Math.log(k)); return (b/Math.pow(k,i)).toFixed(2)+' '+s[i]; },
+        formatDuration(s) { if(!s) return '0:00'; return Math.floor(s/60)+':'+Math.floor(s%60).toString().padStart(2,'0'); }
     };
 }

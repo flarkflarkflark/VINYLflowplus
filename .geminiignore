@@ -1,0 +1,18 @@
+# Ignore audio data and uploads
+temp_uploads/
+output/
+*.wav
+*.flac
+*.mp3
+*.aiff
+*.aif
+
+# Ignore environment and venv
+.env
+venv/
+.venv/
+__pycache__/
+
+# Ignore config state
+config/queue_state.json
+config/settings.json

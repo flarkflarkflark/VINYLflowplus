@@ -37,10 +37,15 @@ OUTPUT_FORMATS = {
         "codec_args": ["-c:a", "flac", "-sample_fmt", "s32", "-ar", "44100"],
         "label": "FLAC 24-bit",
     },
-    "mp3": {
+    "mp3_320": {
         "extension": ".mp3",
         "codec_args": ["-c:a", "libmp3lame", "-b:a", "320k", "-ar", "44100"],
-        "label": "MP3 (320kbps)",
+        "label": "MP3 320kbps (CBR)",
+    },
+    "mp3_v0": {
+        "extension": ".mp3",
+        "codec_args": ["-c:a", "libmp3lame", "-q:a", "0", "-ar", "44100"],
+        "label": "MP3 V0 (Extreme VBR)",
     },
     "aiff": {
         "extension": ".aiff",
@@ -338,6 +343,9 @@ class AudioProcessor:
 
         # Add codec-specific args
         cmd.extend(format_config["codec_args"])
+
+        # Clean metadata (prevent carrying over old tags that might conflict)
+        cmd.extend(["-map_metadata", "-1"])
 
         # Add FLAC compression level if applicable
         if output_format.startswith("flac"):

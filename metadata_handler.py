@@ -175,52 +175,29 @@ class DiscogsRelease:
     def _parse_tracklist(self, tracklist, debug=False) -> List[DiscogsTrack]:
         """Parse Discogs tracklist to DiscogsTrack objects."""
         tracks = []
-        sequential_tracks = []
 
         for track in tracklist:
             position = getattr(track, "position", "")
             title = self._format_title(getattr(track, "title", "Unknown"))
             duration = getattr(track, "duration", "")
 
-            # Handle vinyl positions (A1, B2, etc.)
-            if position and re.match(r"^[A-Z]\d+", position):
+            # Use Discogs position if available
+            if position:
                 tracks.append(DiscogsTrack(position, title, duration))
-            # Handle repeated letters (A, AA, AAA -> A1, A2, A3 / B, BB, BBB -> B1, B2, B3)
-            elif position and re.match(r"^([A-Z])\1*$", position):
-                letter = position[0]
-                count = len(position)
-                vinyl_pos = f"{letter}{count}"
-                tracks.append(DiscogsTrack(vinyl_pos, title, duration))
-            # Handle sequential numbers (1, 2, 3, 4)
-            elif position and re.match(r"^\d+$", position):
-                sequential_tracks.append((int(position), title, duration))
             # Handle empty position - assume sequential
-            elif not position and title and title.lower() not in ["tracklist", "notes"]:
-                sequential_tracks.append((len(sequential_tracks) + 1, title, duration))
-
-        # Handle sequential tracks (convert numeric positions to vinyl format)
-        if sequential_tracks:
-            sequential_tracks.sort(key=lambda x: x[0])
-
-            total = len(sequential_tracks)
-            half = (total + 1) // 2
-
-            for idx, (num, title, duration) in enumerate(sequential_tracks, 1):
-                if idx <= half:
-                    vinyl_pos = f"A{idx}"
-                else:
-                    vinyl_pos = f"B{idx - half}"
-                tracks.append(DiscogsTrack(vinyl_pos, title, duration))
+            elif title and title.lower() not in ["tracklist", "notes"]:
+                tracks.append(DiscogsTrack(str(len(tracks) + 1), title, duration))
 
         # Sort all tracks by position for proper display
-        if tracks:
-            tracks.sort(
-                key=lambda t: (
-                    t.position[0],
-                    int(t.position[1:]) if t.position[1:].isdigit() else 0,
-                )
-            )
+        def sort_key(t):
+            p = str(t.position)
+            if len(p) >= 2 and p[0].isalpha() and p[1:].isdigit():
+                return (p[0].upper(), int(p[1:]))
+            return (p.upper(), 0)
 
+        if tracks:
+            tracks.sort(key=sort_key)
+        
         return tracks
 
     def display_summary(self) -> str:
@@ -233,6 +210,13 @@ class DiscogsRelease:
 
     def __repr__(self):
         return f"DiscogsRelease({self.artist} - {self.title}, {len(self.tracks)} tracks)"
+
+    def get_full_album_title(self) -> str:
+        """Get album title with label and catalog number appended: Title [Label - CatNo]"""
+        label_info = self.label or "Unknown Label"
+        if self.catno:
+            label_info = f"{label_info} - {self.catno}"
+        return f"{self.title} [{label_info}]"
 
 
 class MetadataHandler:
@@ -429,7 +413,7 @@ class MetadataHandler:
         """
         if output_format == "flac" or output_format == "flac24":
             return self._tag_flac(file_path, track, release, cover_data)
-        elif output_format == "mp3":
+        elif output_format in ["mp3", "mp3_320", "mp3_v0"]:
             return self._tag_mp3(file_path, track, release, cover_data)
         elif output_format == "aiff":
             return self._tag_aiff(file_path, track, release, cover_data)
@@ -444,11 +428,26 @@ class MetadataHandler:
 
     def _find_discogs_track(self, track, release):
         """Find the Discogs track matching a vinyl_number."""
+        if not track.vinyl_number:
+            return None
+            
+        target = str(track.vinyl_number).strip().upper()
         for dt in release.tracks:
-            if dt.position == track.vinyl_number:
+            if str(dt.position).strip().upper() == target:
                 return dt
         print(f"Warning: No Discogs track found for {track.vinyl_number}")
         return None
+
+    def _get_disc_number(self, position: str) -> str:
+        """Determine disc number from vinyl position (A/B=1, C/D=2, etc.)"""
+        if not position or not position[0].isalpha():
+            return "1"
+        
+        letter = position[0].upper()
+        # Map letters to disc numbers: A,B=1; C,D=2; E,F=3; G,H=4
+        order = ord(letter) - ord('A')
+        disc_num = (order // 2) + 1
+        return str(disc_num)
 
     def _tag_flac(
         self,
@@ -459,22 +458,31 @@ class MetadataHandler:
     ) -> bool:
         """Write Vorbis comment tags to FLAC file."""
         try:
+            print(f"DEBUG: Tagging FLAC {file_path} with position {track.vinyl_number}")
             audio = FLAC(file_path)
             
-            discogs_track = self._find_discogs_track(track, release)
-            if not discogs_track:
-                return False
-
-            # Set tags using standard Vorbis comment keys
+            # Always tag what we have, even if find_discogs_track fails
             audio["artist"] = [release.artist]
-            audio["album"] = [release.title]
-            audio["title"] = [discogs_track.title]
-            audio["tracknumber"] = [track.vinyl_number]
+            audio["album"] = [release.get_full_album_title()]
+            audio["tracknumber"] = [str(track.vinyl_number)]
+            audio["discnumber"] = [self._get_disc_number(track.vinyl_number)]
+
+            discogs_track = self._find_discogs_track(track, release)
+            if discogs_track:
+                audio["title"] = [discogs_track.title]
+            elif track.title:
+                audio["title"] = [track.title]
+            else:
+                audio["title"] = ["Unknown Track"]
             
+            # Professional Vinyl Metadata
             if release.year:
                 audio["date"] = [str(release.year)]
             if release.label:
                 audio["label"] = [release.label]
+                audio["publisher"] = [release.label]
+            if release.catno:
+                audio["catalognumber"] = [release.catno]
             if release.genre:
                 audio["genre"] = [release.genre]
 
@@ -508,6 +516,7 @@ class MetadataHandler:
     ) -> bool:
         """Write ID3v2 tags to MP3 file."""
         try:
+            print(f"DEBUG: Tagging MP3 {file_path} with position {track.vinyl_number}")
             audio = MP3(file_path, ID3=ID3)
 
             try:
@@ -515,20 +524,35 @@ class MetadataHandler:
             except Exception:
                 pass  # Tags already exist
 
-            discogs_track = self._find_discogs_track(track, release)
-            if not discogs_track:
-                return False
-
-            audio.tags["TIT2"] = TIT2(encoding=3, text=discogs_track.title)
+            # Core tags
             audio.tags["TPE1"] = TPE1(encoding=3, text=release.artist)
-            audio.tags["TALB"] = TALB(encoding=3, text=release.title)
-            audio.tags["TRCK"] = TRCK(encoding=3, text=track.vinyl_number)
+            audio.tags["TALB"] = TALB(encoding=3, text=release.get_full_album_title())
+            audio.tags["TRCK"] = TRCK(encoding=3, text=str(track.vinyl_number))
+            
+            discogs_track = self._find_discogs_track(track, release)
+            title = "Unknown Track"
+            if discogs_track:
+                title = discogs_track.title
+            elif track.title:
+                title = track.title
+            
+            audio.tags["TIT2"] = TIT2(encoding=3, text=title)
+            
+            # Professional Vinyl Metadata
+            # TPOS = Disc Number (part of set)
+            from mutagen.id3 import TPOS
+            audio.tags["TPOS"] = TPOS(encoding=3, text=self._get_disc_number(track.vinyl_number))
 
             if release.year:
                 audio.tags["TDRC"] = TDRC(encoding=3, text=str(release.year))
 
             if release.label:
                 audio.tags["TPUB"] = TPUB(encoding=3, text=release.label)
+            
+            if release.catno:
+                audio.tags["TXXX:CATALOGNUMBER"] = TXXX(
+                    encoding=3, desc="CATALOGNUMBER", text=release.catno
+                )
 
             if release.genre:
                 from mutagen.id3 import TCON
@@ -554,6 +578,39 @@ class MetadataHandler:
             print(f"Failed to tag {file_path}: {e}")
             return False
 
+    def fix_track_tags_from_filename(self, file_path: Path, output_format: str) -> bool:
+        """
+        Final safety step: Extract track position from filename and force it into the tag.
+        This ensures that even if Discogs mapping failed, the track tag is correct.
+        Filename format is expected to be: 'Position - Artist - Title.ext'
+        """
+        try:
+            filename = file_path.name
+            # Extract first part before the first " - "
+            parts = filename.split(" - ")
+            if len(parts) < 2:
+                return False
+                
+            track_pos = parts[0].strip()
+            print(f"DEBUG: Final safety tag check for {filename} -> position {track_pos}")
+            
+            if output_format.startswith("flac"):
+                audio = FLAC(file_path)
+                audio["tracknumber"] = [str(track_pos)]
+                audio.save()
+            elif output_format in ["mp3", "mp3_320", "mp3_v0"]:
+                audio = MP3(file_path, ID3=ID3)
+                audio.tags["TRCK"] = TRCK(encoding=3, text=str(track_pos))
+                audio.save()
+            elif output_format == "aiff":
+                audio = AIFF(file_path)
+                audio.tags["TRCK"] = TRCK(encoding=3, text=str(track_pos))
+                audio.save()
+            return True
+        except Exception as e:
+            print(f"Safety tagging failed for {file_path}: {e}")
+            return False
+
     def _tag_aiff(
         self,
         file_path: Path,
@@ -563,6 +620,7 @@ class MetadataHandler:
     ) -> bool:
         """Write ID3v2 tags to AIFF file (AIFF uses ID3 tags like MP3)."""
         try:
+            print(f"DEBUG: Tagging AIFF {file_path} with position {track.vinyl_number}")
             audio = AIFF(file_path)
 
             try:
@@ -570,20 +628,35 @@ class MetadataHandler:
             except Exception:
                 pass  # Tags already exist
 
-            discogs_track = self._find_discogs_track(track, release)
-            if not discogs_track:
-                return False
-
-            audio.tags["TIT2"] = TIT2(encoding=3, text=discogs_track.title)
+            # Core tags
             audio.tags["TPE1"] = TPE1(encoding=3, text=release.artist)
-            audio.tags["TALB"] = TALB(encoding=3, text=release.title)
-            audio.tags["TRCK"] = TRCK(encoding=3, text=track.vinyl_number)
+            audio.tags["TALB"] = TALB(encoding=3, text=release.get_full_album_title())
+            audio.tags["TRCK"] = TRCK(encoding=3, text=str(track.vinyl_number))
+            
+            discogs_track = self._find_discogs_track(track, release)
+            title = "Unknown Track"
+            if discogs_track:
+                title = discogs_track.title
+            elif track.title:
+                title = track.title
+                
+            audio.tags["TIT2"] = TIT2(encoding=3, text=title)
+            
+            # Professional Vinyl Metadata
+            # TPOS = Disc Number (part of set)
+            from mutagen.id3 import TPOS
+            audio.tags["TPOS"] = TPOS(encoding=3, text=self._get_disc_number(track.vinyl_number))
 
             if release.year:
                 audio.tags["TDRC"] = TDRC(encoding=3, text=str(release.year))
 
             if release.label:
                 audio.tags["TPUB"] = TPUB(encoding=3, text=release.label)
+            
+            if release.catno:
+                audio.tags["TXXX:CATALOGNUMBER"] = TXXX(
+                    encoding=3, desc="CATALOGNUMBER", text=release.catno
+                )
 
             if release.genre:
                 from mutagen.id3 import TCON
@@ -646,8 +719,10 @@ class MetadataHandler:
         fmt_tag = "FLAC 16 VINYL"
         if output_format == "flac24":
             fmt_tag = "FLAC 24 VINYL"
-        elif output_format == "mp3":
+        elif output_format == "mp3_320":
             fmt_tag = "MP3 320 VINYL"
+        elif output_format == "mp3_v0":
+            fmt_tag = "MP3 V0 VINYL"
         elif output_format == "aiff":
             fmt_tag = "AIFF VINYL"
             
@@ -675,10 +750,12 @@ class MetadataHandler:
         discogs_track = self._find_discogs_track(track, release)
         artist = self.sanitize_filename(release.artist)
         
-        if not discogs_track:
-            return f"{track.vinyl_number} - {artist} - Unknown{ext}"
-
-        title = self.sanitize_filename(discogs_track.title)
+        title = "Unknown"
+        if discogs_track:
+            title = self.sanitize_filename(discogs_track.title)
+        elif track.title:
+            title = self.sanitize_filename(track.title)
+            
         return f"{track.vinyl_number} - {artist} - {title}{ext}"
 
 

@@ -3,608 +3,361 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VINYLflowplus</title>
+    <title>VINYLflowplus v1.1.2</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script src="https://unpkg.com/wavesurfer.js@7.8.10/dist/wavesurfer.min.js"></script>
     <script src="https://unpkg.com/wavesurfer.js@7.8.10/dist/plugins/regions.min.js"></script>
     <style>
         [x-cloak] { display: none !important; }
-
-        /* Typography */
         @font-face {
             font-family: 'Mirano Extended';
             src: url('/static/fonts/MiranoExtendedFreebie-Light.ttf') format('truetype');
-            font-weight: 300;
-            font-style: normal;
-            font-display: swap;
+            font-weight: 400; font-style: normal; font-display: swap;
+        }
+        
+        body { 
+            font-family: 'Mirano Extended', sans-serif; 
+            transition: background-color 0.3s, color 0.3s;
+            font-size: 15px; /* Groter basisfont */
         }
 
-        @font-face {
-            font-family: 'Mirano Extended';
-            src: url('/static/fonts/MiranoExtendedFreebie-LightItalic.ttf') format('truetype');
-            font-weight: 300;
-            font-style: italic;
-            font-display: swap;
+        .btn-primary { background-color: #E5A100; color: black; font-weight: 900; }
+        .btn-primary:hover { background-color: #C48800; }
+        .text-brand { color: #E5A100; }
+        .bg-brand { background-color: #E5A100 !important; }
+        .bg-brand-dark { background-color: #C48800 !important; }
+        
+        /* Dark Mode Styles */
+        .dark .bg-page { background-color: #020617 !important; }
+        .dark .bg-card { background-color: #0F172A !important; border-color: #1E293B !important; }
+        .dark .text-primary { color: #FFFFFF !important; }
+        .dark .text-secondary { color: #CBD5E1 !important; }
+        .dark .bg-header { background-color: #000000 !important; border-bottom: 1px solid #1E293B !important; }
+        
+        /* Light Mode Styles */
+        body:not(.dark) .bg-page { background-color: #F8FAFC !important; }
+        body:not(.dark) .bg-card { background-color: #FFFFFF !important; border-color: #E2E8F0 !important; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05) !important; }
+        body:not(.dark) .text-primary { color: #020617 !important; }
+        body:not(.dark) .text-secondary { color: #1E293B !important; }
+        body:not(.dark) .bg-header { background-color: #FFFFFF !important; border-bottom: 1px solid #E2E8F0 !important; }
+        
+        /* Waveform responsive backgrounds */
+        #waveform { transition: background-color 0.3s; }
+        
+        /* Hotcues visibility */
+        .hotcue-btn {
+            background-color: #E5A100 !important;
+            color: #000000 !important;
+            border: none !important;
+            font-weight: 900 !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
 
-        @font-face {
-            font-family: 'Mirano Extended';
-            src: url('/static/fonts/MiranoExtendedFreebie-Light.ttf') format('truetype');
-            font-weight: 400;
-            font-style: normal;
-            font-display: swap;
+        /* Light Mode */
+        body:not(.dark) { background-color: #F1F5F9; color: #020617; }
+        body:not(.dark) .bg-page { background-color: #F1F5F9; }
+        body:not(.dark) .bg-card { background-color: #FFFFFF; border-color: #E2E8F0; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); }
+        body:not(.dark) .text-primary { color: #020617; }
+        body:not(.dark) .text-secondary { color: #1E293B; }
+        body:not(.dark) .bg-header { background-color: #FFFFFF; border-bottom: 1px solid #E2E8F0; }
+        body:not(.dark) .bg-header h1 { color: #C48800; }
+        
+        /* Sidebar & Upload Zone Overrides */
+        body:not(.dark) aside div.bg-card, 
+        body:not(.dark) .file-upload-zone { 
+            background-color: #FFFFFF !important; 
+            color: #020617 !important;
+            border-color: #E2E8F0 !important;
+        }
+        
+        .dark aside div.bg-card, 
+        .dark .file-upload-zone { 
+            background-color: #0F172A !important; 
+            color: #F1F5F9 !important;
+            border-color: #1E293B !important;
         }
 
-        @font-face {
-            font-family: 'Mirano Extended';
-            src: url('/static/fonts/MiranoExtendedFreebie-Light.ttf') format('truetype');
-            font-weight: 600;
-            font-style: normal;
-            font-display: swap;
-        }
+        .dark .queue-item { background-color: #1E293B !important; color: #F1F5F9; }
+        .dark .queue-item.selected { background-color: #334155 !important; border-left: 4px solid #E5A100; }
+        
+        body:not(.dark) .queue-item { background-color: #F8FAFC !important; color: #020617; }
+        body:not(.dark) .queue-item.selected { background-color: #FFFFFF !important; border-left: 4px solid #E5A100; }
 
-        body {
-            font-family: 'Mirano Extended', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        }
+        /* Settings modal Fixes */
+        .dark .settings-input { background-color: #020617 !important; color: #FFFFFF !important; border-color: #1E293B !important; }
+        body:not(.dark) .settings-input { background-color: #FFFFFF !important; color: #000000 !important; border-color: #CBD5E1 !important; }
+        .dark .settings-btn-secondary { background-color: #334155 !important; color: #F1F5F9 !important; }
+        body:not(.dark) .settings-btn-secondary { background-color: #F1F5F9 !important; color: #0F172A !important; border: 1px solid #CBD5E1; }
 
-        /* Custom Color Palette */
-        .btn-primary {
-            background-color: #E5A100;
-            color: white;
-            font-weight: 600;
+        /* Track Mapping Select Fix */
+        body:not(.dark) .track-mapping-select {
+            background-color: #F8FAFC !important;
+            color: #0F172A !important;
+            border: 1px solid #CBD5E1 !important;
+            padding: 10px !important;
         }
-
-        .btn-primary:hover {
-            background-color: #C48800;
+        .dark .track-mapping-select {
+            background-color: #000000 !important;
+            color: #F1F5F9 !important;
+            border: 1px solid #334155 !important;
+            padding: 10px !important;
         }
-
-        .btn-primary:disabled {
-            background-color: #8A8A86;
-            cursor: not-allowed;
-            opacity: 0.5;
-        }
-
-        .btn-danger {
-            background-color: #D94032;
-            color: white;
-        }
-
-        .btn-danger:hover {
-            background-color: #B02A1E;
-        }
-
-        .text-primary {
-            color: #1E1E1E;
-        }
-
-        .text-secondary {
-            color: #3D3D3D;
-        }
-
-        .text-muted {
-            color: #8A8A86;
-        }
-
-        .bg-page {
-            background-color: #F0EFEB;
-        }
-
-        .bg-card {
-            background-color: #FAF9F6;
-        }
-
-        .bg-header {
-            background-color: #121212;
-        }
-
-        .border-primary {
-            border-color: #E5A100;
-        }
-
-        .focus-primary:focus {
-            outline: none;
-            border-color: #E5A100;
-            box-shadow: 0 0 0 3px rgba(229, 161, 0, 0.1);
-        }
-
-        /* File Upload Zone */
-        .file-upload-zone {
-            border: 2px dashed #8A8A86;
-            transition: all 0.3s;
-        }
-
-        .file-upload-zone.dragging {
-            border-color: #E5A100;
-            background-color: rgba(229, 161, 0, 0.05);
-        }
-
-        /* Waveform */
-        .waveform-container {
-            background: #FAF9F6;
-            border-radius: 8px;
-            padding: 16px;
-        }
-
-        /* Base waveform height (mobile-first) */
-        #waveform {
-            min-height: 200px;
-        }
-
-        /* Larger waveform on desktop screens */
-        @media (min-width: 768px) {
-            #waveform {
-                min-height: 350px;
-            }
-        }
-
-        .track-marker {
-            position: absolute;
-            top: 0;
-            bottom: 0;
-            width: 2px;
-            background: #D94032;
-            opacity: 0.7;
-        }
-
-        /* Album Cards */
-        .album-card {
-            cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
-        .album-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
-        }
-
-        .album-card.selected {
-            border: 3px solid #E5A100;
-        }
-
-        /* Queue Items */
-        .queue-item {
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .queue-item:hover {
-            background-color: #F0EFEB;
-        }
-
-        .queue-item.selected {
-            border-left: 4px solid #E5A100;
-            background-color: #FAF9F6;
-        }
-
-        /* Progress Bar */
-        .progress-bar {
-            transition: width 0.3s ease;
-        }
-
-        .progress-bar-primary {
-            background-color: #E5A100;
-        }
-
-        /* Loading Spinner */
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
+        
         .spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(229, 161, 0, 0.3);
-            border-top-color: #E5A100;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            display: inline-block; width: 20px; height: 20px;
+            border: 3px solid rgba(229, 161, 0, 0.3); border-top-color: #E5A100;
+            border-radius: 50%; animation: spin 0.8s linear infinite;
         }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .file-upload-zone.dragging { border-color: #E5A100; background-color: rgba(229, 161, 0, 0.05); }
     </style>
 </head>
-<body class="bg-page">
-    <div x-data="vinylApp()" x-init="init()" class="min-h-screen">
+<body :class="darkMode ? 'dark' : ''" class="transition-colors duration-300">
+    <div x-data="vinylApp()" x-init="init()" class="min-h-screen flex flex-col transition-colors duration-300" :class="darkMode ? 'bg-slate-950' : 'bg-slate-50'">
         <!-- Header -->
-        <header class="bg-header shadow-sm">
-            <div class="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-                <div class="flex justify-between items-center">
-                    <h1 class="text-3xl font-bold tracking-tight" style="color: #E5A100;">
-                        VINYLflowplus
-                    </h1>
-                    <button @click="showSettings = !showSettings" class="px-4 py-2 bg-white bg-opacity-10 hover:bg-opacity-20 text-white rounded-lg transition">
-                        ⚙️ Settings
+        <header class="shadow-2xl p-4 transition-colors duration-300" :class="darkMode ? 'bg-black border-b border-gray-800' : 'bg-white border-b border-gray-200'">
+            <div class="max-w-7xl mx-auto flex justify-between items-center">
+                <h1 class="text-3xl font-black tracking-tighter text-brand">VINYLflowplus</h1>
+                <div class="flex items-center gap-4">
+                    <button @click="toggleDarkMode()" class="p-2 rounded-lg bg-white dark:bg-slate-800 border border-gray-200 dark:border-transparent hover:bg-slate-50 dark:hover:bg-slate-700 transition text-slate-900 dark:text-slate-100 shadow-sm">
+                        <span x-show="!darkMode">🌙</span><span x-show="darkMode">☀️</span>
                     </button>
+                    <button @click="showSettings = !showSettings" class="px-4 py-2 bg-white dark:bg-slate-800 border border-gray-200 dark:border-transparent hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg text-sm font-black transition text-slate-900 dark:text-slate-100 shadow-sm">⚙️ SETTINGS</button>
                 </div>
             </div>
         </header>
 
-        <!-- Intro Section -->
-        <div class="bg-card border-b" style="border-color: #3D3D3D;">
-            <div class="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8 text-center">
-                <p class="text-secondary text-lg">
-                    Record. Split. Tag. Turn your vinyl into perfectly catalogued digital files in minutes.
-                </p>
-            </div>
-        </div>
-
-        <!-- Setup Modal (First-Run) -->
-        <div x-show="setupRequired" x-cloak class="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
-            <div class="bg-card rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
-                <div class="text-center mb-6">
-                    <h2 class="text-3xl font-bold text-primary mb-2">Welcome to VINYLflowplus</h2>
-                    <p class="text-secondary">Let's get you set up in seconds</p>
+        <div class="max-w-7xl w-full mx-auto grid grid-cols-1 lg:grid-cols-4 gap-8 p-8 flex-1">
+            <!-- Queue -->
+            <aside class="lg:col-span-1 space-y-6">
+                <div @drop.prevent="handleDrop($event)" @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false" @click="$refs.fileInput.click()" 
+                     class="rounded-2xl p-6 text-center cursor-pointer border-2 border-dashed border-gray-600 hover:border-brand transition shadow-lg transition-colors duration-300"
+                     :class="[dragging ? 'border-brand bg-brand/5' : '', darkMode ? 'bg-slate-900 text-white' : 'bg-white text-black']">
+                    <p class="text-xs font-black uppercase tracking-widest text-brand mb-1">📤 Drop Rips Here</p>
+                    <p class="text-[9px] opacity-50">WAV, AIFF, FLAC, MP3</p>
+                    <input type="file" x-ref="fileInput" @change="handleFileSelect($event)" multiple class="hidden">
                 </div>
 
-                <div class="space-y-4">
-                    <!-- Token Input -->
-                    <div>
-                        <label class="block text-sm font-semibold text-secondary mb-2">
-                            Discogs API Token <span class="text-red-500">*</span>
-                        </label>
-                        <input
-                            type="text"
-                            x-model="setupToken"
-                            placeholder="Paste your token here"
-                            class="w-full px-4 py-3 border focus-primary rounded-lg text-sm"
-                            style="border-color: #8A8A86;"
-                            :disabled="setupLoading"
-                            @keyup.enter="submitSetup()"
-                        >
-                        <p class="text-xs text-muted mt-1">
-                            VINYLflowplus needs this free token to search album metadata.
-                        </p>
+                <div class="rounded-2xl p-6 shadow-xl flex-1 flex flex-col min-h-[400px] transition-colors duration-300"
+                     :class="darkMode ? 'bg-slate-900 text-white border border-gray-800' : 'bg-white text-black border border-gray-200'">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-sm font-black uppercase tracking-widest text-brand">Queue (<span x-text="uploadedFiles.length"></span>)</h2>
                     </div>
-
-                    <!-- Error Message -->
-                    <div x-show="setupError" x-cloak class="p-3 rounded-lg bg-red-50 border border-red-200">
-                        <p class="text-sm text-red-800" x-text="setupError"></p>
-                    </div>
-
-                    <!-- Instructions -->
-                    <div class="p-4 rounded-lg" style="background-color: rgba(229, 161, 0, 0.1);">
-                        <p class="text-sm text-secondary mb-2">
-                            <strong>Don't have a token yet?</strong>
-                        </p>
-                        <ol class="text-sm text-secondary space-y-1 list-decimal list-inside">
-                            <li>Go to <a href="https://www.discogs.com/settings/developers" target="_blank" rel="noopener noreferrer" class="font-semibold hover:underline" style="color: #E5A100;">Discogs Settings</a></li>
-                            <li>Click "Generate new token"</li>
-                            <li>Copy and paste it above</li>
-                        </ol>
-                    </div>
-
-                    <!-- Submit Button -->
-                    <button
-                        @click="submitSetup()"
-                        :disabled="!setupToken || setupLoading"
-                        class="w-full px-6 py-3 btn-primary rounded-lg font-semibold text-lg"
-                    >
-                        <span x-show="!setupLoading">Continue</span>
-                        <span x-show="setupLoading" class="flex items-center justify-center gap-2">
-                            <div class="spinner"></div>
-                            Validating...
-                        </span>
-                    </button>
-                </div>
-
-                <p class="text-xs text-muted text-center mt-4">
-                    Your token is stored securely on your machine.
-                </p>
-            </div>
-        </div>
-
-        <!-- Settings Modal -->
-        <div x-show="showSettings" x-cloak class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div class="bg-card rounded-lg p-6 max-w-2xl w-full mx-4 shadow-xl">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold text-primary">Settings</h2>
-                    <button @click="showSettings = false" class="text-secondary hover:text-primary text-2xl">✕</button>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="space-y-4">
-                        <h3 class="font-semibold text-primary border-b pb-2" style="border-color: #8A8A86;">Audio Processing</h3>
-                        <div>
-                            <label class="block text-sm font-medium text-secondary mb-1">Silence Threshold (dB)</label>
-                            <input type="number" x-model="config.silence_threshold" class="w-full px-3 py-2 border focus-primary rounded-md" style="border-color: #8A8A86;">
-                            <p class="text-[10px] text-muted mt-1">Lower = quieter passages needed to split. Try -35 if tracks are merging.</p>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-secondary mb-1">Min Silence Duration (s)</label>
-                            <input type="number" step="0.1" x-model="config.min_silence_duration" class="w-full px-3 py-2 border focus-primary rounded-md" style="border-color: #8A8A86;">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-secondary mb-1">Min Track Length (s)</label>
-                            <input type="number" x-model="config.min_track_length" class="w-full px-3 py-2 border focus-primary rounded-md" style="border-color: #8A8A86;">
-                        </div>
-                    </div>
-
-                    <div class="space-y-4">
-                        <h3 class="font-semibold text-primary border-b pb-2" style="border-color: #8A8A86;">Output</h3>
-                        <div>
-                            <label class="block text-sm font-medium text-secondary mb-1">Output Directory</label>
-                            <div class="flex gap-2">
-                                <input type="text" x-model="config.output_dir" class="flex-1 px-3 py-2 border focus-primary rounded-md" style="border-color: #8A8A86;" placeholder="/Users/you/Music/VINYLflowplus">
-                                <button @click="chooseOutputFolder()" class="px-3 py-2 bg-[#F0EFEB] hover:bg-gray-200 rounded-md text-primary text-sm">Browse</button>
+                    <div class="space-y-2 overflow-y-auto pr-2" style="max-height: 50vh;">
+                        <template x-for="file in uploadedFiles" :key="file.id">
+                            <div @click="selectFile(file.id)" class="queue-item p-3 rounded-xl cursor-pointer transition-all border-2 flex justify-between items-center" :class="currentFileId === file.id ? 'border-brand shadow-lg' : 'border-transparent'">
+                                <div class="min-w-0">
+                                    <p class="text-[10px] font-black truncate" x-text="file.filename"></p>
+                                    <p class="text-[8px] opacity-50 font-bold" x-text="formatSize(file.size) + ' • ' + formatDuration(file.duration)"></p>
+                                    <p class="text-[8px] font-black uppercase mt-1" :class="statusClass(file.status)" x-text="file.status"></p>
+                                </div>
+                                <button @click.stop="removeFile(file.id)" class="text-red-500 hover:text-red-400 p-1 text-xs">✕</button>
                             </div>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-secondary mb-1">FLAC Compression (0-8)</label>
-                            <input type="number" min="0" max="8" x-model="config.flac_compression" class="w-full px-3 py-2 border focus-primary rounded-md" style="border-color: #8A8A86;">
-                        </div>
+                        </template>
                     </div>
                 </div>
+            </aside>
 
-                <div class="mt-8 flex justify-end gap-3">
-                    <button @click="showSettings = false" class="px-6 py-2 rounded-lg text-secondary hover:bg-page transition">Cancel</button>
-                    <button @click="saveConfig()" class="px-6 py-2 btn-primary rounded-lg">Save Settings</button>
-                </div>
-            </div>
-        </div>
-
-        <!-- Main Content -->
-        <div class="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                <!-- Upload Area -->
-                <div class="lg:col-span-1 space-y-6">
-                    <div
-                        @drop.prevent="handleDrop($event)"
-                        @dragover.prevent="dragging = true"
-                        @dragleave.prevent="dragging = false"
-                        @click="$refs.fileInput.click()"
-                        :class="{'dragging': dragging}"
-                        class="file-upload-zone rounded-lg p-6 text-center cursor-pointer bg-card"
-                    >
-                        <p class="text-secondary text-lg">📤 Drag & Drop audio files here</p>
-                        <p class="text-muted text-sm mt-1">WAV, AIFF, FLAC, MP3 supported — or click to browse</p>
-                        <input type="file" x-ref="fileInput" @change="handleFileSelect($event)" accept=".wav,.aiff,.aif,.flac,.mp3" multiple class="hidden">
+            <!-- Main Editor -->
+            <main class="lg:col-span-3 space-y-8">
+                <!-- Analysis Area -->
+                <div x-show="currentFile" x-cloak class="rounded-2xl p-8 shadow-2xl relative overflow-hidden transition-colors duration-300 border"
+                     :class="darkMode ? 'bg-slate-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-black'">
+                    <div class="flex justify-between items-start mb-8 relative z-10">
+                        <div class="max-w-[60%]">
+                            <h2 class="text-2xl font-black tracking-tight mb-1" x-text="currentFile?.filename"></h2>
+                            <p class="text-xs font-black opacity-50 uppercase tracking-widest" x-text="formatSize(currentFile?.size) + ' • ' + formatDuration(currentFile?.duration)"></p>
+                        </div>
+                        <button @click="analyzeFile()" class="btn-primary px-8 py-4 rounded-2xl shadow-xl transform active:scale-95 transition flex items-center gap-3">
+                            <span x-show="!waveformLoading">🔍 ANALYZE TRACKS</span>
+                            <div x-show="waveformLoading" class="spinner border-black"></div>
+                        </button>
                     </div>
 
-                    <!-- Upload Progress Bar -->
-                    <div x-show="uploadProgress > 0 && uploadProgress < 100" class="mt-3">
-                        <div class="w-full bg-page rounded-full h-2 overflow-hidden">
-                            <div class="progress-bar progress-bar-primary h-2 rounded-full" :style="`width: ${uploadProgress}%`"></div>
-                        </div>
-                        <p class="text-xs text-secondary mt-1 text-center">
-                            Uploading... <span x-text="Math.round(uploadProgress)"></span>%
-                        </p>
-                    </div>
-
-                    <!-- Queue -->
-                    <div class="bg-card rounded-lg shadow p-4">
-                        <div class="flex justify-between items-center mb-3">
-                            <h2 class="text-lg font-semibold text-primary">Queue (<span x-text="uploadedFiles.length"></span>)</h2>
-                            <div class="flex gap-2">
-                                <button @click="selectAllFiles()" class="text-[10px] bg-[#F0EFEB] hover:bg-gray-200 px-2 py-1 rounded text-primary font-medium transition">All</button>
-                                <button @click="deselectAllFiles()" class="text-[10px] bg-[#F0EFEB] hover:bg-gray-200 px-2 py-1 rounded text-primary font-medium transition">None</button>
-                            </div>
-                        </div>
-                        <div class="space-y-2 max-h-[600px] overflow-y-auto pr-1">
-                            <template x-for="file in uploadedFiles" :key="file.id">
-                                <div
-                                    @click="selectFile(file.id)"
-                                    class="queue-item p-2 rounded-lg transition border-2"
-                                    :class="{'border-[#E5A100] bg-white': file.id === currentFileId, 'border-transparent': file.id !== currentFileId}"
-                                    style="background-color: #F0EFEB;"
-                                >
-                                    <div class="flex justify-between items-start">
-                                        <div class="flex items-start gap-2 min-w-0 flex-1">
-                                            <input 
-                                                type="checkbox" 
-                                                :checked="selectedFileIds.includes(file.id)" 
-                                                @click.stop="toggleFileSelection(file.id)"
-                                                class="mt-1 w-4 h-4 rounded cursor-pointer"
-                                                style="accent-color: #E5A100;"
-                                            >
-                                            <div class="min-w-0">
-                                                <p class="font-medium text-[11px] truncate text-primary" x-text="file.filename"></p>
-                                                <p class="text-[10px] text-muted" x-text="formatSize(file.size) + ' • ' + formatDuration(file.duration)"></p>
-                                                <p class="text-[10px] mt-1 font-semibold uppercase tracking-wider" :class="statusClass(file.status)" x-text="file.status"></p>
-                                            </div>
-                                        </div>
-                                        <button @click.stop="removeFile(file.id)" class="ml-2 btn-danger hover:opacity-80 px-2 py-1 rounded text-xs">✕</button>
-                                    </div>
-                                    <template x-if="file.id === currentFileId && processingProgress > 0">
-                                        <div class="mt-1">
-                                            <div class="w-full bg-page rounded-full h-1.5">
-                                                <div class="progress-bar progress-bar-primary h-1.5 rounded-full" :style="`width: ${processingProgress * 100}%`"></div>
-                                            </div>
-                                            <p class="text-[10px] text-secondary mt-1" x-text="processingMessage"></p>
-                                        </div>
+                    <div x-show="detectedTracks.length > 0 || waveformLoading" 
+                         class="rounded-2xl overflow-hidden border-2 border-gray-200 dark:border-gray-800 shadow-inner relative transition-colors duration-300"
+                         :class="darkMode ? 'bg-black' : 'bg-slate-50'">
+                        <div class="p-4 border-b border-gray-200 dark:border-gray-800 flex flex-wrap justify-between items-center gap-4 transition-colors duration-300"
+                             :class="darkMode ? 'bg-black/40' : 'bg-slate-100'">
+                            <div class="flex items-center gap-4 flex-1 min-w-0">
+                                <span class="text-[10px] font-black uppercase tracking-widest text-brand shrink-0">Hotcues:</span>
+                                <div class="flex flex-wrap gap-1">
+                                    <template x-for="(t, i) in detectedTracks" :key="t.number">
+                                        <button @click="jumpToTrack(t)" 
+                                                class="px-3 py-1.5 rounded-lg transition shadow-sm text-[10px] font-black"
+                                                :style="`background-color: ${getTrackColor(i)}; color: white; text-shadow: 0 1px 2px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.1);`"
+                                                x-text="'T'+t.number"></button>
                                     </template>
                                 </div>
-                            </template>
-                            <template x-if="uploadedFiles.length === 0">
-                                <p class="text-muted text-center py-4 text-sm italic">No files uploaded</p>
-                            </template>
+                            </div>
+                            <div class="flex gap-2 shrink-0">
+                                <button @click="playWaveform()" class="px-5 py-2 bg-green-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-green-500 transition">▶ Play</button>
+                                <button @click="stopWaveform()" class="px-5 py-2 bg-red-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest shadow-md hover:bg-red-500 transition">■ Stop</button>
+                            </div>
                         </div>
+                        <div id="waveform" class="w-full transition-colors duration-300" :class="darkMode ? 'bg-black' : 'bg-slate-50'"></div>
                     </div>
                 </div>
 
-                <!-- Work Area -->
-                <div class="lg:col-span-2 space-y-6">
-                    <!-- Current Selection Info & Actions -->
-                    <div x-show="currentFile" x-cloak class="bg-card rounded-lg shadow p-6">
-                        <div class="flex justify-between items-start mb-4">
-                            <div>
-                                <h2 class="text-xl font-bold text-primary mb-1" x-text="currentFile?.filename"></h2>
-                                <p class="text-secondary text-sm" x-text="formatSize(currentFile?.size) + ' • ' + formatDuration(currentFile?.duration)"></p>
+                <div x-show="detectedTracks.length > 0 && !selectedRelease" x-cloak class="rounded-2xl p-8 shadow-2xl border-t-8 border-brand transition-colors duration-300 border"
+                     :class="darkMode ? 'bg-slate-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-black'">
+                    <h3 class="text-lg font-black mb-6 uppercase tracking-[0.2em]">Step 2: Search Discogs</h3>
+                    <div class="flex gap-3">
+                        <input type="text" x-model="searchQuery" @keyup.enter="searchDiscogs()" placeholder="Artist or Album title..." class="flex-1 bg-black/20 border-2 dark:border-gray-700 p-4 rounded-xl text-lg outline-none focus:border-brand transition font-bold">
+                        <button @click="searchDiscogs()" class="bg-white text-black px-10 py-4 rounded-xl font-black text-sm uppercase hover:bg-gray-200 transition shadow-lg">Search</button>
+                    </div>
+                    <div x-show="searchResults.length > 0" class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-8">
+                        <template x-for="result in searchResults" :key="result.id">
+                            <div @click="selectRelease(result)" class="bg-black/20 p-4 rounded-2xl border-2 border-transparent hover:border-brand cursor-pointer transition group shadow-md">
+                                <img :src="result.cover_url || '/static/favicon.ico'" class="w-full aspect-square object-cover rounded-lg mb-4 shadow-lg group-hover:scale-105 transition">
+                                <p class="text-[9px] font-black truncate text-brand" x-text="result.artist"></p>
+                                <p class="text-[10px] font-bold opacity-70 truncate" x-text="result.title"></p>
                             </div>
-                            <div class="text-right">
-                                <span class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-widest bg-[#F0EFEB] text-primary border border-gray-300" x-text="currentFile?.status"></span>
+                        </template>
+                    </div>
+                </div>
+
+                <div x-show="selectedRelease" x-cloak class="rounded-2xl p-8 shadow-2xl border-t-8 border-green-500 transition-colors duration-300 border"
+                     :class="darkMode ? 'bg-slate-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-black'">
+                    <div class="flex justify-between items-center mb-8">
+                        <h3 class="text-lg font-black uppercase tracking-widest">Step 3: Track Mapping</h3>
+                        <button @click="selectedRelease = null" class="text-[10px] font-black uppercase opacity-50 hover:opacity-100 transition">← Back</button>
+                    </div>
+
+                    <!-- Output Options Grid -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+                        <!-- Format Selection -->
+                        <div class="bg-black/20 p-6 rounded-2xl border border-gray-800">
+                            <label class="block text-[10px] font-black text-brand uppercase tracking-widest mb-4">Output Formats (Multi-select)</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <template x-for="fmt in availableFormats" :key="fmt.id">
+                                    <button @click="toggleFormat(fmt.id)" 
+                                            class="px-4 py-3 rounded-xl text-[10px] font-black transition border-2 flex items-center justify-center gap-2"
+                                            :class="outputFormats.includes(fmt.id) ? (darkMode ? 'bg-brand-dark text-black border-brand-dark shadow-lg' : 'bg-brand text-black border-brand shadow-lg') : 'border-gray-700 text-muted hover:border-gray-500'"
+                                            x-text="(outputFormats.includes(fmt.id) ? '✓ ' : '') + fmt.label"></button>
+                                </template>
                             </div>
                         </div>
 
-                        <!-- Main Actions -->
-                        <div class="flex flex-wrap gap-3 mt-6">
-                            <button @click="analyzeFile()" class="px-6 py-2 btn-primary rounded-lg font-bold shadow-sm transition hover:scale-[1.02] active:scale-[0.98]">
-                                <span x-show="detectedTracks.length === 0">🔍 Analyze & Detect Tracks</span>
-                                <span x-show="detectedTracks.length > 0">🔄 Re-Analyze</span>
+                        <!-- Restoration Toggle -->
+                        <div class="bg-black/20 p-6 rounded-2xl border border-gray-800 flex flex-col justify-between">
+                            <button @click="restorationLevel = restorationLevel === 1 ? 0 : 1" 
+                                    class="w-full py-4 px-6 rounded-xl text-[10px] font-black transition border-2 flex items-center justify-between"
+                                    :class="restorationLevel === 1 ? (darkMode ? 'bg-brand-dark text-black border-brand-dark shadow-lg' : 'bg-brand text-black border-brand shadow-lg') : 'border-gray-700 text-muted'">
+                                <span>RESTORE & NORMALIZE</span>
+                                <span x-text="restorationLevel === 1 ? '✓ ON' : 'OFF'"></span>
                             </button>
-                            
-                            <template x-if="selectedFileIds.length > 1">
-                                <button @click="stitchFiles()" :disabled="isProcessing" class="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold shadow-sm hover:bg-indigo-700 transition flex items-center gap-2 hover:scale-[1.02] active:scale-[0.98]">
-                                    <span x-show="!isProcessing">🪄 Merge Selected Files</span>
-                                    <span x-show="isProcessing" class="flex items-center gap-2"><div class="spinner border-white"></div> Merging...</span>
-                                </button>
-                            </template>
+                            <p class="text-[9px] text-muted mt-4 leading-relaxed italic">Removes turntable rumble and automatically levels volume for digital playback.</p>
                         </div>
                     </div>
-
-                    <!-- Waveform Editor (Only visible when analyzed) -->
-                    <div x-show="detectedTracks.length > 0 || waveformLoading" x-cloak class="bg-card shadow-lg rounded-lg overflow-hidden border border-gray-200">
-                        <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
-                            <h3 class="font-bold text-primary">Waveform Editor</h3>
-                            <div class="flex gap-2">
-                                <button @click="playWaveform()" :disabled="!waveform" class="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition">▶ Play</button>
-                                <button @click="stopWaveform()" :disabled="!waveform" class="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700 transition">⏹ Stop</button>
-                                <div class="w-px h-6 bg-gray-300 mx-1"></div>
-                                <button @click="zoomIn()" :disabled="!waveform" class="px-3 py-1 bg-gray-700 text-white rounded text-sm hover:bg-gray-800 transition">🔍 +</button>
-                                <button @click="zoomOut()" :disabled="!waveform" class="px-3 py-1 bg-gray-700 text-white rounded text-sm hover:bg-gray-800 transition">🔍 -</button>
-                            </div>
-                        </div>
-                        <div id="waveform" class="w-full bg-white"></div>
-                        <div x-show="waveformLoading" class="text-center text-secondary py-12 text-lg flex flex-col items-center gap-3">
-                            <div class="spinner w-8 h-8"></div>
-                            Loading waveform...
-                        </div>
-                        <div class="p-3 bg-gray-50 border-t text-[10px] text-muted flex justify-between">
-                            <span>💡 Tip: Drag edges to adjust tracks, right-click to add splits</span>
-                            <span x-text="detectedTracks.length + ' tracks detected'"></span>
-                        </div>
-                    </div>
-
-                    <!-- Discogs Search -->
-                    <div x-show="(detectedTracks.length > 0 || (selectedFileIds.length > 1 && checkAllAnalyzed())) && !selectedRelease" x-cloak class="bg-card rounded-lg shadow p-6 border-t-4 border-[#E5A100]">
-                        <h3 class="text-lg font-bold text-primary mb-4 flex items-center gap-2">
-                            <span>🔍 Step 2: Search Discogs</span>
-                        </h3>
-                        <div class="flex gap-2 mb-6">
-                            <input type="text" x-model="searchQuery" @keyup.enter="searchDiscogs()" placeholder="Artist or Album..." class="flex-1 px-4 py-3 border focus-primary rounded-lg shadow-sm" style="border-color: #8A8A86;">
-                            <button @click="searchDiscogs()" class="px-8 py-3 btn-primary rounded-lg font-bold shadow-sm transition active:scale-95">Search</button>
-                        </div>
-
-                        <div x-show="searchLoading" class="flex flex-col items-center justify-center py-12 gap-3 text-secondary">
-                            <div class="spinner w-8 h-8"></div>
-                            Searching Discogs database...
-                        </div>
-
-                        <div x-show="searchResults.length > 0 && !searchLoading" class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                            <template x-for="result in searchResults" :key="result.id">
-                                <div @click="selectRelease(result)" class="album-card bg-white border border-gray-200 rounded-lg p-3 hover:shadow-xl transition-all">
-                                    <img :src="result.cover_url || ''" :alt="result.title" class="w-full aspect-square object-cover rounded shadow-sm mb-3" style="background-color: #F0EFEB;" onerror="this.style.display='none'">
-                                    <p class="font-bold text-xs truncate text-primary" x-text="result.artist"></p>
-                                    <p class="text-[11px] text-secondary truncate mb-1" x-text="result.title"></p>
-                                    <div class="flex justify-between items-end mt-2">
-                                        <span class="text-[10px] text-muted" x-text="result.year"></span>
-                                        <a @click.stop :href="'https://www.discogs.com' + result.uri" target="_blank" class="text-[10px] hover:underline font-bold" style="color: #E5A100;">Discogs ↗</a>
-                                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
+                        <template x-for="(track, idx) in detectedTracks" :key="idx">
+                            <div class="bg-black/20 p-4 rounded-xl border border-gray-800 flex items-center gap-4 shadow-inner">
+                                <div class="flex-1">
+                                    <p class="text-[9px] font-black text-brand uppercase">Track <span x-text="track.number"></span></p>
+                                    <p class="text-[9px] font-bold opacity-50" x-text="formatDuration(track.duration)"></p>
                                 </div>
-                            </template>
-                        </div>
-                    </div>
-
-                    <!-- Track Mapping -->
-                    <div x-show="selectedRelease" x-cloak class="bg-card rounded-lg shadow p-6 border-t-4 border-green-600">
-                        <div class="flex justify-between items-center mb-6">
-                            <h3 class="text-lg font-bold text-primary flex items-center gap-2">
-                                <span>🎚️ Step 3: Track Mapping</span>
-                            </h3>
-                            <div class="flex gap-2">
-                                <button @click="reverseMapping()" class="px-3 py-1 rounded-lg text-[11px] font-bold border border-gray-300 hover:bg-gray-100 transition uppercase">↕ Reverse</button>
-                                <button @click="selectedRelease = null; searchResults = []" class="px-3 py-1 rounded-lg text-[11px] font-bold border border-gray-300 hover:bg-gray-100 transition uppercase">← Back</button>
-                            </div>
-                        </div>
-
-                        <div class="mb-6 p-4 rounded-lg flex items-center gap-4 bg-[#F0EFEB] border border-gray-300">
-                            <img :src="selectedRelease?.cover_url" class="w-16 h-16 rounded shadow-sm object-cover" x-show="selectedRelease?.cover_url">
-                            <div>
-                                <p class="font-bold text-primary text-lg" x-text="selectedRelease?.artist + ' - ' + selectedRelease?.title"></p>
-                                <p class="text-xs text-secondary" x-text="selectedRelease?.year + ' • ' + selectedRelease?.label"></p>
-                            </div>
-                        </div>
-
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                            <div class="bg-[#F0EFEB] p-4 rounded-lg">
-                                <label class="block text-xs font-bold text-secondary uppercase tracking-widest mb-3">Output Format</label>
-                                <div class="flex flex-wrap gap-2">
-                                    <template x-for="fmt in availableFormats" :key="fmt.id">
-                                        <button @click="outputFormat = fmt.id" 
-                                                class="px-4 py-2 rounded-lg text-xs font-bold transition border-2"
-                                                :class="outputFormat === fmt.id ? 'border-[#E5A100] text-primary bg-white' : 'border-gray-300 text-muted grayscale hover:grayscale-0'"
-                                                x-text="fmt.label"></button>
+                                <select x-model="customMapping[idx]" class="track-mapping-select flex-[2] p-2 rounded text-[9px] font-bold outline-none focus:border-brand transition">
+                                    <template x-for="(dt, dtIdx) in selectedRelease?.tracks" :key="dtIdx">
+                                        <option :value="dtIdx" x-text="dt.position + ' - ' + dt.title"></option>
                                     </template>
-                                </div>
+                                </select>
                             </div>
-                            <div class="bg-[#F0EFEB] p-4 rounded-lg">
-                                <button @click="restorationLevel = restorationLevel === 1 ? 0 : 1"
-                                        class="w-full py-2 px-4 rounded-lg text-xs font-bold transition border-2 flex items-center justify-between"
-                                        :class="restorationLevel === 1 ? 'border-[#E5A100] text-primary bg-white' : 'border-gray-300 text-muted grayscale'">
-                                    <span>RESTORE & NORMALIZE</span>
-                                    <span x-text="restorationLevel === 1 ? 'ON' : 'OFF'"></span>
-                                </button>
-                                <p class="text-[9px] text-muted mt-2">Removes turntable rumble and levels volume.</p>
-                            </div>
-                        </div>
+                        </template>
+                    </div>
 
-                        <div class="space-y-2 mb-8">
-                            <div class="grid grid-cols-2 gap-4 text-[10px] font-bold text-muted uppercase tracking-widest pb-2 border-b border-gray-200">
-                                <div>Detected Track</div>
-                                <div>Discogs Track</div>
-                            </div>
-                            <template x-for="(track, idx) in allDetectedTracks.filter(t => !t.ignored)" :key="idx">
-                                <div class="grid grid-cols-2 gap-4 p-3 bg-[#F0EFEB] rounded-lg items-center border border-transparent hover:border-gray-300 transition">
-                                    <div class="min-w-0">
-                                        <p class="font-bold text-primary text-xs">Track <span x-text="track.number"></span></p>
-                                        <p class="text-[10px] text-muted truncate italic" x-text="track.filename"></p>
-                                        <p class="text-[10px] font-semibold text-secondary" x-text="formatDuration(track.duration)"></p>
-                                    </div>
-                                    <select x-model="customMapping[idx]" class="w-full px-3 py-2 bg-white border border-gray-300 rounded-lg text-xs font-medium focus:ring-2 focus:ring-[#E5A100] outline-none">
-                                        <template x-for="(dt, dtIdx) in (selectedRelease?.tracks || [])" :key="dtIdx">
-                                            <option :value="dtIdx" x-text="dt.position + ' - ' + dt.title"></option>
-                                        </template>
-                                    </select>
-                                </div>
-                            </template>
-                        </div>
-
-                        <button @click="processFiles()" :disabled="isProcessing" class="w-full py-4 btn-primary rounded-xl font-black text-xl shadow-lg transition transform hover:scale-[1.01] active:scale-[0.99] flex items-center justify-center gap-3">
+                    <button @click="processFiles()" :disabled="isProcessing" class="w-full btn-primary py-6 rounded-2xl text-2xl font-black shadow-2xl transition relative overflow-hidden active:scale-[0.98]">
+                        <div class="relative z-20 flex flex-col items-center gap-1">
                             <span x-show="!isProcessing">✓ PROCESS & SAVE</span>
-                            <template x-if="isProcessing">
-                                <div class="flex items-center gap-2">
-                                    <div class="spinner border-white"></div>
-                                    <span x-text="processingMessage || 'PROCESSING...'"></span>
-                                </div>
-                            </template>
-                        </button>
-                    </div>
+                            <span x-show="isProcessing" class="flex items-center gap-3">
+                                <div class="spinner border-black w-4 h-4"></div>
+                                <span x-text="processingMessage || 'Processing...'"></span>
+                            </span>
+                            <span x-show="isProcessing && processingProgress > 0.02" class="text-[10px] font-black uppercase tracking-widest" style="text-shadow: 0 1px 2px rgba(0,0,0,0.3);" x-text="Math.round(processingProgress * 100) + '% Complete'"></span>
+                        </div>
+                        <!-- Progress Bar with Shimmer Effect -->
+                        <div x-show="isProcessing" 
+                             class="absolute inset-0 bg-black/30 origin-left transition-all duration-1000 ease-out z-10" 
+                             :style="`width: ${processingProgress * 100}%` shadow-inner">
+                             <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[shimmer_2s_infinite]" style="background-size: 200% 100%;"></div>
+                        </div>
+                    </button>
 
-                    <!-- Success Message -->
-                    <div x-show="successMessage" x-cloak class="rounded-xl p-8 bg-green-50 border-2 border-green-500 shadow-lg text-center animate-bounce-short">
-                        <h3 class="text-2xl font-black text-green-800 mb-3 uppercase tracking-tighter">✓ SUCCESS!</h3>
-                        <p class="text-green-700 font-bold mb-6" x-text="successMessage"></p>
-                        <button @click="resetForNextFile()" class="px-8 py-3 bg-green-600 text-white font-black rounded-lg hover:bg-green-700 transition uppercase shadow-md">
-                            Process Next Record
-                        </button>
+                    <style>
+                        @keyframes shimmer {
+                            0% { background-position: -200% 0; }
+                            100% { background-position: 200% 0; }
+                        }
+                    </style>
+                </div>
+
+                <div x-show="successMessage" x-cloak class="bg-green-100 dark:bg-green-900/30 border-4 border-green-500 rounded-3xl p-16 text-center shadow-2xl animate-bounce-short">
+                    <h2 class="text-5xl font-black text-green-900 dark:text-green-400 mb-6 italic tracking-tighter">✓ SUCCESS!</h2>
+                    <p class="text-xl font-black mb-10 text-green-900 dark:text-green-200" x-text="successMessage"></p>
+                    <button @click="resetForNextFile()" class="bg-green-600 text-white px-16 py-5 rounded-2xl font-black text-2xl hover:bg-green-500 shadow-xl transition transform active:scale-95 uppercase">Process Next</button>
+                </div>
+            </main>
+        </div>
+
+        <footer class="p-8 border-t dark:border-gray-800 text-center opacity-60">
+            <div class="flex justify-center gap-8 text-[10px] font-black uppercase tracking-widest mb-4">
+                <a href="https://flarkflarkflark.github.io/VINYLflowplus/" target="_blank" class="hover:text-brand transition">VF+ Home</a>
+                <a href="https://github.com/flarkflarkflark/VINYLflowplus/issues" target="_blank" class="hover:text-brand transition">Support</a>
+            </div>
+            <p class="text-[9px] font-black uppercase tracking-[0.2em]">© 2026 VINYLflowplus | v1.1.3 STABLE</p>
+        </footer>
+
+        <div x-show="showSettings" x-cloak class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+            <div @click.away="showSettings = false" class="bg-card rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden border dark:border-gray-800">
+                <div class="p-8 border-b dark:border-gray-800 flex justify-between items-center bg-black/5">
+                    <h2 class="text-2xl font-black uppercase tracking-tighter">System Settings</h2>
+                    <button @click="showSettings = false" class="text-3xl opacity-50 hover:opacity-100 transition">✕</button>
+                </div>
+                <div class="p-8 grid grid-cols-1 md:grid-cols-2 gap-10">
+                    <div class="space-y-8">
+                        <h3 class="text-sm font-black text-brand uppercase tracking-widest">📻 Audio Analysis</h3>
+                        <div class="space-y-6">
+                            <div>
+                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase">Silence Threshold (dB)</label>
+                                <input type="number" x-model="config.silence_threshold" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase">Min Silence Duration (s)</label>
+                                <input type="number" step="0.1" x-model="config.min_silence_duration" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg">
+                            </div>
+                        </div>
                     </div>
+                    <div class="space-y-8">
+                        <h3 class="text-sm font-black text-brand uppercase tracking-widest">📁 Export & Output</h3>
+                        <div class="space-y-6">
+                            <div>
+                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase">Output Folder</label>
+                                <div class="flex gap-2 items-center">
+                                    <input type="text" x-model="config.output_dir" class="settings-input flex-1 min-w-0 p-4 rounded-xl font-black border-2 outline-none text-[10px]">
+                                    <button @click="chooseOutputFolder()" class="settings-btn-secondary shrink-0 px-6 py-4 rounded-xl text-[10px] font-black uppercase shadow-md transition active:scale-95">Browse</button>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase">FLAC Compression (0-8)</label>
+                                <input type="number" min="0" max="8" x-model="config.flac_compression" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="p-8 pt-0 flex justify-end gap-6">
+                    <button @click="showSettings = false" class="px-8 py-4 font-black text-xs uppercase opacity-50 hover:opacity-100 transition">Cancel</button>
+                    <button @click="saveConfig()" class="btn-primary px-12 py-4 rounded-2xl font-black text-sm uppercase shadow-xl transition transform hover:scale-105 active:scale-95">Save Changes</button>
                 </div>
             </div>
         </div>
-
-        <!-- Footer -->
-        <footer class="bg-header mt-24 py-12 border-t border-gray-800">
-            <div class="max-w-7xl mx-auto px-4 text-center">
-                <p class="text-muted text-sm mb-4">Built with ❤️ for vinyl enthusiasts</p>
-                <div class="flex justify-center gap-6 text-xs font-bold">
-                    <a href="https://vinylflow.app/" target="_blank" class="text-gray-400 hover:text-[#E5A100]">vinylflow.app</a>
-                    <a href="https://vinylflow.app/contact" target="_blank" class="text-gray-400 hover:text-white">Contact</a>
-                    <a href="https://buymeacoffee.com/flarkflarkflark" target="_blank" class="text-[#E5A100] hover:underline">Support the Project</a>
-                </div>
-                <p class="text-gray-600 text-[10px] mt-8">© 2026 VINYLflowplus</p>
-            </div>
-        </footer>
     </div>
-
-    <script src="/static/app.js?v=2"></script>
+    <script src="/static/app.js?v=19"></script>
 </body>
 </html>
