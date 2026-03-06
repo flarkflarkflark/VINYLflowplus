@@ -17,12 +17,13 @@ permissions:
 jobs:
   build:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: windows-latest
             name: Windows Portable
             asset_name: VINYLflowplus-Windows.zip
-          - os: macos-13
+          - os: macos-latest
             name: macOS App
             asset_name: VINYLflowplus-macOS.zip
           - os: ubuntu-22.04
@@ -97,7 +98,7 @@ jobs:
           Categories=Audio;AudioVideo;
           EOF
           cp assets/VFplus.png AppDir/VINYLflowplus.png
-          wget -c "https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage" -O appimagetool
+          wget -c "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
           chmod +x appimagetool
           ./appimagetool --appimage-extract
           ./squashfs-root/AppRun AppDir VINYLflowplus-Linux.AppImage
