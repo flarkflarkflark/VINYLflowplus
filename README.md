@@ -1,7 +1,7 @@
 # 🎵 VINYLflowplus
 
 > [!NOTE]
-> **VINYLflowplus** is an enhanced fork of the original [VINYLflowplus](https://github.com/olimic1000/vinylflow) by [olimic1000](https://github.com/olimic1000). This version includes additional features, improved naming conventions, and better metadata handling for professional vinyl digitization workflows.
+> **VINYLflowplus** is an enhanced fork of the original [VINYLflow](https://github.com/olimic1000/vinylflow) by [olimic1000](https://github.com/olimic1000). This version includes additional features, improved naming conventions, and better metadata handling for professional vinyl digitization workflows.
 
 **Digitize vinyl 10x faster. Open source.**
 
@@ -368,7 +368,7 @@ Found a bug? Have a feature idea? [Open an issue](https://github.com/flarkflarkf
 
 ## Credits & Acknowledgments
 
-**VINYLflowplus** is a fork of the amazing [VINYLflowplus](https://github.com/olimic1000/vinylflow) project. Special thanks to the original author, **[olimic1000](https://github.com/olimic1000)**, for inventing such a powerful tool for the vinyl community. We are building on that solid foundation to bring even more features to vinyl enthusiasts everywhere.
+**VINYLflowplus** is a fork of the amazing [VINYLflow](https://github.com/olimic1000/vinylflow) project. Special thanks to the original author, **[olimic1000](https://github.com/olimic1000)**, for inventing such a powerful tool for the vinyl community. We are building on that solid foundation to bring even more features to vinyl enthusiasts everywhere.
 
 ---
 
@@ -378,4 +378,4 @@ Found a bug? Have a feature idea? [Open an issue](https://github.com/flarkflarkf
 
 ---
 
-**VINYLflowplus** — Built with ❤️ by DJs, for DJs.\n---\n\n**VINYLflowplus** — An evolution of the great [VINYLflowplus](https://github.com/olimic1000/vinylflow) invention. Built with ❤️ for DJs.
+**VINYLflowplus** — Built with ❤️ by DJs, for DJs...
