@@ -53,6 +53,10 @@ elif sys.platform == 'darwin':
     HIDDEN_IMPORTS.append('webview.platforms.cocoa')
 
 
+import os
+
+ONEFILE = os.environ.get('PYINSTALLER_ONEFILE', 'False').lower() == 'true'
+
 a = Analysis(
     ['desktop_launcher.py'],
     pathex=[],
@@ -68,37 +72,59 @@ a = Analysis(
 )
 pyz = PYZ(a.pure)
 
-exe = EXE(
-    pyz,
-    a.scripts,
-    [],
-    exclude_binaries=True,
-    name='VINYLflowplus',
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
-    upx=True,
-    console=False,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon=WINDOWS_ICON,
-)
-coll = COLLECT(
-    exe,
-    a.binaries,
-    a.datas,
-    strip=False,
-    upx=True,
-    # UPX can corrupt .NET assemblies and third-party executables.
-    # ffmpeg.exe in particular can be mis-flagged by AV when UPX-packed.
-    upx_exclude=['Python.Runtime.dll', 'ffmpeg.exe'],
-    name='VINYLflowplus',
-)
+if ONEFILE:
+    exe = EXE(
+        pyz,
+        a.scripts,
+        a.binaries,
+        a.datas,
+        [],
+        name='VINYLflowplus',
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=True,
+        upx_exclude=['Python.Runtime.dll', 'ffmpeg.exe'],
+        runtime_tmpdir=None,
+        console=False,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+        icon=WINDOWS_ICON,
+    )
+else:
+    exe = EXE(
+        pyz,
+        a.scripts,
+        [],
+        exclude_binaries=True,
+        name='VINYLflowplus',
+        debug=False,
+        bootloader_ignore_signals=False,
+        strip=False,
+        upx=True,
+        console=False,
+        disable_windowed_traceback=False,
+        argv_emulation=False,
+        target_arch=None,
+        codesign_identity=None,
+        entitlements_file=None,
+        icon=WINDOWS_ICON,
+    )
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.datas,
+        strip=False,
+        upx=True,
+        upx_exclude=['Python.Runtime.dll', 'ffmpeg.exe'],
+        name='VINYLflowplus',
+    )
+
 app = BUNDLE(
-    coll,
+    exe if ONEFILE else coll,
     name='VINYLflowplus.app',
     icon='assets/VINYLflowplus.icns',
     bundle_identifier=None,

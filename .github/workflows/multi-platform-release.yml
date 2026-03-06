@@ -22,7 +22,7 @@ jobs:
         include:
           - os: windows-latest
             name: Windows Portable
-            asset_name: VINYLflowplus-Windows.zip
+            asset_name: VINYLflowplus-Windows.exe
           - os: macos-latest
             name: macOS App
             asset_name: VINYLflowplus-macOS.zip
@@ -62,14 +62,16 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build Application with PyInstaller
+      - name: Build Application (One-File)
+        env:
+          PYINSTALLER_ONEFILE: "True"
         run: pyinstaller --clean -y VINYLflowplus.spec
 
-      - name: Package Windows
+      - name: Rename Windows Executable
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          Compress-Archive -Path dist\VINYLflowplus\* -DestinationPath VINYLflowplus-Windows.zip
+          Move-Item dist\VINYLflowplus.exe VINYLflowplus-Windows.exe
 
       - name: Package macOS
         if: runner.os == 'macOS'
