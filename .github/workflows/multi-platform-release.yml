@@ -67,11 +67,20 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install ffmpeg
 
-      - name: Install Python dependencies
+      - name: Install Python dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Install Python dependencies (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
         run: |
           python -m pip install --upgrade pip
           if [ "${{ matrix.skip_gui }}" = "True" ]; then
-            # Install only core dependencies, exclude PyQt
             grep -vE "PyQt" requirements.txt > req_lite.txt
             pip install -r req_lite.txt
           else
@@ -127,3 +136,20 @@ jobs:
         with:
           files: ${{ matrix.asset_name }}
           tag_name: ${{ inputs.tag || github.ref_name }}
+          body: |
+            ### 📦 VINYLflowplus v1.0.1 - Click & Run Edition
+            
+            This release features portable, "all-containing" builds for all major platforms. No installation required.
+            
+            #### 🪟 Windows
+            - **VINYLflowplus-Windows.exe**: A single-file executable. Includes Python, FFmpeg, and a native WebView2 window.
+            
+            #### 🍎 macOS
+            - **VINYLflowplus-macOS.zip**: Contains the `.app` bundle. Optimized for Ventura and later. Includes FFmpeg and uses native Safari engine.
+            
+            #### 🐧 Linux
+            - **VINYLflowplus-Linux.AppImage**: Full desktop experience with built-in Chromium-based window.
+            - **VINYLflowplus-Linux-Lite.AppImage**: ⚡ **Lighter & Faster.** Stripped of GUI ballast (~100MB smaller). Starts the backend and automatically opens the interface in your system's default browser (e.g. Firefox). Recommended for Arch users.
+            
+            ---
+            *Note: FFmpeg is now bundled in all desktop versions. Manual installation is no longer required.*
