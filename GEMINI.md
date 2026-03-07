@@ -21,11 +21,14 @@ Dit bestand bevat de configuratie en aanpassingen die zijn doorgevoerd voor deze
 ### 3. UI & UX
 - **Thema:** Goudgele styling (`#E5A100`) consistent doorgevoerd.
 - **Queue:** Alfabetisch gesorteerd en vergroot naar 600px voor beter overzicht.
+- **Error Handling:** Verbeterde alerts bij analyse- of visualisatiefouten.
 - **Naming Convention:**
   - Mappen: `Artist - Title [Label - CatNo][Year][Format]`
   - Bestanden: `Position - Artist - Title.ext`
 
-### 4. Desktop Integratie
+### 4. Desktop Integratie (Bugfixes v1.0.2+)
+- **Standalone FFmpeg Fix:** Backend gebruikt nu altijd de gebundelde FFmpeg-binary via `_ffmpeg()` helper (lost "Silent Failure" op Windows op).
+- **Backend Logging:** Realtime voortgang en foutmeldingen zichtbaar in de terminal van de launcher.
 - KDE Desktop snelkoppeling met goudgeel icoon (`assets/VFplus.png`).
 - Start in een open Terminal venster voor realtime voortgangscontrole.
 - Automatische poort-vrijgave bij opstarten (killt oude server op 8000).

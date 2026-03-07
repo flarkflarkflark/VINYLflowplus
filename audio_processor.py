@@ -9,8 +9,12 @@ Supports FLAC, MP3, and AIFF output formats.
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 from typing import List, Tuple, Optional
+
+# Constants for Windows subprocess management
+CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 
 def _ffmpeg() -> str:
@@ -125,7 +129,8 @@ class AudioProcessor:
         try:
             cmd = [_ffmpeg(), "-i", str(file_path), "-f", "null", "-"]
             result = subprocess.run(
-                cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=30
+                cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=30,
+                creationflags=CREATE_NO_WINDOW
             )
 
             # Parse duration from ffmpeg output
@@ -170,7 +175,8 @@ class AudioProcessor:
 
         try:
             result = subprocess.run(
-                cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=300
+                cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=300,
+                creationflags=CREATE_NO_WINDOW
             )
 
             # Parse silence periods from stderr
@@ -363,7 +369,8 @@ class AudioProcessor:
 
         try:
             result = subprocess.run(
-                cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=1800
+                cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=1800,
+                creationflags=CREATE_NO_WINDOW
             )
 
             if result.returncode != 0:

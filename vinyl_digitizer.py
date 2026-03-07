@@ -487,6 +487,14 @@ class VinylDigitizer:
         return stats
 
 
+import os
+import sys
+from pathlib import Path
+
+def _ffmpeg() -> str:
+    """Return the ffmpeg executable to use."""
+    return os.environ.get("VINYLFLOW_FFMPEG_PATH") or "ffmpeg"
+
 def check_dependencies():
     """Check that all dependencies are installed."""
     import subprocess
@@ -495,7 +503,7 @@ def check_dependencies():
 
     # Check ffmpeg
     try:
-        result = subprocess.run(["ffmpeg", "-version"], capture_output=True, timeout=5)
+        result = subprocess.run([_ffmpeg(), "-version"], capture_output=True, timeout=5)
         if result.returncode == 0:
             version = result.stdout.decode().split("\n")[0]
             print(f"✓ {version}")

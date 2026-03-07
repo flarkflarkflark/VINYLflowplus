@@ -4,6 +4,7 @@ v1.0.2 - Multi-Format Iron Queue (STABLE)
 """
 
 import os
+import sys
 import uuid
 import copy
 import shutil
@@ -25,13 +26,20 @@ from pydantic import BaseModel
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("VINYLflowplus")
 
+# Constants for Windows subprocess management
+CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
+
 # --- INITIALIZATION ---
 import sys
+import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import Config
 from audio_processor import AudioProcessor, Track, SUPPORTED_INPUT_EXTENSIONS, OUTPUT_FORMATS
 from metadata_handler import MetadataHandler
+
+def _ffmpeg() -> str:
+    return os.environ.get("VINYLFLOW_FFMPEG_PATH") or "ffmpeg"
 
 app = FastAPI(title="VINYLflowplus API", version="1.0.2")
 
@@ -205,6 +213,61 @@ async def remove_from_queue(file_id: str):
     cleanup_session(file_id)
     return {"status": "removed"}
 
+@app.post("/api/merge")
+async def merge_files_api(request: dict):
+    file_ids = request.get("file_ids", [])
+    if not file_ids: raise HTTPException(status_code=400, detail="No files selected")
+    
+    # Create master session
+    master_fid = str(uuid.uuid4())
+    master_dir = UPLOAD_DIR / master_fid
+    master_dir.mkdir(parents=True, exist_ok=True)
+    master_path = master_dir / "VINYLflowplus_merged_master.wav"
+    
+    # Prep inputs
+    inputs = []
+    for fid in file_ids:
+        info = uploaded_files.get(fid)
+        if info: inputs.append(Path(info["path"]))
+    
+    if not inputs: raise HTTPException(status_code=404)
+    
+    try:
+        # Generate 3s silence
+        silence = master_dir / "silence_3s.wav"
+        await asyncio.to_thread(subprocess.run, [_ffmpeg(), "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", "-t", "3", str(silence)], capture_output=True, creationflags=CREATE_NO_WINDOW)
+        
+        # Build concat filter
+        filter_complex = ""
+        cmd = [_ffmpeg(), "-y"]
+        for i, path in enumerate(inputs):
+            cmd.extend(["-i", str(path)])
+            filter_complex += f"[{i}:a][{len(inputs)}:a]" # Audio + Silence
+        
+        cmd.extend(["-i", str(silence)])
+        filter_complex += f"concat=n={len(inputs)*2}:v=0:a=1[outa]"
+        cmd.extend(["-filter_complex", filter_complex, "-map", "[outa]", str(master_path)])
+        
+        await asyncio.to_thread(subprocess.run, cmd, capture_output=True, creationflags=CREATE_NO_WINDOW)
+        if silence.exists(): silence.unlink()
+        
+        # Add to queue
+        duration = audio_processor.get_audio_duration(master_path)
+        new_info = {
+            "id": master_fid,
+            "filename": "VINYLflowplus_merged_master.wav",
+            "path": str(master_path),
+            "size": master_path.stat().st_size,
+            "duration": duration,
+            "status": "uploaded",
+            "detected_tracks": []
+        }
+        uploaded_files[master_fid] = new_info
+        save_queue_state()
+        return {"file_id": master_fid}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/api/analyze")
 async def analyze_file(request: dict):
     fid = request.get("file_id")
@@ -212,7 +275,9 @@ async def analyze_file(request: dict):
     if not info: raise HTTPException(status_code=404)
     await broadcast_message({"type": "progress", "file_id": fid, "progress": 0.1, "message": "Analyzing..."})
     try:
+        logger.info(f"Analyzing file: {info['path']}")
         tracks = audio_processor.detect_silence(Path(info["path"]))
+        logger.info(f"Detected {len(tracks)} tracks")
         info["detected_tracks"] = tracks
         info["status"] = "analyzed"
         save_queue_state()
@@ -359,7 +424,7 @@ async def broadcast_message(message: dict):
 async def preconvert_to_mp3(fid: str, path: Path):
     mp3 = get_session_path(fid, "full.mp3")
     if not mp3.exists():
-        try: await asyncio.to_thread(subprocess.run, ["ffmpeg", "-y", "-i", str(path), "-ac", "2", "-acodec", "libmp3lame", "-b:a", "192k", str(mp3)], capture_output=True)
+        try: await asyncio.to_thread(subprocess.run, [_ffmpeg(), "-y", "-i", str(path), "-ac", "2", "-acodec", "libmp3lame", "-b:a", "192k", str(mp3)], capture_output=True, creationflags=CREATE_NO_WINDOW)
         except: pass
 
 @app.post("/api/utils/select-folder")
@@ -367,7 +432,7 @@ async def select_folder_api():
     import shutil
     cmd = ["kdialog", "--getexistingdirectory", os.path.expanduser("~")] if shutil.which("kdialog") else ["zenity", "--file-selection", "--directory"]
     try:
-        res = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True)
+        res = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, creationflags=CREATE_NO_WINDOW)
         return {"path": res.stdout.strip() or None}
     except: return {"path": None}
 
@@ -396,9 +461,8 @@ async def get_peaks(file_id: str):
     if peaks_cache_path.exists():
         with open(peaks_cache_path, "r") as f: return JSONResponse(content=json.load(f))
     try:
-        cmd = ["ffmpeg", "-i", info["path"], "-map", "0:a:0", "-f", "s16le", "-ac", "1", "-acodec", "pcm_s16le", "-ar", "8000", "-"]
-        result = subprocess.run(cmd, capture_output=True, check=True, timeout=60)
-        import numpy as np
+        cmd = [_ffmpeg(), "-i", info["path"], "-map", "0:a:0", "-f", "s16le", "-ac", "1", "-acodec", "pcm_s16le", "-ar", "8000", "-"]
+        result = subprocess.run(cmd, capture_output=True, check=True, timeout=60, creationflags=CREATE_NO_WINDOW)
         audio_data = np.frombuffer(result.stdout, dtype=np.int16)
         samples_per_peak = max(1, len(audio_data) // 3000)
         peaks = [float(np.max(np.abs(audio_data[i : i + samples_per_peak])) / 32768.0) for i in range(0, len(audio_data), samples_per_peak) if len(audio_data[i : i + samples_per_peak]) > 0]

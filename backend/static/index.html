@@ -157,16 +157,37 @@
                      :class="darkMode ? 'bg-slate-900 text-white border border-gray-800' : 'bg-white text-black border border-gray-200'">
                     <div class="flex justify-between items-center mb-6">
                         <h2 class="text-sm font-black uppercase tracking-widest text-brand">Queue (<span x-text="uploadedFiles.length"></span>)</h2>
+                        <div class="flex gap-2">
+                            <button @click="selectAllFiles()" class="text-[8px] font-black uppercase opacity-50 hover:opacity-100 transition">All</button>
+                            <button @click="deselectAllFiles()" class="text-[8px] font-black uppercase opacity-50 hover:opacity-100 transition">None</button>
+                        </div>
                     </div>
-                    <div class="space-y-2 overflow-y-auto pr-2" style="max-height: 50vh;">
+                    
+                    <!-- Merge Button -->
+                    <div x-show="selectedFileIds.length > 1" x-transition class="mb-4">
+                        <button @click="mergeFiles()" class="w-full bg-brand text-black py-3 rounded-xl font-black text-[10px] uppercase shadow-lg transform active:scale-95 transition flex items-center justify-center gap-2">
+                            <span>🪄 MERGE & ANALYZE</span>
+                            <span class="bg-black/10 px-2 py-0.5 rounded text-[8px]" x-text="selectedFileIds.length"></span>
+                        </button>
+                    </div>
+
+                    <div class="space-y-2 overflow-y-auto pr-2 flex-1" style="max-height: 60vh;">
                         <template x-for="file in uploadedFiles" :key="file.id">
-                            <div @click="selectFile(file.id)" class="queue-item p-3 rounded-xl cursor-pointer transition-all border-2 flex justify-between items-center" :class="currentFileId === file.id ? 'border-brand shadow-lg' : 'border-transparent'">
-                                <div class="min-w-0">
-                                    <p class="text-[10px] font-black truncate" x-text="file.filename"></p>
-                                    <p class="text-[8px] opacity-50 font-bold" x-text="formatSize(file.size) + ' • ' + formatDuration(file.duration)"></p>
-                                    <p class="text-[8px] font-black uppercase mt-1" :class="statusClass(file.status)" x-text="file.status"></p>
+                            <div @click="toggleFileSelection(file.id)" 
+                                 class="queue-item p-3 rounded-xl cursor-pointer transition-all border-2 flex justify-between items-center group relative overflow-hidden" 
+                                 :class="selectedFileIds.includes(file.id) ? 'border-brand shadow-lg bg-brand/5' : (currentFileId === file.id ? 'border-gray-400' : 'border-transparent')">
+                                <div class="min-w-0 flex items-center gap-3">
+                                    <div class="w-4 h-4 rounded border-2 flex items-center justify-center transition-colors"
+                                         :class="selectedFileIds.includes(file.id) ? 'bg-brand border-brand' : 'border-gray-500'">
+                                        <span x-show="selectedFileIds.includes(file.id)" class="text-black text-[10px] font-black">✓</span>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p class="text-[10px] font-black truncate" x-text="file.filename"></p>
+                                        <p class="text-[8px] opacity-50 font-bold" x-text="formatSize(file.size) + ' • ' + formatDuration(file.duration)"></p>
+                                        <p class="text-[8px] font-black uppercase mt-1" :class="statusClass(file.status)" x-text="file.status"></p>
+                                    </div>
                                 </div>
-                                <button @click.stop="removeFile(file.id)" class="text-red-500 hover:text-red-400 p-1 text-xs">✕</button>
+                                <button @click.stop="removeFile(file.id)" class="text-red-500 hover:text-red-400 p-1 text-xs opacity-0 group-hover:opacity-100 transition">✕</button>
                             </div>
                         </template>
                     </div>
@@ -282,20 +303,21 @@
                         </template>
                     </div>
 
-                    <button @click="processFiles()" :disabled="isProcessing" class="w-full btn-primary py-6 rounded-2xl text-2xl font-black shadow-2xl transition relative overflow-hidden active:scale-[0.98]">
-                        <div class="relative z-20 flex flex-col items-center gap-1">
-                            <span x-show="!isProcessing">✓ PROCESS & SAVE</span>
-                            <span x-show="isProcessing" class="flex items-center gap-3">
-                                <div class="spinner border-black w-4 h-4"></div>
-                                <span x-text="processingMessage || 'Processing...'"></span>
-                            </span>
-                            <span x-show="isProcessing && processingProgress > 0.02" class="text-[10px] font-black uppercase tracking-widest" style="text-shadow: 0 1px 2px rgba(0,0,0,0.3);" x-text="Math.round(processingProgress * 100) + '% Complete'"></span>
+                    <button @click="processFiles()" :disabled="isProcessing" class="w-full btn-primary py-8 rounded-3xl text-3xl font-black shadow-2xl transition relative overflow-hidden active:scale-[0.98]">
+                        <div class="relative z-20 flex flex-col items-center gap-2">
+                            <span x-show="!isProcessing">💿 PROCESS & SAVE</span>
+                            <div x-show="isProcessing" class="flex flex-col items-center gap-4">
+                                <div class="flex items-center gap-4">
+                                    <div class="spinner border-black w-6 h-6"></div>
+                                    <span class="animate-pulse" x-text="processingMessage || 'Processing...'"></span>
+                                </div>
+                                <span class="text-[12px] font-black uppercase tracking-[0.3em] opacity-80">Please keep this window open</span>
+                            </div>
                         </div>
-                        <!-- Progress Bar with Shimmer Effect -->
+                        <!-- Dynamic Processing Background -->
                         <div x-show="isProcessing" 
-                             class="absolute inset-0 bg-black/30 origin-left transition-all duration-1000 ease-out z-10" 
-                             :style="`width: ${processingProgress * 100}%` shadow-inner">
-                             <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-[shimmer_2s_infinite]" style="background-size: 200% 100%;"></div>
+                             class="absolute inset-0 bg-brand-dark/20 z-10 animate-pulse transition-opacity duration-1000">
+                             <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-[shimmer_1.5s_infinite]" style="background-size: 200% 100%;"></div>
                         </div>
                     </button>
 

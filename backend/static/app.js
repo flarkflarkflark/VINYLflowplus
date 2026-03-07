@@ -75,6 +75,24 @@ function vinylApp() {
             finally { this.isProcessing = false; this.processingMessage = ''; }
         },
 
+        async mergeFiles() {
+            if (this.selectedFileIds.length < 2) return;
+            this.isProcessing = true; this.processingMessage = 'Merging tracks...';
+            try {
+                const r = await fetch('/api/merge', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({file_ids: this.selectedFileIds}) });
+                const d = await r.json();
+                await this.fetchQueue();
+                this.selectedFileIds = [];
+                this.selectFile(d.file_id);
+                await this.analyzeFile();
+            } catch (e) {
+                alert('Merge failed: ' + e);
+            } finally {
+                this.isProcessing = false;
+                this.processingMessage = '';
+            }
+        },
+
         async analyzeFile() {
             if (!this.currentFileId) return;
             this.waveformLoading = true;
@@ -82,7 +100,10 @@ function vinylApp() {
                 const r = await fetch('/api/analyze', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({file_id: this.currentFileId}) });
                 const d = await r.json(); this.detectedTracks = d.tracks.map(t => ({ ...t, editing: false, ignored: false }));
                 await this.initWaveform(); if (this.searchQuery) await this.searchDiscogs();
-            } catch (e) {} finally { this.waveformLoading = false; }
+            } catch (e) {
+                console.error('Analysis failed:', e);
+                alert('Analysis failed. Please check the terminal logs for details.');
+            } finally { this.waveformLoading = false; }
         },
 
         async searchDiscogs() {
@@ -160,13 +181,22 @@ function vinylApp() {
         startProcessPolling(jobId) {
             const timer = setInterval(async () => {
                 try {
-                    const r = await fetch(`/api/process/${jobId}`); const j = await r.json();
-                    if (j.status === 'processing') { this.processingProgress = j.progress || 0.1; this.processingMessage = j.message || 'Processing...'; }
-                    else if (j.status === 'complete') { 
-                        clearInterval(timer); this.isProcessing = false; 
-                        this.successMessage = `Successfully processed ${j.tracks.length} files.`; this.fetchQueue(); 
+                    const r = await fetch(`/api/process/${jobId}`); 
+                    const j = await r.json();
+                    if (j.status === 'processing') { 
+                        this.processingMessage = j.message || 'Processing...'; 
                     }
-                    else if (j.status === 'error') { clearInterval(timer); this.isProcessing = false; alert('Error: ' + j.error); }
+                    else if (j.status === 'complete') { 
+                        clearInterval(timer); 
+                        this.isProcessing = false; 
+                        this.successMessage = `Successfully processed ${j.tracks.length} files.`; 
+                        this.fetchQueue(); 
+                    }
+                    else if (j.status === 'error') { 
+                        clearInterval(timer); 
+                        this.isProcessing = false; 
+                        alert('Error: ' + j.error); 
+                    }
                 } catch (e) {}
             }, 1000);
         },
@@ -199,7 +229,11 @@ function vinylApp() {
                 const p = await (await fetch(`/api/waveform-peaks/${this.currentFileId}`)).json();
                 this.waveform.load(`/api/audio/${this.currentFileId}`, p.peaks);
                 this.waveform.on('ready', () => { this.waveform.zoom(document.getElementById('waveform').offsetWidth / this.waveform.getDuration()); this.addTrackRegions(); this.waveformLoading = false; });
-            } catch (e) { this.waveformLoading = false; }
+            } catch (e) {
+                console.error('Waveform failed:', e);
+                alert('Waveform visualization failed. Check console for details.');
+                this.waveformLoading = false; 
+            }
         },
 
         getTrackColor(i) {

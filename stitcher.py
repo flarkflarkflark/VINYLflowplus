@@ -4,6 +4,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+def _ffmpeg() -> str:
+    """Return the ffmpeg executable to use."""
+    return os.environ.get("VINYLFLOW_FFMPEG_PATH") or "ffmpeg"
+
 def stitch_files(input_dir, output_name="VINYLflowplus_master.wav"):
     input_path = Path(input_dir)
     files = sorted([f for f in input_path.glob("*") if f.suffix.lower() in [".wav", ".flac", ".mp3", ".aiff", ".aif"]])
@@ -17,7 +21,7 @@ def stitch_files(input_dir, output_name="VINYLflowplus_master.wav"):
     # Maak een tijdelijk stilte-bestand van 3 seconden
     silence_file = "silence_3s.wav"
     subprocess.run([
-        "ffmpeg", "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", 
+        _ffmpeg(), "-y", "-f", "lavfi", "-i", "anullsrc=r=44100:cl=stereo", 
         "-t", "3", silence_file
     ], capture_output=True)
 
@@ -29,7 +33,7 @@ def stitch_files(input_dir, output_name="VINYLflowplus_master.wav"):
     # Verwijder de laatste stilte (optioneel, maar netter)
     filter_complex += f"concat=n={len(files)*2}:v=0:a=1[outa]"
     
-    cmd = ["ffmpeg", "-y"]
+    cmd = [_ffmpeg(), "-y"]
     for f in files:
         cmd.extend(["-i", str(f)])
     cmd.extend(["-i", silence_file])
