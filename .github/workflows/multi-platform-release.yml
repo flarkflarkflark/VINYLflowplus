@@ -24,8 +24,15 @@ jobs:
             name: Windows Portable
             asset_name: VINYLflowplus-Windows.exe
           - os: macos-13
-            name: macOS App
-            asset_name: VINYLflowplus-macOS.zip
+            name: macOS App (Universal)
+            asset_name: VINYLflowplus-macOS-Universal.zip
+            macos_arch: universal2
+            macos_target: "12.0"
+          - os: macos-13
+            name: macOS App (Intel Legacy)
+            asset_name: VINYLflowplus-macOS-Intel.zip
+            macos_arch: x86_64
+            macos_target: "10.15"
 
     runs-on: ${{ matrix.os }}
 
@@ -40,7 +47,9 @@ jobs:
 
       - name: Set macOS Deployment Target
         if: runner.os == 'macOS'
-        run: echo "MACOSX_DEPLOYMENT_TARGET=12.0" >> $GITHUB_ENV
+        run: |
+          echo "MACOSX_DEPLOYMENT_TARGET=${{ matrix.macos_target }}" >> $GITHUB_ENV
+          echo "MACOS_ARCH=${{ matrix.macos_arch }}" >> $GITHUB_ENV
 
       - name: Install System Dependencies (Linux)
         if: runner.os == 'Linux' && matrix.skip_gui == 'False'
