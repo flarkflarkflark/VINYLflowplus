@@ -28,7 +28,7 @@ jobs:
             asset_name: VINYLflowplus-macOS-Universal.zip
             macos_arch: ""
             macos_target: "11.0"
-          - os: macos-13
+          - os: macos-14
             name: macOS App (Intel Legacy)
             asset_name: VINYLflowplus-macOS-Intel.zip
             macos_arch: "x86_64"
