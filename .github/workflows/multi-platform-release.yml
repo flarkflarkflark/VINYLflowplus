@@ -150,23 +150,26 @@ jobs:
           files: ${{ matrix.asset_name }}
           tag_name: ${{ inputs.tag || github.ref_name }}
           body: |
-            ### 📦 VINYLflowplus v1.0.2 - Official Stable Release
+            ### 📦 VINYLflowplus v1.0.3 - Official Stable Release
             
-            This release marks the transition to a fully portable, "Click & Run" experience across all platforms.
+            This release brings major compatibility fixes for Windows and older macOS systems, along with the new "Merge & Analyze" feature for multi-disc vinyl sets.
             
-            #### ✨ Key Improvements in v1.0.2:
-            - **🚀 Linux Lite Autostart:** The Lite version now correctly opens your system browser (Firefox/Chrome) automatically by isolating itself from the AppImage environment.
-            - **🌗 UI Refinements:** Improved header styling to match the brand website and fixed contrast issues in the Settings modal and Footer for Dark Mode.
-            - **🏷️ Robust Tagging:** Enhanced metadata engine that forces vinyl track positions (A1, B2) directly from filenames as a final safety check.
+            #### ✨ Key Improvements in v1.0.3:
+            - **🪄 Merge & Analyze:** Combine multiple audio files (e.g., Side A/B/C/D) with 3s silence gaps for unified analysis and tagging.
+            - **🪟 Windows Fixes:** Resolved "Silent Failures" by forcing the use of bundled FFmpeg and improved subprocess management.
+            - **🍎 macOS Legacy Support:** Added a dedicated Intel (x86_64) build for older Macs (OpenCore/Catalina) and a Universal 2 build for modern Macs.
+            - **🌗 UI Enhancements:** Refined gold-yellow (#E5A100) styling and improved queue visibility (600px width).
+            - **⚙️ Log Level:** Adjusted default logging to WARNING for a cleaner terminal experience.
             
             #### 🖥️ Available Packages:
             
             | Platform | File | Description |
             | :--- | :--- | :--- |
-            | **🪟 Windows** | `VINYLflowplus-Windows.exe` | **Recommended for Windows.** Single-file executable. No install needed. Includes Python, FFmpeg, and native UI. |
-            | **🍎 macOS** | `VINYLflowplus-macOS.zip` | **Recommended for macOS (Ventura+).** Portable `.app` bundle. Includes FFmpeg and native UI. |
-            | **🐧 Linux** | `VINYLflowplus-Linux.AppImage` | **Full Desktop Experience.** Built-in Chromium-based window. Includes all dependencies. |
-            | **🐧 Linux Lite** | `VINYLflowplus-Linux-Lite.AppImage` | **Fast & Lightweight.** (~100MB smaller). Opens the interface in your *own* browser (e.g. Firefox). Perfect for Arch Linux and advanced users. |
+            | **🪟 Windows** | `VINYLflowplus-Windows.exe` | **Recommended for Windows.** Single-file executable. |
+            | **🍎 macOS (Modern)** | `VINYLflowplus-macOS-Universal.zip` | **For M1/M2/M3 and modern Intel Macs.** Universal 2 bundle (macOS 12+). |
+            | **🍎 macOS (Legacy)** | `VINYLflowplus-macOS-Intel.zip` | **For older Intel Macs.** Specifically for macOS 10.15 (Catalina) and OpenCore users. |
+            | **🐧 Linux** | `VINYLflowplus-Linux.AppImage` | **Full Desktop Experience.** Built-in browser window. |
+            | **🐧 Linux Lite** | `VINYLflowplus-Linux-Lite.AppImage` | **Lightweight.** Opens in your system browser (Firefox/Chrome). |
             
             ---
-            *Note: FFmpeg is now bundled in all versions. Manual installation is no longer required.*
+            *Note: FFmpeg is bundled in all versions. No manual installation required.*
