@@ -113,7 +113,17 @@ jobs:
           fi
           $PREFIX pip install pyinstaller
 
-      - name: Build Application (One-File)
+      - name: Build Application (One-File, Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        env:
+          PYINSTALLER_ONEFILE: "True"
+          SKIP_GUI: "False"
+        run: pyinstaller --clean -y VINYLflowplus.spec
+
+      - name: Build Application (One-File, Unix)
+        if: runner.os != 'Windows'
+        shell: bash
         env:
           PYINSTALLER_ONEFILE: "True"
           SKIP_GUI: ${{ matrix.skip_gui }}
