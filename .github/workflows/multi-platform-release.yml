@@ -190,31 +190,31 @@ jobs:
           files: ${{ matrix.asset_name }}
           tag_name: ${{ inputs.tag || github.ref_name }}
           body: |
-            # 📀 VINYLflowplus v1.0.3 Stable
+            # <img src="https://raw.githubusercontent.com/flarkflarkflark/VINYLflowplus/main/assets/VFplus.png" width="24" height="24" align="center" /> VINYLflowplus v1.0.3 Stable
             
-            **Professional Vinyl Digitization | Brand New v1.0.3 Release**
+            **Professional Vinyl Digitization | Official v1.0.3 Stable Release**
             
             This release introduces a professional interactive track editor and critical stability fixes for all platforms.
             
-            ### ✨ What's New in v1.0.3:
-            - **📍 Interactive Track Editor:** New dedicated toolbar with `+T Add` and `-T Delete` tools.
-            - **🖱️ Grab-to-Pan:** Natural waveform movement (click and drag to slide the audio).
-            - **💾 Persistence:** Save your preferred output formats and restoration settings as default.
-            - **🌓 UI Polish:** High-contrast Dark Mode enhancements for maximum readability.
-            - **🪟 Windows Fixes:** Resolved "Silent Failures" and improved subprocess handling.
-            - **🍎 macOS Legacy:** Native Intel (x86_64) build for OpenCore and older Macs (Catalina+).
+            ### What's New in v1.0.3:
+            - **Interactive Track Editor:** New dedicated toolbar with +T Add and -T Delete tools.
+            - **Grab-to-Pan:** Natural waveform movement (click and drag to slide the audio).
+            - **Persistence:** Save your preferred output formats and restoration settings as default.
+            - **UI Polish:** High-contrast Dark Mode enhancements for maximum readability.
+            - **Windows Fixes:** Resolved "Silent Failures" and improved subprocess handling.
+            - **macOS Legacy:** Native Intel (x86_64) build for OpenCore and older Macs (Catalina+).
             
             ---
             
-            ### 🖥️ Download for your Platform:
+            ### Download for your Platform:
             
-            | | Platform | File | Architecture |
-            | :--- | :--- | :--- | :--- |
-            | 🟨 | **Windows** | `VINYLflowplus-Windows.exe` | Portable x64 |
-            | 🟨 | **macOS (Modern)** | `VINYLflowplus-macOS-Universal.zip` | ARM64 (M1/M2/M3) |
-            | 🟨 | **macOS (Legacy)** | `VINYLflowplus-macOS-Intel.zip` | Intel (Catalina/OpenCore) |
-            | 🟨 | **Linux** | `VINYLflowplus-Linux.AppImage` | Standard Desktop (x64) |
-            | 🟨 | **Linux Lite** | `VINYLflowplus-Linux-Lite.AppImage` | Browser Edition (x64) |
+            | Platform | File | Architecture |
+            | :--- | :--- | :--- |
+            | **Windows** | `VINYLflowplus-Windows.exe` | Portable x64 |
+            | **macOS (Modern)** | `VINYLflowplus-macOS-Universal.zip` | ARM64 (M1/M2/M3) |
+            | **macOS (Legacy)** | `VINYLflowplus-macOS-Intel.zip` | Intel (Catalina/OpenCore) |
+            | **Linux** | `VINYLflowplus-Linux.AppImage` | Standard Desktop (x64) |
+            | **Linux Lite** | `VINYLflowplus-Linux-Lite.AppImage` | Browser Edition (x64) |
             
             ---
             *Note: FFmpeg is bundled in all versions. No manual installation required.*
