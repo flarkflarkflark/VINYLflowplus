@@ -91,7 +91,19 @@ jobs:
 
       - name: Install FFmpeg (macOS)
         if: runner.os == 'macOS'
-        run: brew install ffmpeg
+        run: |
+          if [ "${{ matrix.is_intel }}" = "True" ]; then
+            echo "Downloading Intel FFmpeg for Legacy build..."
+            curl -L https://github.com/ffbinaries/ffbinaries-prebuilt/releases/download/v6.1/ffmpeg-6.1-macos-64.zip -o ffmpeg.zip
+            unzip -o ffmpeg.zip
+            chmod +x ffmpeg
+            # Put it in a local bin and add to PATH so PyInstaller finds this one first
+            mkdir -p ./intel_ffmpeg
+            mv ffmpeg ./intel_ffmpeg/
+            echo "$(pwd)/intel_ffmpeg" >> $GITHUB_PATH
+          else
+            brew install ffmpeg
+          fi
 
       - name: Install Python dependencies (Windows)
         if: runner.os == 'Windows'
