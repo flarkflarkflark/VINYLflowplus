@@ -92,12 +92,16 @@
 
     <!-- Nav -->
     <nav class="border-b border-slate-800 bg-slate-900/50 backdrop-blur-md sticky top-0 z-50">
-        <div class="max-w-5xl mx-auto px-6 h-16 flex items-center justify-between">
-            <a href="https://github.com/flarkflarkflark/VINYLflowplus" class="flex items-center gap-3 font-bold text-xl">
-                <img src="https://raw.githubusercontent.com/flarkflarkflark/VINYLflowplus/main/assets/VFplus.png" alt="" class="w-8 h-8">
-                <span>VINYL<span class="text-brand">flow</span>plus</span>
+        <div class="max-w-5xl mx-auto px-6 h-20 flex items-center justify-between">
+            <a href="https://github.com/flarkflarkflark/VINYLflowplus" class="flex items-center gap-4 group">
+                <div class="bg-brand w-10 h-10 flex items-center justify-center rounded-sm shadow-lg group-hover:scale-105 transition-transform">
+                    <span class="text-black font-black text-xs tracking-tighter">VF+</span>
+                </div>
+                <span class="text-2xl font-black tracking-tighter leading-none">
+                    <span class="text-white">VINYL</span><span class="text-brand">flow</span><span class="text-white">plus</span>
+                </span>
             </a>
-            <div class="hidden md:flex items-center gap-8 text-sm font-medium text-slate-400">
+            <div class="hidden md:flex items-center gap-8 text-sm font-black uppercase tracking-widest text-slate-400">
                 <a href="https://github.com/flarkflarkflark/VINYLflowplus#readme" class="hover:text-brand">Documentation</a>
                 <a href="https://github.com/flarkflarkflark/VINYLflowplus/releases" class="hover:text-brand">Releases</a>
                 <a href="https://github.com/flarkflarkflark/VINYLflowplus/issues" class="hover:text-brand">Support</a>
@@ -312,11 +316,15 @@ pip install -r requirements.txt</code></pre>
 
     </main>
 
-    <footer class="border-t border-slate-800 py-12 bg-slate-900/50">
-        <div class="max-w-5xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-8">
-            <div class="flex items-center gap-3 font-bold opacity-50">
-                <img src="https://raw.githubusercontent.com/flarkflarkflark/VINYLflowplus/main/assets/VFplus.png" alt="" class="w-6 h-6 grayscale">
-                <span>VINYLflowplus</span>
+    <footer class="border-t border-slate-800 py-16 bg-slate-950">
+        <div class="max-w-5xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-12">
+            <div class="flex items-center gap-4 group">
+                <div class="bg-brand/20 w-8 h-8 flex items-center justify-center rounded-sm grayscale group-hover:grayscale-0 transition-all">
+                    <span class="text-brand font-black text-[8px]">VF+</span>
+                </div>
+                <span class="text-lg font-black tracking-tighter opacity-50 group-hover:opacity-100 transition-opacity">
+                    <span class="text-white">VINYL</span><span class="text-brand">flow</span><span class="text-white">plus</span>
+                </span>
             </div>
             <p class="text-slate-500 text-sm">Built for DJs and Collectors. Open Source under MIT License.</p>
             <div class="flex gap-6">

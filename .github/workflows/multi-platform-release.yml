@@ -190,26 +190,32 @@ jobs:
           files: ${{ matrix.asset_name }}
           tag_name: ${{ inputs.tag || github.ref_name }}
           body: |
-            ### 📦 VINYLflowplus v1.0.3 - Official Stable Release
+            # 📀 VINYLflowplus v1.0.3 Stable
             
-            This release brings major compatibility fixes for Windows and older macOS systems, along with the new "Merge & Analyze" feature for multi-disc vinyl sets.
+            **Professional Vinyl Digitization | Brand New v1.0.3 Release**
             
-            #### ✨ Key Improvements in v1.0.3:
-            - **🪄 Merge & Analyze:** Combine multiple audio files (e.g., Side A/B/C/D) with 3s silence gaps for unified analysis and tagging.
-            - **🪟 Windows Fixes:** Resolved "Silent Failures" by forcing the use of bundled FFmpeg and improved subprocess management.
-            - **🍎 macOS Legacy Support:** Added a dedicated Intel (x86_64) build for older Macs (OpenCore/Catalina) and a Universal 2 build for modern Macs.
-            - **🌗 UI Enhancements:** Refined gold-yellow (#E5A100) styling and improved queue visibility (600px width).
-            - **⚙️ Log Level:** Adjusted default logging to WARNING for a cleaner terminal experience.
+            This release introduces a professional interactive track editor and critical stability fixes for all platforms.
             
-            #### 🖥️ Available Packages:
+            ### ✨ What's New in v1.0.3:
+            - **📍 Interactive Track Editor:** New dedicated toolbar with `+T Add` and `-T Delete` tools.
+            - **🖱️ Grab-to-Pan:** Natural waveform movement (click and drag to slide the audio).
+            - **💾 Persistence:** Save your preferred output formats and restoration settings as default.
+            - **🌓 UI Polish:** High-contrast Dark Mode enhancements for maximum readability.
+            - **🪟 Windows Fixes:** Resolved "Silent Failures" and improved subprocess handling.
+            - **🍎 macOS Legacy:** Native Intel (x86_64) build for OpenCore and older Macs (Catalina+).
             
-            | Platform | File | Description |
-            | :--- | :--- | :--- |
-            | **🪟 Windows** | `VINYLflowplus-Windows.exe` | **Recommended for Windows.** Single-file executable. |
-            | **🍎 macOS (Modern)** | `VINYLflowplus-macOS-Universal.zip` | **For Intel (Big Sur+).** Works on M1/M2/M3 via Rosetta. |
-            | **🍎 macOS (Legacy)** | `VINYLflowplus-macOS-Intel.zip` | **For older Intel Macs.** Specially for macOS 10.15 (Catalina) and OpenCore users. |
-            | **🐧 Linux** | `VINYLflowplus-Linux.AppImage` | **Full Desktop Experience.** Built-in browser window. |
-            | **🐧 Linux Lite** | `VINYLflowplus-Linux-Lite.AppImage` | **Lightweight.** Opens in your system browser (Firefox/Chrome). |
+            ---
+            
+            ### 🖥️ Download for your Platform:
+            
+            | | Platform | File | Architecture |
+            | :--- | :--- | :--- | :--- |
+            | 🟨 | **Windows** | `VINYLflowplus-Windows.exe` | Portable x64 |
+            | 🟨 | **macOS (Modern)** | `VINYLflowplus-macOS-Universal.zip` | ARM64 (M1/M2/M3) |
+            | 🟨 | **macOS (Legacy)** | `VINYLflowplus-macOS-Intel.zip` | Intel (Catalina/OpenCore) |
+            | 🟨 | **Linux** | `VINYLflowplus-Linux.AppImage` | Standard Desktop (x64) |
+            | 🟨 | **Linux Lite** | `VINYLflowplus-Linux-Lite.AppImage` | Browser Edition (x64) |
             
             ---
             *Note: FFmpeg is bundled in all versions. No manual installation required.*
+            *Data is stored in `~/.vinylflowplus` for maximum reliability.*
