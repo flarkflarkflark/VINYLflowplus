@@ -28,11 +28,13 @@ jobs:
             asset_name: VINYLflowplus-macOS-Universal.zip
             macos_arch: ""
             macos_target: "11.0"
+            is_intel: "False"
           - os: macos-14
             name: macOS App (Intel Legacy)
             asset_name: VINYLflowplus-macOS-Intel.zip
             macos_arch: "x86_64"
             macos_target: "10.15"
+            is_intel: "True"
           - os: ubuntu-22.04
             name: Linux AppImage
             asset_name: VINYLflowplus-Linux.AppImage
@@ -52,6 +54,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          architecture: ${{ (matrix.is_intel == 'True') && 'x64' || 'arm64' }}
 
       - name: Set macOS Deployment Target
         if: runner.os == 'macOS'
@@ -94,20 +97,25 @@ jobs:
         if: runner.os != 'Windows'
         shell: bash
         run: |
-          python -m pip install --upgrade pip
+          PREFIX=""
+          if [ "${{ matrix.is_intel }}" = "True" ]; then PREFIX="arch -x86_64 "; fi
+          $PREFIX python -m pip install --upgrade pip
           if [ "${{ matrix.skip_gui }}" = "True" ]; then
             grep -vE "PyQt" requirements.txt > req_lite.txt
-            pip install -r req_lite.txt
+            $PREFIX pip install -r req_lite.txt
           else
-            pip install -r requirements.txt
+            $PREFIX pip install -r requirements.txt
           fi
-          pip install pyinstaller
+          $PREFIX pip install pyinstaller
 
       - name: Build Application (One-File)
         env:
           PYINSTALLER_ONEFILE: "True"
           SKIP_GUI: ${{ matrix.skip_gui }}
-        run: pyinstaller --clean -y VINYLflowplus.spec
+        run: |
+          PREFIX=""
+          if [ "${{ matrix.is_intel }}" = "True" ]; then PREFIX="arch -x86_64 "; fi
+          $PREFIX pyinstaller --clean -y VINYLflowplus.spec
 
       - name: Rename Windows Executable
         if: runner.os == 'Windows'
