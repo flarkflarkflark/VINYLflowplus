@@ -119,19 +119,21 @@ class AudioProcessor:
     def get_audio_duration(self, file_path: Path) -> Optional[float]:
         """
         Get total duration of audio file in seconds.
-
-        Args:
-            file_path: Path to audio file
-
-        Returns:
-            Duration in seconds, or None if error
         """
+        debug_log = Path.home() / ".vinylflowplus" / "ffmpeg_debug.log"
         try:
-            cmd = [_ffmpeg(), "-i", str(file_path), "-f", "null", "-"]
+            ffmpeg_cmd = _ffmpeg()
+            cmd = [ffmpeg_cmd, "-i", str(file_path), "-f", "null", "-"]
+            
             result = subprocess.run(
                 cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=30,
                 creationflags=CREATE_NO_WINDOW
             )
+
+            # Log for Windows debugging if it fails
+            if sys.platform == "win32" and (not result.stderr or "Duration" not in result.stderr):
+                with open(debug_log, "a") as f:
+                    f.write(f"\n--- FFmpeg Duration Failure ---\nFile: {file_path}\nCmd: {' '.join(cmd)}\nExitCode: {result.returncode}\nStderr: {result.stderr[:500]}\n")
 
             # Parse duration from ffmpeg output
             match = re.search(r"Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})", result.stderr)
@@ -141,7 +143,8 @@ class AudioProcessor:
 
             return None
         except Exception as e:
-            print(f"Error getting audio duration: {e}")
+            if sys.platform == "win32":
+                with open(debug_log, "a") as f: f.write(f"FFmpeg Exception: {str(e)}\n")
             return None
 
     def detect_silence(self, file_path: Path, verbose=False) -> List[Track]:

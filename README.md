@@ -21,13 +21,13 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ## v1.0.3 Stable Release
 
-- **📍 Interactive Track Editor** — High-precision waveform editor with `+T` and `-T` tools.
-- **🖱️ Grab-to-Pan** — Natural waveform movement (click and drag to slide audio).
-- **📦 Click & Run Desktop Apps** — Portable builds for Windows, macOS, and Linux with FFmpeg bundled.
-- **🎧 Multi-Format Support** — Export to **MP3 (320/V0)**, **AIFF**, and **FLAC 24-bit**.
-- **💾 Preference Persistence** — Save your favorite output formats and restoration settings as default.
-- **🏷️ Ironclad Vinyl Tagging** — Automated A1, B2 numbering and professional folder naming.
-- **🌗 Dark Mode UI** — High-contrast design optimized for late-night studio sessions.
+- **Interactive Track Editor** — High-precision waveform editor with `+T` and `-T` tools.
+- **Grab-to-Pan** — Natural waveform movement (click and drag to slide audio).
+- **Click & Run Desktop Apps** — Portable builds for Windows, macOS, and Linux with FFmpeg bundled.
+- **Multi-Format Support** — Export to **MP3 (320/V0)**, **AIFF**, and **FLAC 24-bit**.
+- **Preference Persistence** — Save your favorite output formats and restoration settings as default.
+- **Ironclad Vinyl Tagging** — Automated A1, B2 numbering and professional folder naming.
+- **Dark Mode UI** — High-contrast design optimized for late-night studio sessions.
 
 ---
 
