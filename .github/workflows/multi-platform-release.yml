@@ -54,7 +54,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          architecture: ${{ (matrix.is_intel == 'True') && 'x64' || 'arm64' }}
+          architecture: ${{ (runner.os == 'macOS' && matrix.is_intel == 'False') && 'arm64' || 'x64' }}
 
       - name: Set macOS Deployment Target
         if: runner.os == 'macOS'
