@@ -39,6 +39,14 @@ _configure_ssl_certs()
 # Handle SKIP_GUI environment variable (Lite builds)
 _SKIP_GUI = os.environ.get("SKIP_GUI", "False").lower() == "true"
 
+# Force writable data directories when running as a packaged app
+if getattr(sys, 'frozen', False):
+    # Use Home Directory as default for reliability
+    _data_dir = str(Path.home() / ".vinylflowplus")
+    os.environ.setdefault("VINYLFLOW_DATA_DIR", _data_dir)
+    os.environ.setdefault("VINYLFLOW_CONFIG_DIR", str(Path(_data_dir) / "config"))
+    os.environ.setdefault("VINYLFLOW_UPLOAD_DIR", str(Path(_data_dir) / "temp_uploads"))
+
 try:
     if _SKIP_GUI:
         webview = None

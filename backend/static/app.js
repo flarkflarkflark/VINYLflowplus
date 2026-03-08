@@ -222,28 +222,148 @@ function vinylApp() {
 
         async initWaveform() {
             if (!this.currentFileId || this.waveform) return;
-            this.waveformLoading = true; await new Promise(r => setTimeout(r, 100));
+            this.waveformLoading = true;
             try {
-                this.waveform = WaveSurfer.create({ container: '#waveform', waveColor: '#2563eb', progressColor: '#E5A100', cursorColor: '#E5A100', height: 250, normalize: true, backend: 'MediaElement' });
+                this.waveform = WaveSurfer.create({ 
+                    container: '#waveform', 
+                    waveColor: '#475569', 
+                    progressColor: '#E5A100', 
+                    cursorColor: '#FFFFFF', 
+                    cursorWidth: 2,
+                    height: 180, 
+                    minPxPerSec: 1,
+                    normalize: true, 
+                    interact: true,
+                    hideScrollbar: false,
+                    dragToSeek: false
+                });
+                
                 this.waveformRegions = this.waveform.registerPlugin(WaveSurfer.Regions.create());
+                
+                // Wheel Zoom
+                const wfContainer = document.getElementById('waveform');
+                wfContainer.addEventListener('wheel', (e) => {
+                    e.preventDefault();
+                    const zoomLevel = this.waveform.options.minPxPerSec;
+                    if (e.deltaY < 0) this.waveform.zoom(zoomLevel * 1.2);
+                    else this.waveform.zoom(Math.max(1, zoomLevel / 1.2));
+                }, { passive: false });
+
+                // Grab-to-Pan Logic
+                let isGrabbing = false;
+                let lastX = 0;
+
+                wfContainer.addEventListener('mousedown', (e) => {
+                    if (e.button === 0) { 
+                        isGrabbing = true;
+                        lastX = e.clientX;
+                        wfContainer.style.cursor = 'grabbing';
+                    }
+                });
+
+                window.addEventListener('mousemove', (e) => {
+                    if (!isGrabbing || !this.waveform) return;
+                    const deltaX = e.clientX - lastX;
+                    if (Math.abs(deltaX) > 1) {
+                        const scrollContainer = wfContainer.querySelector('div');
+                        if (scrollContainer) {
+                            scrollContainer.scrollLeft -= deltaX;
+                            lastX = e.clientX;
+                        }
+                    }
+                });
+
+                window.addEventListener('mouseup', () => {
+                    isGrabbing = false;
+                    if (wfContainer) wfContainer.style.cursor = 'crosshair';
+                });
+
+                // No context menu
+                wfContainer.oncontextmenu = (e) => e.preventDefault();
+
                 const p = await (await fetch(`/api/waveform-peaks/${this.currentFileId}`)).json();
                 this.waveform.load(`/api/audio/${this.currentFileId}`, p.peaks);
-                this.waveform.on('ready', () => { this.waveform.zoom(document.getElementById('waveform').offsetWidth / this.waveform.getDuration()); this.addTrackRegions(); this.waveformLoading = false; });
+                
+                this.waveform.on('ready', () => { 
+                    this.addTrackRegions(); 
+                    this.waveformLoading = false; 
+                });
+
+                // Clicking the waveform (not a region) should deselect
+                this.waveform.on('interaction', () => {
+                    this.selectedRegionId = null;
+                    this.addTrackRegions();
+                });
+
+                this.waveformRegions.on('region-clicked', (region, e) => {
+                    e.stopPropagation();
+                    this.selectedRegionId = region.id;
+                    this.addTrackRegions();
+                });
+
+                this.waveformRegions.on('region-updated', (region) => {
+                    const trackNum = parseInt(region.id.replace('track-', ''));
+                    const track = this.detectedTracks.find(t => t.number === trackNum);
+                    if (track) {
+                        track.start = region.start;
+                        track.end = region.end;
+                        track.duration = region.end - region.start;
+                    }
+                });
+
             } catch (e) {
                 console.error('Waveform failed:', e);
-                alert('Waveform visualization failed. Check console for details.');
                 this.waveformLoading = false; 
             }
         },
 
+        addManualTrack(startTime) {
+            // startTime is provided by waveform.getCurrentTime()
+            const num = this.detectedTracks.length + 1;
+            const duration = this.waveform.getDuration();
+            const endTime = Math.min(startTime + 30, duration);
+            const newTrack = { number: num, start: startTime, end: endTime, duration: endTime - startTime };
+            this.detectedTracks.push(newTrack);
+            this.detectedTracks.sort((a,b) => a.start - b.start).forEach((t, i) => t.number = i + 1);
+            this.selectedRegionId = `track-${newTrack.number}`;
+            this.addTrackRegions();
+        },
+
+        removeSelectedTrack() {
+            if (!this.selectedRegionId) { 
+                alert('Please select a track on the waveform first.'); 
+                return; 
+            }
+            const trackNum = parseInt(this.selectedRegionId.replace('track-', ''));
+            const idx = this.detectedTracks.findIndex(t => t.number === trackNum);
+            if (idx !== -1) {
+                this.detectedTracks.splice(idx, 1);
+                this.detectedTracks.sort((a,b) => a.start - b.start).forEach((t, i) => t.number = i + 1);
+                this.selectedRegionId = null;
+                this.addTrackRegions();
+            }
+        },
+
         getTrackColor(i) {
-            const colors = ['rgba(229, 161, 0, 0.8)', 'rgba(59, 130, 246, 0.8)', 'rgba(16, 185, 129, 0.8)', 'rgba(139, 92, 246, 0.8)', 'rgba(236, 72, 153, 0.8)'];
+            const colors = ['rgba(229, 161, 0, 0.4)', 'rgba(59, 130, 246, 0.4)', 'rgba(16, 185, 129, 0.4)', 'rgba(139, 92, 246, 0.4)'];
             return colors[i % colors.length];
         },
 
         addTrackRegions() {
-            if(!this.waveformRegions) return; this.waveformRegions.clearRegions();
-            this.detectedTracks.forEach((t, i) => { this.waveformRegions.addRegion({ start: t.start, end: t.end, color: t.ignored ? 'rgba(100, 100, 100, 0.3)' : this.getTrackColor(i).replace('0.8', '0.2'), drag: true, resize: true, id: `track-${t.number}`, content: `T${t.number}` }); });
+            if(!this.waveformRegions) return; 
+            this.waveformRegions.clearRegions();
+            this.detectedTracks.forEach((t, i) => { 
+                const isSelected = this.selectedRegionId === `track-${t.number}`;
+                const reg = this.waveformRegions.addRegion({ 
+                    start: t.start, 
+                    end: t.end, 
+                    color: isSelected ? 'rgba(229, 161, 0, 0.7)' : (t.ignored ? 'rgba(100, 100, 100, 0.3)' : this.getTrackColor(i)), 
+                    drag: true, 
+                    resize: true, 
+                    id: `track-${t.number}`
+                }); 
+                if (reg.element) reg.element.setAttribute('data-region-label', `T${t.number}${isSelected ? ' (SEL)' : ''}`);
+            });
         },
 
         jumpToTrack(t) { if(this.waveform) { this.waveform.setTime(t.start); this.waveform.play(); } },
@@ -251,11 +371,35 @@ function vinylApp() {
         stopWaveform() { this.waveform?.pause(); },
         destroyWaveform() { this.waveform?.destroy(); this.waveform = null; this.waveformRegions = null; },
 
-        async loadConfig() { try { this.config = await (await fetch('/api/config')).json(); } catch(e){} },
+        async loadConfig() { 
+            try { 
+                this.config = await (await fetch('/api/config')).json();
+                // Apply defaults if they exist
+                if (this.config.default_output_formats) this.outputFormats = this.config.default_output_formats;
+                if (this.config.default_restoration_level !== undefined) this.restorationLevel = this.config.default_restoration_level;
+            } catch(e){} 
+        },
         async loadFormats() { try { this.availableFormats = (await (await fetch('/api/formats')).json()).formats; } catch(e){} },
         async saveConfig() { await fetch('/api/config', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.config) }); this.showSettings = false; },
+        async saveProcessingDefaults() {
+            try {
+                await fetch('/api/config/processing-defaults', { 
+                    method: 'POST', 
+                    headers: {'Content-Type': 'application/json'}, 
+                    body: JSON.stringify({ formats: this.outputFormats, restoration_level: this.restorationLevel }) 
+                });
+                alert('Processing settings saved as default!');
+            } catch(e) { alert('Failed to save defaults.'); }
+        },
         async chooseOutputFolder() { const r = await fetch('/api/utils/select-folder', { method: 'POST' }); const d = await r.json(); if(d.path) this.config.output_dir = d.path; },
         async checkStatus() { try { const r = await fetch('/api/status'); const d = await r.json(); this.discogsConfigured = d.discogs_configured; } catch(e){} },
+
+        async quitApp() {
+            try {
+                fetch('/api/quit', { method: 'POST' });
+                setTimeout(() => { window.close(); }, 500);
+            } catch(e) { window.close(); }
+        },
 
         handleDrop(e) { this.dragging = false; this.uploadFiles(Array.from(e.dataTransfer.files).filter(f => this.isSupportedFile(f.name))); },
         handleFileSelect(e) { this.uploadFiles(Array.from(e.target.files)); },

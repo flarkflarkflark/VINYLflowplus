@@ -6,6 +6,7 @@ Handles Discogs API credentials, audio processing parameters, and output setting
 """
 
 import os
+import sys
 import json
 from pathlib import Path
 from dotenv import load_dotenv
@@ -26,8 +27,10 @@ class Config:
             settings_path: Optional path to settings.json. If None, uses config/settings.json.
         """
         # Store paths for reload
+        base_path = Path.cwd() if getattr(sys, 'frozen', False) else Path(__file__).parent
+
         if env_path is None:
-            env_path = Path(__file__).parent / ".env"
+            env_path = base_path / ".env"
         else:
             env_path = Path(env_path)
 
@@ -36,7 +39,7 @@ class Config:
             if config_dir_env:
                 settings_path = Path(config_dir_env) / "settings.json"
             else:
-                settings_path = Path(__file__).parent / "config" / "settings.json"
+                settings_path = base_path / "config" / "settings.json"
         else:
             settings_path = Path(settings_path)
 
@@ -65,6 +68,8 @@ class Config:
             json_settings.get('DEFAULT_OUTPUT_DIR') or
             os.getenv("DEFAULT_OUTPUT_DIR", str(Path.home() / "Music" / "new 12-inches"))
         )
+        self.default_output_formats = json_settings.get('DEFAULT_OUTPUT_FORMATS', ["flac"])
+        self.default_restoration_level = int(json_settings.get('DEFAULT_RESTORATION_LEVEL', 0))
 
         # Audio processing settings
         self.default_silence_threshold = float(os.getenv("DEFAULT_SILENCE_THRESHOLD", "-40"))
@@ -202,6 +207,29 @@ class Config:
             return True
         except Exception as e:
             print(f"Failed to save settings: {e}")
+            return False
+
+    def save_processing_defaults(self, formats: list, restoration_level: int) -> bool:
+        """
+        Save default processing settings to settings.json.
+        """
+        settings_path = Path(self._settings_path)
+        settings_path.parent.mkdir(parents=True, exist_ok=True)
+
+        settings = {}
+        if settings_path.exists():
+            try:
+                with open(settings_path, 'r') as f: settings = json.load(f)
+            except: pass
+
+        settings['DEFAULT_OUTPUT_FORMATS'] = formats
+        settings['DEFAULT_RESTORATION_LEVEL'] = restoration_level
+
+        try:
+            with open(settings_path, 'w') as f: json.dump(settings, f, indent=2)
+            return True
+        except Exception as e:
+            print(f"Failed to save defaults: {e}")
             return False
 
     def reload(self):

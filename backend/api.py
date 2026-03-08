@@ -57,12 +57,49 @@ processing_jobs: Dict[str, dict] = {}
 websocket_connections: List[WebSocket] = []
 
 # --- PATHS ---
-_upload_dir_env = os.getenv("VINYLFLOW_UPLOAD_DIR")
-UPLOAD_DIR = Path(_upload_dir_env) if _upload_dir_env else Path(__file__).parent.parent / "temp_uploads"
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+def get_base_path():
+    # 1. Environment Variable (highest priority)
+    env_path = os.getenv("VINYLFLOW_DATA_DIR")
+    if env_path:
+        p = Path(env_path)
+        try:
+            p.mkdir(parents=True, exist_ok=True)
+            return p
+        except: pass
 
-QUEUE_STATE_FILE = Path(__file__).parent.parent / "config" / "queue_state.json"
-QUEUE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    # 2. Try Home Directory (safest for Linux/Mac)
+    home_dir = Path.home() / ".vinylflowplus"
+    try:
+        home_dir.mkdir(parents=True, exist_ok=True)
+        # Test write access
+        test_f = home_dir / ".write_test"
+        test_f.touch()
+        test_f.unlink()
+        return home_dir
+    except:
+        pass
+
+    # 3. Last resort: Current Working Directory
+    return Path.cwd()
+
+# Initialize paths with absolute safety
+BASE_DATA_PATH = get_base_path()
+
+_upload_dir_env = os.getenv("VINYLFLOW_UPLOAD_DIR")
+UPLOAD_DIR = Path(_upload_dir_env) if _upload_dir_env else BASE_DATA_PATH / "temp_uploads"
+try:
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+except:
+    # Final Emergency: /tmp
+    UPLOAD_DIR = Path("/tmp/vinylflow_uploads")
+    UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+QUEUE_STATE_FILE = BASE_DATA_PATH / "config" / "queue_state.json"
+try:
+    QUEUE_STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+except:
+    # Final Emergency: /tmp
+    QUEUE_STATE_FILE = Path("/tmp/vinylflow_queue.json")
 
 # --- CONFIG & HANDLERS ---
 config = Config()
@@ -443,7 +480,16 @@ async def get_status(): return {"discogs_configured": bool(config.discogs_token 
 async def get_formats(): return {"formats": [{"id": k, "label": v["label"]} for k, v in OUTPUT_FORMATS.items()]}
 
 @app.get("/api/config")
-async def get_config_api(): return {"silence_threshold": audio_processor.silence_threshold, "min_silence_duration": audio_processor.min_silence_duration, "min_track_length": audio_processor.min_track_length, "output_dir": config.default_output_dir, "flac_compression": audio_processor.flac_compression}
+async def get_config_api(): 
+    return {
+        "silence_threshold": audio_processor.silence_threshold, 
+        "min_silence_duration": audio_processor.min_silence_duration, 
+        "min_track_length": audio_processor.min_track_length, 
+        "output_dir": config.default_output_dir, 
+        "flac_compression": audio_processor.flac_compression,
+        "default_output_formats": config.default_output_formats,
+        "default_restoration_level": config.default_restoration_level
+    }
 
 @app.put("/api/config")
 async def update_config_api(updates: dict):
@@ -452,6 +498,15 @@ async def update_config_api(updates: dict):
         config.save_output_dir(updates["output_dir"])
     if "flac_compression" in updates: audio_processor.flac_compression = int(updates["flac_compression"])
     return await get_config_api()
+
+@app.post("/api/config/processing-defaults")
+async def save_processing_defaults_api(data: dict):
+    formats = data.get("formats", ["flac"])
+    restoration = int(data.get("restoration_level", 0))
+    config.save_processing_defaults(formats, restoration)
+    config.default_output_formats = formats
+    config.default_restoration_level = restoration
+    return {"status": "success"}
 
 @app.get("/api/waveform-peaks/{file_id}")
 async def get_peaks(file_id: str):
@@ -480,6 +535,11 @@ async def get_audio(file_id: str):
 
 @app.get("/api/process/{job_id}")
 async def get_job(job_id: str): return processing_jobs.get(job_id, {"status": "not_found"})
+
+@app.post("/api/quit")
+async def quit_api():
+    logger.warning("Shutdown requested via API.")
+    os._exit(0)
 
 app.mount("/static", StaticFiles(directory=str(Path(__file__).parent / "static")), name="static")
 
