@@ -1,4 +1,4 @@
-# <img src="assets/VFplus.png" width="32" height="32" align="center" /> VINYLflowplus
+# <img src="assets/vinylflowplus-logo.svg" height="40" vertical-align="middle" />
 
 > [!NOTE]
 > **VINYLflowplus** is an enhanced fork of the original [VINYLflow](https://github.com/olimic1000/vinylflow) by [olimic1000](https://github.com/olimic1000). This version includes additional features, improved naming conventions, and better metadata handling for professional vinyl digitization workflows.

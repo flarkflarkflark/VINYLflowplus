@@ -190,7 +190,7 @@ jobs:
           files: ${{ matrix.asset_name }}
           tag_name: ${{ inputs.tag || github.ref_name }}
           body: |
-            # <img src="https://raw.githubusercontent.com/flarkflarkflark/VINYLflowplus/main/assets/VFplus.png" width="24" height="24" align="center" /> VINYLflowplus v1.0.3 Stable
+            # <img src="https://raw.githubusercontent.com/flarkflarkflark/VINYLflowplus/main/assets/vinylflowplus-logo.svg" height="40" vertical-align="middle" /> v1.0.3 Stable
             
             **Professional Vinyl Digitization | Official v1.0.3 Stable Release**
             
