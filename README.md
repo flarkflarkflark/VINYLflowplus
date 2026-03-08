@@ -1,4 +1,4 @@
-# 🎵 VINYLflowplus
+# <img src="assets/VFplus.png" width="32" height="32" align="center" /> VINYLflowplus
 
 > [!NOTE]
 > **VINYLflowplus** is an enhanced fork of the original [VINYLflow](https://github.com/olimic1000/vinylflow) by [olimic1000](https://github.com/olimic1000). This version includes additional features, improved naming conventions, and better metadata handling for professional vinyl digitization workflows.
@@ -21,10 +21,13 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ## v1.0.3 Stable Release
 
-- **📦 Click & Run Desktop Apps** — No installation required. Portable executables for Windows, macOS, and Linux with everything (including FFmpeg) bundled inside.
-- **🎧 Multi-Format Support** — Native export to **MP3 320kbps (CBR)**, **MP3 V0 (Extreme VBR)**, **AIFF**, and **FLAC 24-bit**.
-- **🏷️ Ironclad Vinyl Tagging** — Automated A1, B2 numbering that matches your filenames perfectly. Professional folder naming conventions: `Artist - Album [Label - CatNo][Year][Format]`.
-- **🌗 Responsive UI** — Full Dark/Light mode support with improved accessibility and high-contrast design.
+- **📍 Interactive Track Editor** — High-precision waveform editor with `+T` and `-T` tools.
+- **🖱️ Grab-to-Pan** — Natural waveform movement (click and drag to slide audio).
+- **📦 Click & Run Desktop Apps** — Portable builds for Windows, macOS, and Linux with FFmpeg bundled.
+- **🎧 Multi-Format Support** — Export to **MP3 (320/V0)**, **AIFF**, and **FLAC 24-bit**.
+- **💾 Preference Persistence** — Save your favorite output formats and restoration settings as default.
+- **🏷️ Ironclad Vinyl Tagging** — Automated A1, B2 numbering and professional folder naming.
+- **🌗 Dark Mode UI** — High-contrast design optimized for late-night studio sessions.
 
 ---
 
@@ -100,7 +103,7 @@ When you open VINYLflowplus for the first time, you'll see a welcome screen that
 3. **Copy and paste** — Paste your token into VINYLflowplus's setup screen
 4. **Click Continue** — Done! VINYLflowplus validates the token and you're ready to digitize
 
-**That's it!** 🎵 No hidden files, no terminal commands, no restart needed. Your token is saved securely and persists across Docker restarts.
+**That's it!** <img src="assets/VFplus.png" width="16" height="16" align="center" /> No hidden files, no terminal commands, no restart needed. Your token is saved securely and persists across Docker restarts.
 
 **Tip:** You can update your token anytime from the Settings (⚙️) menu in VINYLflowplus.
 
