@@ -310,6 +310,11 @@ async def analyze_file(request: dict):
     fid = request.get("file_id")
     info = uploaded_files.get(fid)
     if not info: raise HTTPException(status_code=404)
+    
+    # Check if duration is 0 (FFmpeg failure)
+    if info.get("duration", 0) <= 0:
+        raise HTTPException(status_code=500, detail="FFmpeg failed to read file duration. Please ensure FFmpeg is working correctly.")
+
     await broadcast_message({"type": "progress", "file_id": fid, "progress": 0.1, "message": "Analyzing..."})
     try:
         logger.info(f"Analyzing file: {info['path']}")

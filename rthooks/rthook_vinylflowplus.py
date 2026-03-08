@@ -22,9 +22,14 @@ if hasattr(sys, "_MEIPASS"):
 
     # certifi / requests
     # PyInstaller does not copy certifi's cacert.pem automatically.
-    # Without it, every HTTPS request (Discogs API, cover art, etc.) raises
-    # SSLCertVerificationError / CERTIFICATE_VERIFY_FAILED.
     cacert_path = os.path.join(meipass, "certifi", "cacert.pem")
     if os.path.exists(cacert_path):
         os.environ.setdefault("SSL_CERT_FILE", cacert_path)
         os.environ.setdefault("REQUESTS_CA_BUNDLE", cacert_path)
+
+    # ffmpeg detection
+    # Bundle FFmpeg into 'ffmpeg_bin' via .spec file. Force absolute path.
+    ffmpeg_exe = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+    ffmpeg_path = os.path.join(meipass, "ffmpeg_bin", ffmpeg_exe)
+    if os.path.exists(ffmpeg_path):
+        os.environ["VINYLFLOW_FFMPEG_PATH"] = ffmpeg_path
