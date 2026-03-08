@@ -1,6 +1,6 @@
 """
 VINYLflowplus - FastAPI Backend
-v1.0.2 - Multi-Format Iron Queue (STABLE)
+v1.0.3 - Multi-Format Iron Queue (STABLE)
 """
 
 import os
@@ -41,7 +41,7 @@ from metadata_handler import MetadataHandler
 def _ffmpeg() -> str:
     return os.environ.get("VINYLFLOW_FFMPEG_PATH") or "ffmpeg"
 
-app = FastAPI(title="VINYLflowplus API", version="1.0.2")
+app = FastAPI(title="VINYLflowplus API", version="1.0.3")
 
 app.add_middleware(
     CORSMiddleware,

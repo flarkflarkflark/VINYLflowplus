@@ -26,7 +26,7 @@ Dit bestand bevat de configuratie en aanpassingen die zijn doorgevoerd voor deze
   - Mappen: `Artist - Title [Label - CatNo][Year][Format]`
   - Bestanden: `Position - Artist - Title.ext`
 
-### 4. Desktop Integratie (Bugfixes v1.0.2+)
+### 4. Desktop Integratie (Bugfixes v1.0.3+)
 - **Standalone FFmpeg Fix:** Backend gebruikt nu altijd de gebundelde FFmpeg-binary via `_ffmpeg()` helper (lost "Silent Failure" op Windows op).
 - **Backend Logging:** Realtime voortgang en foutmeldingen zichtbaar in de terminal van de launcher.
 - KDE Desktop snelkoppeling met goudgeel icoon (`assets/VFplus.png`).
