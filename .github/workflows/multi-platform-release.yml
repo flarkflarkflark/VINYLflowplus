@@ -24,6 +24,7 @@ jobs:
             name: Windows Portable
             asset_name: VINYLflowplus-Windows.exe
             arch: x64
+            is_intel: "False"
           - os: macos-14
             name: macOS App (Modern)
             asset_name: VINYLflowplus-macOS-Universal.zip
@@ -43,11 +44,13 @@ jobs:
             asset_name: VINYLflowplus-Linux.AppImage
             skip_gui: "False"
             arch: x64
+            is_intel: "False"
           - os: ubuntu-22.04
             name: Linux Lite (Browser Edition)
             asset_name: VINYLflowplus-Linux-Lite.AppImage
             skip_gui: "True"
             arch: x64
+            is_intel: "False"
 
     runs-on: ${{ matrix.os }}
 
