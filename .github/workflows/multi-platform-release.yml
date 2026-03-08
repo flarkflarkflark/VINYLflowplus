@@ -24,14 +24,14 @@ jobs:
             name: Windows Portable
             asset_name: VINYLflowplus-Windows.exe
           - os: macos-12
-            name: macOS App (Universal)
+            name: macOS App (Modern)
             asset_name: VINYLflowplus-macOS-Universal.zip
-            macos_arch: universal2
-            macos_target: "12.0"
+            macos_arch: ""
+            macos_target: "11.0"
           - os: macos-12
             name: macOS App (Intel Legacy)
             asset_name: VINYLflowplus-macOS-Intel.zip
-            macos_arch: x86_64
+            macos_arch: "x86_64"
             macos_target: "10.15"
           - os: ubuntu-22.04
             name: Linux AppImage
@@ -57,7 +57,9 @@ jobs:
         if: runner.os == 'macOS'
         run: |
           echo "MACOSX_DEPLOYMENT_TARGET=${{ matrix.macos_target }}" >> $GITHUB_ENV
-          echo "MACOS_ARCH=${{ matrix.macos_arch }}" >> $GITHUB_ENV
+          if [ -n "${{ matrix.macos_arch }}" ]; then
+            echo "MACOS_ARCH=${{ matrix.macos_arch }}" >> $GITHUB_ENV
+          fi
 
       - name: Install System Dependencies (Linux)
         if: runner.os == 'Linux' && matrix.skip_gui == 'False'
@@ -166,8 +168,8 @@ jobs:
             | Platform | File | Description |
             | :--- | :--- | :--- |
             | **🪟 Windows** | `VINYLflowplus-Windows.exe` | **Recommended for Windows.** Single-file executable. |
-            | **🍎 macOS (Modern)** | `VINYLflowplus-macOS-Universal.zip` | **For M1/M2/M3 and modern Intel Macs.** Universal 2 bundle (macOS 12+). |
-            | **🍎 macOS (Legacy)** | `VINYLflowplus-macOS-Intel.zip` | **For older Intel Macs.** Specifically for macOS 10.15 (Catalina) and OpenCore users. |
+            | **🍎 macOS (Modern)** | `VINYLflowplus-macOS-Universal.zip` | **For Intel (Big Sur+).** Works on M1/M2/M3 via Rosetta. |
+            | **🍎 macOS (Legacy)** | `VINYLflowplus-macOS-Intel.zip` | **For older Intel Macs.** Specially for macOS 10.15 (Catalina) and OpenCore users. |
             | **🐧 Linux** | `VINYLflowplus-Linux.AppImage` | **Full Desktop Experience.** Built-in browser window. |
             | **🐧 Linux Lite** | `VINYLflowplus-Linux-Lite.AppImage` | **Lightweight.** Opens in your system browser (Firefox/Chrome). |
             
