@@ -104,23 +104,20 @@ class AudioProcessor:
     ):
         """
         Initialize audio processor.
-
-        Args:
-            silence_threshold: Silence threshold in dB (negative)
-            min_silence_duration: Minimum silence duration in seconds
-            min_track_length: Minimum track length in seconds
-            flac_compression: FLAC compression level (0-8)
         """
         self.silence_threshold = silence_threshold
         self.min_silence_duration = min_silence_duration
         self.min_track_length = min_track_length
         self.flac_compression = flac_compression
+        self.last_error = ""
 
     def get_audio_duration(self, file_path: Path) -> Optional[float]:
         """
         Get total duration of audio file in seconds.
         """
-        debug_log = Path.home() / ".vinylflowplus" / "ffmpeg_debug.log"
+        debug_dir = Path.home() / ".vinylflowplus"
+        debug_log = debug_dir / "ffmpeg_debug.log"
+        
         try:
             ffmpeg_cmd = _ffmpeg()
             cmd = [ffmpeg_cmd, "-i", str(file_path), "-f", "null", "-"]
@@ -130,10 +127,26 @@ class AudioProcessor:
                 creationflags=CREATE_NO_WINDOW
             )
 
-            # Log for Windows debugging if it fails
-            if sys.platform == "win32" and (not result.stderr or "Duration" not in result.stderr):
-                with open(debug_log, "a") as f:
-                    f.write(f"\n--- FFmpeg Duration Failure ---\nFile: {file_path}\nCmd: {' '.join(cmd)}\nExitCode: {result.returncode}\nStderr: {result.stderr[:500]}\n")
+            # Capture output for debugging
+            if result.returncode != 0 or not result.stderr or "Duration" not in result.stderr:
+                self.last_error = f"ExitCode {result.returncode}. Stderr: {result.stderr[:500]}"
+            else:
+                self.last_error = ""
+
+            # Log for Windows debugging if it fails or if we want to trace
+            if sys.platform == "win32":
+                try:
+                    debug_dir.mkdir(parents=True, exist_ok=True)
+                    with open(debug_log, "a") as f:
+                        if not result.stderr or "Duration" not in result.stderr:
+                            f.write(f"\n--- FFmpeg Duration Failure ---\n")
+                            f.write(f"File Exists: {file_path.exists()}\n")
+                            f.write(f"FFmpeg Path: {ffmpeg_cmd}\n")
+                            f.write(f"FFmpeg Exists: {Path(ffmpeg_cmd).exists()}\n")
+                            f.write(f"Cmd: {' '.join(cmd)}\n")
+                            f.write(f"ExitCode: {result.returncode}\n")
+                            f.write(f"Stderr: {result.stderr[:1000]}\n")
+                except: pass
 
             # Parse duration from ffmpeg output
             match = re.search(r"Duration: (\d{2}):(\d{2}):(\d{2}\.\d{2})", result.stderr)
@@ -144,7 +157,12 @@ class AudioProcessor:
             return None
         except Exception as e:
             if sys.platform == "win32":
-                with open(debug_log, "a") as f: f.write(f"FFmpeg Exception: {str(e)}\n")
+                try:
+                    debug_dir.mkdir(parents=True, exist_ok=True)
+                    with open(debug_log, "a") as f: 
+                        f.write(f"FFmpeg Exception: {str(e)}\n")
+                        f.write(f"Attempted FFmpeg Path: {_ffmpeg()}\n")
+                except: pass
             return None
 
     def detect_silence(self, file_path: Path, verbose=False) -> List[Track]:

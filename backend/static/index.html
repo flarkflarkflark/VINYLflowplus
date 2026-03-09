@@ -461,9 +461,24 @@
                                     <button @click="chooseOutputFolder()" class="settings-btn-secondary shrink-0 px-6 py-4 rounded-xl text-[10px] font-black uppercase shadow-md transition active:scale-95">Browse</button>
                                 </div>
                             </div>
-                            <div>
-                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">FLAC Compression (0-8)</label>
-                                <input type="number" min="0" max="8" x-model="config.flac_compression" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg">
+                            <!-- System Health -->
+                            <div class="mt-8 p-4 bg-black/40 rounded-xl border border-gray-800">
+                                <h4 class="text-[10px] font-black text-brand uppercase mb-3 italic">System Health</h4>
+                                <div class="space-y-2">
+                                    <div class="flex justify-between items-center text-[9px] font-bold">
+                                        <span class="opacity-50 uppercase">FFmpeg Engine</span>
+                                        <span :class="systemStatus.ffmpeg_ok ? 'text-green-400' : 'text-red-500'" x-text="systemStatus.ffmpeg_ok ? 'ONLINE' : 'ERROR'"></span>
+                                    </div>
+                                    <div class="flex justify-between items-center text-[9px] font-bold">
+                                        <span class="opacity-50 uppercase">Data Directory</span>
+                                        <span class="text-slate-300 truncate ml-4" x-text="systemStatus.data_dir"></span>
+                                    </div>
+                                    <div x-show="systemStatus.ffmpeg_last_error" class="mt-3 p-2 bg-red-950/30 border border-red-900/50 rounded-lg">
+                                        <p class="text-[8px] font-black text-red-400 uppercase mb-1 italic">Last Engine Error:</p>
+                                        <p class="text-[8px] text-red-300 font-mono break-all leading-tight" x-text="systemStatus.ffmpeg_last_error"></p>
+                                    </div>
+                                    <p x-show="!systemStatus.ffmpeg_ok" class="text-[8px] text-red-400 mt-2 italic">Warning: Audio processing is disabled because FFmpeg could not be initialized.</p>
+                                </div>
                             </div>
                         </div>
                     </div>

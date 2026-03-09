@@ -479,7 +479,23 @@ async def select_folder_api():
     except: return {"path": None}
 
 @app.get("/api/status")
-async def get_status(): return {"discogs_configured": bool(config.discogs_token and config.discogs_token != "your_token_here")}
+async def get_status(): 
+    ffmpeg_ok = False
+    ffmpeg_ver = "Not found"
+    try:
+        res = subprocess.run([_ffmpeg(), "-version"], capture_output=True, text=True, creationflags=CREATE_NO_WINDOW)
+        ffmpeg_ok = res.returncode == 0
+        ffmpeg_ver = res.stdout.split('\n')[0] if ffmpeg_ok else "Error running ffmpeg"
+    except: pass
+    
+    return {
+        "discogs_configured": bool(config.discogs_token and config.discogs_token != "your_token_here"),
+        "ffmpeg_ok": ffmpeg_ok,
+        "ffmpeg_version": ffmpeg_ver,
+        "ffmpeg_last_error": audio_processor.last_error,
+        "data_dir": str(BASE_DATA_PATH),
+        "os": sys.platform
+    }
 
 @app.get("/api/formats")
 async def get_formats(): return {"formats": [{"id": k, "label": v["label"]} for k, v in OUTPUT_FORMATS.items()]}

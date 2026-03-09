@@ -15,11 +15,13 @@ function vinylApp() {
         config: { silence_threshold: -40, min_silence_duration: 1.5, output_dir: '', flac_compression: 8 },
         supportedExtensions: ['.wav', '.aiff', '.aif', '.flac', '.mp3'],
         discogsConfigured: true, darkMode: localStorage.getItem('darkMode') !== 'false',
+        systemStatus: { ffmpeg_ok: true, data_dir: '' },
 
         async init() {
             this.updateDarkMode();
             document.addEventListener('contextmenu', e => { if (!e.target.closest('input, textarea')) e.preventDefault(); }, true);
             await this.loadConfig(); await this.loadFormats(); await this.fetchQueue(); this.connectWebSocket();
+            this.checkStatus();
             this.$watch('currentFile', (f) => { if (f && !this.searchQuery) this.searchQuery = this.cleanFilename(f.filename); });
             this.$watch('currentFileId', (id) => { if (id && !this.selectedFileIds.includes(id)) this.selectedFileIds = [id]; });
         },
@@ -392,7 +394,14 @@ function vinylApp() {
             } catch(e) { alert('Failed to save defaults.'); }
         },
         async chooseOutputFolder() { const r = await fetch('/api/utils/select-folder', { method: 'POST' }); const d = await r.json(); if(d.path) this.config.output_dir = d.path; },
-        async checkStatus() { try { const r = await fetch('/api/status'); const d = await r.json(); this.discogsConfigured = d.discogs_configured; } catch(e){} },
+        async checkStatus() { 
+            try { 
+                const r = await fetch('/api/status'); 
+                const d = await r.json(); 
+                this.discogsConfigured = d.discogs_configured;
+                this.systemStatus = d;
+            } catch(e){} 
+        },
 
         async quitApp() {
             try {
