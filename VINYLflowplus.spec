@@ -26,6 +26,7 @@ DATA_FILES = [
 HIDDEN_IMPORTS = [
     'backend.api',
     'webview',
+    'psutil',
 ]
 
 if os.environ.get('SKIP_GUI', 'False').lower() != 'true':

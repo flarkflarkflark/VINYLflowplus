@@ -19,6 +19,9 @@ function vinylApp() {
         systemMetrics: { cpu_percent: null, ram_used_gb: null, ram_total_gb: null, ram_percent: null, process_rss_mb: null },
         ffmpegStatus: { ok: true, version: '', last_error: '' },
         metricsTimer: null,
+        processPollTimer: null,
+        processPollTick: 0,
+        lastProgressUpdate: 0,
         lastProcessedIds: [], outputFormats: ['flac'], availableFormats: [], restorationLevel: 0,
         showQuitModal: false,
         config: { silence_threshold: -40, min_silence_duration: 1.5, output_dir: '', flac_compression: 8, discogs_user_token: '', discogs_user_agent: '' },
@@ -102,6 +105,7 @@ function vinylApp() {
             this.processingEtaSec = null;
             if (this.processingTicker) clearInterval(this.processingTicker);
             this.processingTicker = null;
+            this.stopProcessPolling();
             this.stopMetricsPolling();
         },
 
@@ -381,15 +385,39 @@ function vinylApp() {
 
         startProcessPolling(jobId) {
             this.processingJob.id = jobId;
-            const timer = setInterval(async () => {
+            this.stopProcessPolling();
+            this.processPollTick = 0;
+            this.lastProgressUpdate = 0;
+            this.processPollTimer = setInterval(async () => {
                 try {
                     const r = await fetch(`/api/process/${jobId}`); 
                     const j = await r.json();
                     if (j.status === 'processing') { 
                         this.processingMessage = j.message || 'Processing...'; 
+                        if (j.updated_at && j.updated_at !== this.lastProgressUpdate) {
+                            this.lastProgressUpdate = j.updated_at;
+                            this.handleProgressEvent({
+                                progress: j.progress,
+                                message: j.message,
+                                stage: j.stage,
+                                track: j.track,
+                                format: j.format,
+                                track_index: j.track_index,
+                                track_total: j.track_total,
+                                format_label: j.format_label,
+                                format_index: j.format_index,
+                                format_total: j.format_total,
+                            });
+                        } else if (j.progress !== undefined) {
+                            this.processingProgress = 0 + j.progress;
+                        }
+                        this.processPollTick = (this.processPollTick || 0) + 1;
+                        if (this.processPollTick % 4 === 0) {
+                            this.fetchQueue();
+                        }
                     }
                     else if (j.status === 'complete') {
-                        clearInterval(timer);
+                        this.stopProcessPolling();
                         const elapsed = this.processingStartTime ? Math.round((Date.now() - this.processingStartTime) / 1000) : 0;
                         this.processingStats = { tracks: j.tracks ? j.tracks.length : 0, files: j.tracks || [], elapsed, formats: this.outputFormats.length };
                         this.stopProcessingStage();
@@ -397,12 +425,12 @@ function vinylApp() {
                         this.fetchQueue();
                     }
                     else if (j.status === 'error') { 
-                        clearInterval(timer); 
+                        this.stopProcessPolling(); 
                         this.stopProcessingStage(); 
                         alert('Error: ' + j.error); 
                     }
                 } catch (e) {}
-            }, 1000);
+            }, 500);
         },
 
         handleProgressEvent(d) {

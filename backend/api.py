@@ -10,6 +10,7 @@ import copy
 import shutil
 import subprocess
 import asyncio
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 import json
@@ -61,6 +62,13 @@ app.add_middleware(
 uploaded_files: Dict[str, dict] = {}
 processing_jobs: Dict[str, dict] = {}
 websocket_connections: List[WebSocket] = []
+
+def _update_job_progress(job_id: str, **updates) -> None:
+    job = processing_jobs.get(job_id)
+    if not job:
+        return
+    updates.setdefault("updated_at", time.time())
+    job.update(updates)
 
 # --- PATHS ---
 def get_base_path():
@@ -349,7 +357,14 @@ async def search_discogs_api(request: SearchRequest):
 @app.post("/api/process")
 async def process_file_api(request: ProcessRequest):
     job_id = str(uuid.uuid4())
-    processing_jobs[job_id] = {"job_id": job_id, "file_id": request.file_id, "status": "processing", "progress": 0.1}
+    processing_jobs[job_id] = {
+        "job_id": job_id,
+        "file_id": request.file_id,
+        "status": "processing",
+        "progress": 0.1,
+        "message": "Processing...",
+        "updated_at": time.time(),
+    }
     asyncio.create_task(process_file_background(request, job_id))
     return {"job_id": job_id}
 
@@ -381,7 +396,23 @@ async def process_file_background(request: ProcessRequest, job_id: str):
                 count += 1
                 prog = 0.1 + (count/total)*0.8
                 msg = "Processing..."
-                processing_jobs[job_id].update({"progress": prog, "message": msg})
+                _update_job_progress(
+                    job_id,
+                    progress=prog,
+                    message=msg,
+                    stage="track_start",
+                    track={
+                        "number": track.number,
+                        "vinyl_number": track.vinyl_number,
+                        "title": track.title,
+                    },
+                    track_index=track_idx,
+                    track_total=len(det_tracks),
+                    format=fmt,
+                    format_label=OUTPUT_FORMATS[fmt]["label"],
+                    format_index=fmt_idx,
+                    format_total=len(request.output_formats),
+                )
                 await broadcast_message({
                     "type": "progress",
                     "stage": "track_start",
@@ -433,19 +464,25 @@ async def process_file_background(request: ProcessRequest, job_id: str):
                     "format_total": len(request.output_formats),
                 })
 
-        processing_jobs[job_id].update({"status": "complete", "progress": 1.0, "tracks": all_outs})
+        _update_job_progress(job_id, status="complete", progress=1.0, tracks=all_outs, message="Complete")
         if request.file_id in uploaded_files: 
             uploaded_files[request.file_id]["status"] = "completed"
             save_queue_state()
         await broadcast_message({"type": "complete", "file_id": request.file_id, "tracks": all_outs})
     except Exception as e:
-        processing_jobs[job_id].update({"status": "error", "error": str(e)})
+        _update_job_progress(job_id, status="error", error=str(e), message="Error")
         await broadcast_message({"type": "error", "file_id": request.file_id, "message": str(e)})
 
 @app.post("/api/multi-process")
 async def multi_process_api(request: MultiProcessRequest):
     job_id = str(uuid.uuid4())
-    processing_jobs[job_id] = {"job_id": job_id, "status": "processing", "progress": 0.1}
+    processing_jobs[job_id] = {
+        "job_id": job_id,
+        "status": "processing",
+        "progress": 0.1,
+        "message": "Processing...",
+        "updated_at": time.time(),
+    }
     asyncio.create_task(multi_process_background(request, job_id))
     return {"job_id": job_id}
 
@@ -469,7 +506,23 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
                 count += 1
                 prog = 0.1 + (count/total)*0.8
                 msg = "Processing..."
-                processing_jobs[job_id].update({"progress": prog, "message": msg})
+                _update_job_progress(
+                    job_id,
+                    progress=prog,
+                    message=msg,
+                    stage="track_start",
+                    track={
+                        "number": m.detected,
+                        "vinyl_number": m.discogs,
+                        "title": m.title,
+                    },
+                    track_index=track_idx,
+                    track_total=len(request.track_mapping),
+                    format=fmt,
+                    format_label=OUTPUT_FORMATS[fmt]["label"],
+                    format_index=fmt_idx,
+                    format_total=len(request.output_formats),
+                )
                 await broadcast_message({
                     "type": "progress",
                     "stage": "track_start",
@@ -511,6 +564,23 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
                 # Final safety check: force track tag from final filename
                 metadata_handler.fix_track_tags_from_filename(final_path, fmt)
                 all_outs.append(f"[{fmt.upper()}] {final_name}")
+                _update_job_progress(
+                    job_id,
+                    progress=prog,
+                    message=msg,
+                    stage="track_done",
+                    track={
+                        "number": m.detected,
+                        "vinyl_number": m.discogs,
+                        "title": m.title,
+                    },
+                    track_index=track_idx,
+                    track_total=len(request.track_mapping),
+                    format=fmt,
+                    format_label=OUTPUT_FORMATS[fmt]["label"],
+                    format_index=fmt_idx,
+                    format_total=len(request.output_formats),
+                )
                 await broadcast_message({
                     "type": "progress",
                     "stage": "track_done",
@@ -530,13 +600,13 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
                     "format_total": len(request.output_formats),
                 })
 
-        processing_jobs[job_id].update({"status": "complete", "progress": 1.0, "tracks": all_outs})
+        _update_job_progress(job_id, status="complete", progress=1.0, tracks=all_outs, message="Complete")
         for fid in set(m.source_file_id for m in request.track_mapping):
             if fid in uploaded_files: uploaded_files[fid]["status"] = "completed"
         save_queue_state()
         await broadcast_message({"type": "complete", "file_id": "multi", "tracks": all_outs})
     except Exception as e:
-        processing_jobs[job_id].update({"status": "error", "error": str(e)})
+        _update_job_progress(job_id, status="error", error=str(e), message="Error")
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
