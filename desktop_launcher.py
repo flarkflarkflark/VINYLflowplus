@@ -64,6 +64,16 @@ APP_NAME = "VINYLflowplus"
 
 class DesktopApi:
     def select_output_folder(self, initial_path: str = "") -> str | None:
+        """Open native folder picker.
+
+        On Windows, pywebview uses WebView2 which runs in a child process.
+        Without an explicit BringToTop call, the native dialog can end up
+        hidden behind the main window.  We work around this by:
+          1. Calling window.show() / window.restore() to ensure the main
+             window itself is in front before we open the dialog.
+          2. Using create_file_dialog() which should inherit the window's
+             HWND as owner on most backends.
+        """
         if webview is None:
             return None
         try:
@@ -74,6 +84,19 @@ class DesktopApi:
                     directory = str(candidate)
 
             window = webview.windows[0]
+
+            # Bring the main window to the foreground first so the dialog
+            # spawns on top of it rather than behind it.
+            try:
+                window.show()
+            except Exception:
+                pass
+
+            # Small OS-yield so the window manager can process the focus change
+            # before the blocking dialog call.
+            import time as _time
+            _time.sleep(0.05)
+
             dialog_type = webview.FOLDER_DIALOG
             if hasattr(webview, "FileDialog") and hasattr(webview.FileDialog, "FOLDER"):
                 dialog_type = webview.FileDialog.FOLDER
@@ -183,15 +206,26 @@ def configure_desktop_environment() -> tuple[str, int]:
     return host, port
 
 
-def _run_server(host: str, port: int) -> None:
-    from backend.api import app
+_SERVER_START_ERROR = None
 
-    uvicorn.run(app, host=host, port=port)
+
+def _run_server(host: str, port: int) -> None:
+    global _SERVER_START_ERROR
+    from backend.api import app
+    try:
+        kwargs = {}
+        if getattr(sys, "frozen", False):
+            kwargs["log_config"] = None
+        uvicorn.run(app, host=host, port=port, **kwargs)
+    except BaseException as exc:
+        _SERVER_START_ERROR = exc
 
 
 def _wait_for_server(host: str, port: int, timeout: float = 10.0) -> bool:
     deadline = time.time() + timeout
     while time.time() < deadline:
+        if _SERVER_START_ERROR is not None:
+            return False
         try:
             with create_connection((host, port), timeout=0.5):
                 return True
@@ -268,7 +302,13 @@ def main() -> None:
     server_thread = threading.Thread(target=lambda: _run_server(host, port), daemon=True)
     server_thread.start()
 
-    if not _wait_for_server(host, port):
+    wait_timeout = 30.0 if getattr(sys, "frozen", False) else 10.0
+    if not _wait_for_server(host, port, timeout=wait_timeout):
+        if _SERVER_START_ERROR is not None:
+            raise RuntimeError(
+                f"VINYLflowplus backend failed to start on http://{host}:{port}. "
+                f"Error: {repr(_SERVER_START_ERROR)}"
+            )
         raise RuntimeError(f"VINYLflowplus backend failed to start on http://{host}:{port}")
 
     app_url = f"http://{host}:{port}"

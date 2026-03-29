@@ -35,11 +35,17 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import Config
-from audio_processor import AudioProcessor, Track, SUPPORTED_INPUT_EXTENSIONS, OUTPUT_FORMATS
+from audio_processor import AudioProcessor, Track, SUPPORTED_INPUT_EXTENSIONS, OUTPUT_FORMATS, resolve_ffmpeg
 from metadata_handler import MetadataHandler
 
+try:
+    import psutil
+except Exception:
+    psutil = None
+
 def _ffmpeg() -> str:
-    return os.environ.get("VINYLFLOW_FFMPEG_PATH") or "ffmpeg"
+    """Return the ffmpeg executable to use (validated by resolve_ffmpeg)."""
+    return resolve_ffmpeg().get("path") or "ffmpeg"
 
 app = FastAPI(title="VINYLflowplus API", version="1.0.3")
 
@@ -117,6 +123,9 @@ def save_queue_state():
     try:
         serializable = {}
         for fid, info in uploaded_files.items():
+            status = info.get("status")
+            if status not in ("processing", "complete", "completed"):
+                continue
             item = info.copy()
             if "detected_tracks" in item:
                 tracks_raw = []
@@ -136,10 +145,16 @@ def load_queue_state():
         with open(QUEUE_STATE_FILE, "r") as f: data = json.load(f)
         verified = {}
         for fid, info in data.items():
-            if (UPLOAD_DIR / fid).exists():
-                if "detected_tracks" in info: info["detected_tracks"] = [Track(number=t.get("number", 0), start=t.get("start", 0), end=t.get("end", 0)) for t in info["detected_tracks"]]
-                verified[fid] = info
+            status = info.get("status")
+            if status in ("uploaded", "analyzed") or status not in ("processing", "complete", "completed"):
+                continue
+            file_path = Path(info.get("path", ""))
+            if not file_path.exists() or not (UPLOAD_DIR / fid).exists():
+                continue
+            if "detected_tracks" in info: info["detected_tracks"] = [Track(number=t.get("number", 0), start=t.get("start", 0), end=t.get("end", 0)) for t in info["detected_tracks"]]
+            verified[fid] = info
         uploaded_files = verified
+        save_queue_state()
     except Exception as e: logger.error(f"Failed to load queue state: {e}")
 
 load_queue_state()
@@ -354,7 +369,7 @@ async def process_file_background(request: ProcessRequest, job_id: str):
         total = len(request.output_formats) * len(det_tracks)
         count = 0
 
-        for fmt in request.output_formats:
+        for fmt_idx, fmt in enumerate(request.output_formats, start=1):
             album_folder = output_base / metadata_handler.create_album_folder_name(release, fmt)
             album_folder.mkdir(parents=True, exist_ok=True)
             cover_data = None
@@ -362,14 +377,34 @@ async def process_file_background(request: ProcessRequest, job_id: str):
                 cp = album_folder / "folder.jpg"
                 if metadata_handler.download_cover_art(release.cover_url, cp): cover_data = metadata_handler.prepare_cover_for_embedding(cp)
 
-            for track in det_tracks:
+            for track_idx, track in enumerate(det_tracks, start=1):
                 count += 1
                 prog = 0.1 + (count/total)*0.8
-                msg = f"[{fmt.upper()}] Processing Track {track.vinyl_number}..."
+                msg = "Processing..."
                 processing_jobs[job_id].update({"progress": prog, "message": msg})
-                await broadcast_message({"type": "progress", "file_id": request.file_id, "progress": prog, "message": msg})
+                await broadcast_message({
+                    "type": "progress",
+                    "stage": "track_start",
+                    "file_id": request.file_id,
+                    "progress": prog,
+                    "message": msg,
+                    "track": {
+                        "number": track.number,
+                        "vinyl_number": track.vinyl_number,
+                        "title": track.title,
+                    },
+                    "track_index": track_idx,
+                    "track_total": len(det_tracks),
+                    "format": fmt,
+                    "format_label": OUTPUT_FORMATS[fmt]["label"],
+                    "format_index": fmt_idx,
+                    "format_total": len(request.output_formats),
+                })
                 
-                temp = album_folder / f"temp_{track.vinyl_number}{OUTPUT_FORMATS[fmt]['extension']}"
+                vinyl_number = metadata_handler.sanitize_filename(track.vinyl_number or f"T{track.number}")
+                if not vinyl_number:
+                    vinyl_number = f"T{track.number}"
+                temp = album_folder / f"temp_{vinyl_number}{OUTPUT_FORMATS[fmt]['extension']}"
                 audio_processor.extract_track(Path(file_info["path"]), track, temp, fmt, restoration_level=request.restoration_level, hum_freq=request.hum_freq)
                 metadata_handler.tag_file(temp, track, release, cover_data, fmt)
                 final_name = metadata_handler.create_track_filename(track, release, fmt)
@@ -379,6 +414,24 @@ async def process_file_background(request: ProcessRequest, job_id: str):
                 # Final safety check: force track tag from final filename
                 metadata_handler.fix_track_tags_from_filename(final_path, fmt)
                 all_outs.append(f"[{fmt.upper()}] {final_name}")
+                await broadcast_message({
+                    "type": "progress",
+                    "stage": "track_done",
+                    "file_id": request.file_id,
+                    "progress": prog,
+                    "message": msg,
+                    "track": {
+                        "number": track.number,
+                        "vinyl_number": track.vinyl_number,
+                        "title": track.title,
+                    },
+                    "track_index": track_idx,
+                    "track_total": len(det_tracks),
+                    "format": fmt,
+                    "format_label": OUTPUT_FORMATS[fmt]["label"],
+                    "format_index": fmt_idx,
+                    "format_total": len(request.output_formats),
+                })
 
         processing_jobs[job_id].update({"status": "complete", "progress": 1.0, "tracks": all_outs})
         if request.file_id in uploaded_files: 
@@ -404,7 +457,7 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
         total = len(request.output_formats) * len(request.track_mapping)
         count = 0
 
-        for fmt in request.output_formats:
+        for fmt_idx, fmt in enumerate(request.output_formats, start=1):
             album_folder = output_base / metadata_handler.create_album_folder_name(release, fmt)
             album_folder.mkdir(parents=True, exist_ok=True)
             cover_data = None
@@ -412,12 +465,29 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
                 cp = album_folder / "folder.jpg"
                 if metadata_handler.download_cover_art(release.cover_url, cp): cover_data = metadata_handler.prepare_cover_for_embedding(cp)
 
-            for m in request.track_mapping:
+            for track_idx, m in enumerate(request.track_mapping, start=1):
                 count += 1
                 prog = 0.1 + (count/total)*0.8
-                msg = f"[{fmt.upper()}] Processing {m.discogs}..."
+                msg = "Processing..."
                 processing_jobs[job_id].update({"progress": prog, "message": msg})
-                await broadcast_message({"type": "progress", "file_id": "multi", "progress": prog, "message": msg})
+                await broadcast_message({
+                    "type": "progress",
+                    "stage": "track_start",
+                    "file_id": "multi",
+                    "progress": prog,
+                    "message": msg,
+                    "track": {
+                        "number": m.detected,
+                        "vinyl_number": m.discogs,
+                        "title": m.title,
+                    },
+                    "track_index": track_idx,
+                    "track_total": len(request.track_mapping),
+                    "format": fmt,
+                    "format_label": OUTPUT_FORMATS[fmt]["label"],
+                    "format_index": fmt_idx,
+                    "format_total": len(request.output_formats),
+                })
                 
                 f_info = uploaded_files.get(m.source_file_id)
                 if not f_info: continue
@@ -428,7 +498,10 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
                 track_obj = Track(number=m.detected, start=b.start, end=b.end)
                 track_obj.vinyl_number = m.discogs
                 track_obj.title = m.title
-                temp = album_folder / f"temp_{m.discogs}{OUTPUT_FORMATS[fmt]['extension']}"
+                vinyl_number = metadata_handler.sanitize_filename(m.discogs or f"T{m.detected}")
+                if not vinyl_number:
+                    vinyl_number = f"T{m.detected}"
+                temp = album_folder / f"temp_{vinyl_number}{OUTPUT_FORMATS[fmt]['extension']}"
                 audio_processor.extract_track(Path(f_info["path"]), track_obj, temp, fmt, restoration_level=request.restoration_level, hum_freq=request.hum_freq)
                 metadata_handler.tag_file(temp, track_obj, release, cover_data, fmt)
                 final_name = metadata_handler.create_track_filename(track_obj, release, fmt)
@@ -438,6 +511,24 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
                 # Final safety check: force track tag from final filename
                 metadata_handler.fix_track_tags_from_filename(final_path, fmt)
                 all_outs.append(f"[{fmt.upper()}] {final_name}")
+                await broadcast_message({
+                    "type": "progress",
+                    "stage": "track_done",
+                    "file_id": "multi",
+                    "progress": prog,
+                    "message": msg,
+                    "track": {
+                        "number": m.detected,
+                        "vinyl_number": m.discogs,
+                        "title": m.title,
+                    },
+                    "track_index": track_idx,
+                    "track_total": len(request.track_mapping),
+                    "format": fmt,
+                    "format_label": OUTPUT_FORMATS[fmt]["label"],
+                    "format_index": fmt_idx,
+                    "format_total": len(request.output_formats),
+                })
 
         processing_jobs[job_id].update({"status": "complete", "progress": 1.0, "tracks": all_outs})
         for fid in set(m.source_file_id for m in request.track_mapping):
@@ -471,6 +562,43 @@ async def preconvert_to_mp3(fid: str, path: Path):
 
 @app.post("/api/utils/select-folder")
 async def select_folder_api():
+    if sys.platform == "win32":
+        # Use PowerShell FolderBrowserDialog with a topmost dummy form as owner
+        # so the dialog always appears in front of the pywebview window.
+        ps_script = """
+        Add-Type -AssemblyName System.Windows.Forms
+        Add-Type -AssemblyName System.Drawing
+
+        # Invisible owner form — forces dialog to top of z-order
+        $owner = New-Object System.Windows.Forms.Form
+        $owner.TopMost = $true
+        $owner.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
+        $owner.Width  = 0
+        $owner.Height = 0
+        $owner.ShowInTaskbar = $false
+        $owner.Show()
+        $owner.Activate()
+
+        $f = New-Object System.Windows.Forms.FolderBrowserDialog
+        $f.Description = "Select VINYLflowplus Output Folder"
+        $f.ShowNewFolderButton = $true
+        $result = $f.ShowDialog($owner)
+        $owner.Dispose()
+        if ($result -eq "OK") {
+            Write-Output $f.SelectedPath
+        }
+        """
+        try:
+            res = await asyncio.to_thread(
+                subprocess.run,
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+                capture_output=True, text=True, creationflags=CREATE_NO_WINDOW
+            )
+            path = res.stdout.strip()
+            return {"path": path if path else None}
+        except:
+            return {"path": None}
+    
     import shutil
     cmd = ["kdialog", "--getexistingdirectory", os.path.expanduser("~")] if shutil.which("kdialog") else ["zenity", "--file-selection", "--directory"]
     try:
@@ -480,22 +608,49 @@ async def select_folder_api():
 
 @app.get("/api/status")
 async def get_status(): 
-    ffmpeg_ok = False
-    ffmpeg_ver = "Not found"
-    try:
-        res = subprocess.run([_ffmpeg(), "-version"], capture_output=True, text=True, creationflags=CREATE_NO_WINDOW)
-        ffmpeg_ok = res.returncode == 0
-        ffmpeg_ver = res.stdout.split('\n')[0] if ffmpeg_ok else "Error running ffmpeg"
-    except: pass
+    resolution = resolve_ffmpeg()
+    ffmpeg_ok = bool(resolution.get("ok"))
+    ffmpeg_ver = resolution.get("version") or ("Error running ffmpeg" if not ffmpeg_ok else "Unknown version")
+    ffmpeg_last_error = audio_processor.last_error
+    if not ffmpeg_ok and not ffmpeg_last_error:
+        ffmpeg_last_error = resolution.get("error") or (resolution.get("stderr") or "")[:500]
     
     return {
         "discogs_configured": bool(config.discogs_token and config.discogs_token != "your_token_here"),
         "ffmpeg_ok": ffmpeg_ok,
         "ffmpeg_version": ffmpeg_ver,
-        "ffmpeg_last_error": audio_processor.last_error,
+        "ffmpeg_last_error": ffmpeg_last_error,
+        "ffmpeg_path": resolution.get("path"),
+        "ffmpeg_source": resolution.get("source"),
+        "ffmpeg_fallback": resolution.get("fallback_used"),
+        "ffmpeg_path_exists": resolution.get("exists"),
+        "ffmpeg_bundled_refreshed": resolution.get("copy_refreshed"),
+        "ffmpeg_smoke_returncode": resolution.get("returncode"),
         "data_dir": str(BASE_DATA_PATH),
         "os": sys.platform
     }
+
+@app.get("/api/system-metrics")
+async def get_system_metrics():
+    data = {
+        "cpu_percent": None,
+        "ram_used_gb": None,
+        "ram_total_gb": None,
+        "ram_percent": None,
+        "process_rss_mb": None,
+    }
+    if psutil:
+        try:
+            data["cpu_percent"] = psutil.cpu_percent(interval=0.1)
+            mem = psutil.virtual_memory()
+            data["ram_used_gb"] = round(mem.used / (1024 ** 3), 2)
+            data["ram_total_gb"] = round(mem.total / (1024 ** 3), 2)
+            data["ram_percent"] = mem.percent
+            proc = psutil.Process(os.getpid())
+            data["process_rss_mb"] = round(proc.memory_info().rss / (1024 ** 2), 1)
+        except Exception:
+            pass
+    return data
 
 @app.get("/api/formats")
 async def get_formats(): return {"formats": [{"id": k, "label": v["label"]} for k, v in OUTPUT_FORMATS.items()]}
@@ -508,6 +663,8 @@ async def get_config_api():
         "min_track_length": audio_processor.min_track_length, 
         "output_dir": config.default_output_dir, 
         "flac_compression": audio_processor.flac_compression,
+        "discogs_user_token": config.discogs_token,
+        "discogs_user_agent": config.discogs_user_agent,
         "default_output_formats": config.default_output_formats,
         "default_restoration_level": config.default_restoration_level
     }
@@ -518,6 +675,13 @@ async def update_config_api(updates: dict):
         config.default_output_dir = updates["output_dir"]
         config.save_output_dir(updates["output_dir"])
     if "flac_compression" in updates: audio_processor.flac_compression = int(updates["flac_compression"])
+    if "discogs_user_token" in updates or "discogs_user_agent" in updates:
+        token = updates.get("discogs_user_token", config.discogs_token)
+        user_agent = updates.get("discogs_user_agent", config.discogs_user_agent)
+        config.save_token(token, user_agent)
+        config.discogs_token = token
+        config.discogs_user_agent = user_agent
+        metadata_handler.reinitialize(config.discogs_token, config.discogs_user_agent)
     return await get_config_api()
 
 @app.post("/api/config/processing-defaults")
@@ -558,7 +722,17 @@ async def get_audio(file_id: str):
 async def get_job(job_id: str): return processing_jobs.get(job_id, {"status": "not_found"})
 
 @app.post("/api/quit")
-async def quit_api():
+async def quit_api(request: dict = None):
+    if request and request.get("clear_queue"):
+        # Clear all temp uploads and state
+        try:
+            for fid in list(uploaded_files.keys()):
+                cleanup_session(fid)
+            if QUEUE_STATE_FILE.exists():
+                QUEUE_STATE_FILE.unlink()
+        except Exception as e:
+            logger.error(f"Failed to clear queue on quit: {e}")
+    
     logger.warning("Shutdown requested via API.")
     os._exit(0)
 

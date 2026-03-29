@@ -10,21 +10,254 @@ import os
 import re
 import subprocess
 import sys
+import shutil
+import logging
 from pathlib import Path
 from typing import List, Tuple, Optional
 
 # Constants for Windows subprocess management
 CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
+logger = logging.getLogger("VINYLflowplus")
+_FFMPEG_CACHE = None
+
+
+def _ffmpeg_debug_path() -> Path:
+    base_dir = os.environ.get("VINYLFLOW_DATA_DIR")
+    base_path = Path(base_dir) if base_dir else Path.home() / ".vinylflowplus"
+    return base_path / "ffmpeg_debug.log"
+
+
+def _append_ffmpeg_debug(lines: List[str]) -> None:
+    try:
+        log_path = _ffmpeg_debug_path()
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(log_path, "a", encoding="utf-8", errors="replace") as f:
+            f.write("\n".join(lines) + "\n")
+    except Exception:
+        pass
+
+
+def _is_meipass_path(path: str) -> bool:
+    meipass = getattr(sys, "_MEIPASS", None)
+    if not meipass:
+        return False
+    try:
+        candidate = Path(path)
+        if candidate.exists():
+            try:
+                candidate = candidate.resolve()
+            except Exception:
+                pass
+        meipass_path = Path(meipass)
+        try:
+            return candidate == meipass_path or meipass_path in candidate.parents
+        except Exception:
+            return False
+    except Exception:
+        return False
+
+
+def _bundled_ffmpeg_path() -> Optional[Path]:
+    meipass = getattr(sys, "_MEIPASS", None)
+    if not meipass:
+        return None
+    ffmpeg_dir = Path(meipass) / "ffmpeg_bin"
+    candidates = ["ffmpeg.exe", "ffmpeg"] if sys.platform == "win32" else ["ffmpeg"]
+    for name in candidates:
+        path = ffmpeg_dir / name
+        if path.exists() and path.is_file():
+            return path
+    root_candidate = Path(meipass) / ("ffmpeg.exe" if sys.platform == "win32" else "ffmpeg")
+    if root_candidate.exists() and root_candidate.is_file():
+        return root_candidate
+    return None
+
+
+def _stable_ffmpeg_path() -> Path:
+    base_dir = os.environ.get("VINYLFLOW_DATA_DIR")
+    base_path = Path(base_dir) if base_dir else Path.home() / ".vinylflowplus"
+    name = "ffmpeg.exe" if sys.platform == "win32" else "ffmpeg"
+    return base_path / "tools" / name
+
+
+def _ensure_stable_ffmpeg(bundled_path: Path) -> tuple[Optional[Path], bool]:
+    if sys.platform != "win32" or not bundled_path:
+        return None, False
+    stable_path = _stable_ffmpeg_path()
+    refreshed = False
+    try:
+        stable_path.parent.mkdir(parents=True, exist_ok=True)
+        if stable_path.exists():
+            try:
+                if stable_path.stat().st_size == bundled_path.stat().st_size:
+                    return stable_path, False
+            except Exception:
+                pass
+        shutil.copy2(bundled_path, stable_path)
+        refreshed = True
+    except Exception as exc:
+        logger.warning("FFmpeg stable copy failed: %r", exc)
+        _append_ffmpeg_debug([
+            "--- FFmpeg Stable Copy Failure ---",
+            f"Bundled Path: {bundled_path}",
+            f"Stable Path: {stable_path}",
+            f"Exception: {repr(exc)}",
+        ])
+        if stable_path.exists():
+            return stable_path, False
+        return None, False
+    return stable_path, refreshed
+
+
+def _smoke_test_ffmpeg(path: str) -> dict:
+    result = {
+        "ok": False,
+        "stdout": "",
+        "stderr": "",
+        "returncode": None,
+        "exception": None,
+        "version": "",
+    }
+    try:
+        res = subprocess.run(
+            [path, "-version"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+            creationflags=CREATE_NO_WINDOW,
+        )
+        result["returncode"] = res.returncode
+        result["stdout"] = res.stdout or ""
+        result["stderr"] = res.stderr or ""
+        result["ok"] = res.returncode == 0
+        if result["stdout"]:
+            result["version"] = result["stdout"].splitlines()[0].strip()
+    except Exception as exc:
+        result["exception"] = repr(exc)
+    return result
+
+
+def resolve_ffmpeg(force_refresh: bool = False) -> dict:
+    """Resolve the best FFmpeg path with smoke test validation."""
+    global _FFMPEG_CACHE
+    if _FFMPEG_CACHE and not force_refresh:
+        return _FFMPEG_CACHE
+
+    configured_path = os.environ.get("VINYLFLOW_FFMPEG_PATH")
+    if configured_path:
+        configured_path = configured_path.strip().strip('"')
+    configured_candidate = None
+    bundled_candidate = None
+    if configured_path:
+        if _is_meipass_path(configured_path):
+            bundled_candidate = Path(configured_path)
+        else:
+            configured_candidate = configured_path
+
+    system_path = shutil.which("ffmpeg")
+    if system_path and _is_meipass_path(system_path):
+        bundled_candidate = Path(system_path)
+        system_path = None
+
+    bundled_path = _bundled_ffmpeg_path() or bundled_candidate
+    stable_path = None
+    copy_refreshed = False
+    if bundled_path:
+        stable_path, copy_refreshed = _ensure_stable_ffmpeg(bundled_path)
+
+    candidates: List[dict] = []
+    if configured_candidate:
+        candidates.append({"path": configured_candidate, "source": "configured"})
+    if system_path:
+        candidates.append({"path": system_path, "source": "system"})
+    if stable_path:
+        candidates.append({"path": str(stable_path), "source": "bundled_stable"})
+    if bundled_path:
+        candidates.append({"path": str(bundled_path), "source": "bundled_temp"})
+    if not candidates:
+        candidates.append({"path": "ffmpeg", "source": "system"})
+
+    selected = None
+    selected_test = None
+    last_candidate = None
+    last_test = None
+    for idx, candidate in enumerate(candidates):
+        path = candidate["path"]
+        test = _smoke_test_ffmpeg(path)
+        last_candidate = candidate
+        last_test = test
+        exists = Path(path).exists() if path and path not in ("ffmpeg", "ffmpeg.exe") else None
+        _append_ffmpeg_debug([
+            "--- FFmpeg Smoke Test ---",
+            f"Path: {path}",
+            f"Source: {candidate['source']}",
+            f"Exists: {exists}",
+            f"ReturnCode: {test['returncode']}",
+            f"Stdout: {test['stdout'][:1000]}",
+            f"Stderr: {test['stderr'][:1000]}",
+            f"Exception: {test['exception']}",
+            f"Stable Copy Refreshed: {copy_refreshed if candidate['source'] == 'bundled_stable' else False}",
+        ])
+        if test["ok"]:
+            selected = candidate
+            selected_test = test
+            fallback_used = idx > 0
+            break
+        logger.warning(
+            "FFmpeg candidate failed: source=%s path=%s exists=%s returncode=%s exception=%s stderr=%s stdout=%s",
+            candidate["source"],
+            path,
+            exists,
+            test["returncode"],
+            test["exception"],
+            (test["stderr"] or "")[:500],
+            (test["stdout"] or "")[:500],
+        )
+
+    if selected is None:
+        selected = last_candidate or candidates[-1]
+        selected_test = last_test or _smoke_test_ffmpeg(selected["path"])
+        fallback_used = len(candidates) > 1
+
+    selected_path = selected["path"]
+    selected_source = selected["source"]
+    exists = Path(selected_path).exists() if selected_path and selected_path not in ("ffmpeg", "ffmpeg.exe") else None
+
+    if selected_source != "configured" and (
+        not configured_candidate or _is_meipass_path(configured_path or "")
+    ):
+        def _set_env_if_unstable(key: str, value: str) -> None:
+            current = os.environ.get(key)
+            if not current or _is_meipass_path(current):
+                os.environ[key] = value
+
+        _set_env_if_unstable("VINYLFLOW_FFMPEG_PATH", str(selected_path))
+        _set_env_if_unstable("FFMPEG_BINARY", str(selected_path))
+        _set_env_if_unstable("IMAGEIO_FFMPEG_EXE", str(selected_path))
+
+    resolution = {
+        "path": selected_path,
+        "source": selected_source,
+        "ok": bool(selected_test["ok"]),
+        "version": selected_test.get("version") or "",
+        "error": selected_test.get("exception") or "",
+        "returncode": selected_test.get("returncode"),
+        "stdout": selected_test.get("stdout") or "",
+        "stderr": selected_test.get("stderr") or "",
+        "exists": exists,
+        "fallback_used": fallback_used,
+        "copy_refreshed": copy_refreshed,
+    }
+    _FFMPEG_CACHE = resolution
+    return resolution
+
 
 def _ffmpeg() -> str:
-    """Return the ffmpeg executable to use.
-
-    In a bundled (PyInstaller) build the launcher sets VINYLFLOW_FFMPEG_PATH
-    to the absolute path of the bundled binary.  Fall back to bare 'ffmpeg'
-    so plain source-code runs still work.
-    """
-    return os.environ.get("VINYLFLOW_FFMPEG_PATH") or "ffmpeg"
+    """Return the ffmpeg executable to use (validated by resolve_ffmpeg)."""
+    return resolve_ffmpeg().get("path") or "ffmpeg"
 
 # Supported input formats
 SUPPORTED_INPUT_EXTENSIONS = {".wav", ".aiff", ".aif", ".flac", ".mp3"}
@@ -119,7 +352,8 @@ class AudioProcessor:
         debug_log = debug_dir / "ffmpeg_debug.log"
         
         try:
-            ffmpeg_cmd = _ffmpeg()
+            resolution = resolve_ffmpeg()
+            ffmpeg_cmd = resolution.get("path") or "ffmpeg"
             cmd = [ffmpeg_cmd, "-i", str(file_path), "-f", "null", "-"]
             
             result = subprocess.run(
@@ -129,7 +363,10 @@ class AudioProcessor:
 
             # Capture output for debugging
             if result.returncode != 0 or not result.stderr or "Duration" not in result.stderr:
-                self.last_error = f"ExitCode {result.returncode}. Stderr: {result.stderr[:500]}"
+                self.last_error = (
+                    f"ExitCode {result.returncode}. Source: {resolution.get('source')}. "
+                    f"Path: {ffmpeg_cmd}. Stderr: {result.stderr[:500]}"
+                )
             else:
                 self.last_error = ""
 
@@ -142,6 +379,7 @@ class AudioProcessor:
                             f.write(f"\n--- FFmpeg Duration Failure ---\n")
                             f.write(f"File Exists: {file_path.exists()}\n")
                             f.write(f"FFmpeg Path: {ffmpeg_cmd}\n")
+                            f.write(f"FFmpeg Source: {resolution.get('source')}\n")
                             f.write(f"FFmpeg Exists: {Path(ffmpeg_cmd).exists()}\n")
                             f.write(f"Cmd: {' '.join(cmd)}\n")
                             f.write(f"ExitCode: {result.returncode}\n")
@@ -159,9 +397,11 @@ class AudioProcessor:
             if sys.platform == "win32":
                 try:
                     debug_dir.mkdir(parents=True, exist_ok=True)
+                    resolution = resolve_ffmpeg()
                     with open(debug_log, "a") as f: 
                         f.write(f"FFmpeg Exception: {str(e)}\n")
-                        f.write(f"Attempted FFmpeg Path: {_ffmpeg()}\n")
+                        f.write(f"Attempted FFmpeg Path: {resolution.get('path')}\n")
+                        f.write(f"Attempted FFmpeg Source: {resolution.get('source')}\n")
                 except: pass
             return None
 
