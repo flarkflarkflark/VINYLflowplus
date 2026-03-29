@@ -1,0 +1,5 @@
+<svg width="430" height="40" viewBox="0 0 430 40" xmlns="http://www.w3.org/2000/svg">
+  <rect width="40" height="40" rx="4" fill="#E5A100"/>
+  <text x="20" y="26" font-family="sans-serif" font-weight="900" font-size="12" text-anchor="middle" fill="#000000">VF+</text>
+  <text x="50" y="32" font-family="'Barlow Condensed', 'Barlow', sans-serif" font-weight="900" font-size="32" fill="#ffffff">VINYL<tspan fill="#E5A100">flow</tspan>plus</text>
+</svg>
