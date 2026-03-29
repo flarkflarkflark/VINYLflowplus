@@ -15,7 +15,7 @@ import requests
 import discogs_client
 from mutagen.flac import FLAC, Picture
 from mutagen.mp3 import MP3
-from mutagen.id3 import ID3, TIT2, TPE1, TALB, TDRC, TRCK, TPUB, COMM, APIC, TXXX
+from mutagen.id3 import ID3, TIT2, TPE1, TPE2, TALB, TDRC, TRCK, TPUB, COMM, APIC, TXXX
 from mutagen.aiff import AIFF
 from PIL import Image
 
@@ -23,7 +23,7 @@ from PIL import Image
 class DiscogsTrack:
     """Represents a track from Discogs release."""
 
-    def __init__(self, position: str, title: str, duration: str = ""):
+    def __init__(self, position: str, title: str, duration: str = "", artist: str = ""):
         """
         Initialize Discogs track.
 
@@ -31,9 +31,11 @@ class DiscogsTrack:
             position: Vinyl position (e.g., "A1", "B2")
             title: Track title
             duration: Track duration (e.g., "5:24")
+            artist: Track-level artist (cleaned)
         """
         self.position = position
         self.title = title
+        self.artist = artist
         self.duration_str = duration
         self.duration_seconds = self._parse_duration(duration)
 
@@ -101,6 +103,47 @@ class DiscogsRelease:
         
         # Replace " / " with " & " (ensuring spaces are handled)
         return title.replace(" / ", " & ")
+
+    @staticmethod
+    def _is_featuring_join(join_text: str) -> bool:
+        if not join_text:
+            return False
+        return bool(re.search(r"\b(feat|ft|featuring)\b", join_text, re.IGNORECASE))
+
+    def _extract_track_artist(self, track) -> str:
+        """Extract track-level artist from Discogs tracklist entry."""
+        artists = getattr(track, "artists", None)
+        if not artists and hasattr(track, "data") and isinstance(track.data, dict):
+            artists = track.data.get("artists")
+
+        if not artists:
+            return ""
+
+        parts: List[str] = []
+        for artist in artists:
+            if isinstance(artist, dict):
+                name = artist.get("anv") or artist.get("name")
+                join = artist.get("join", "")
+            else:
+                name = getattr(artist, "anv", None) or getattr(artist, "name", None)
+                join = getattr(artist, "join", "") or ""
+
+            name = self._clean_discogs_name(name or "")
+            name = name.strip()
+            if not name:
+                continue
+
+            if parts:
+                if not parts[-1].endswith(" ") and not parts[-1].endswith("/"):
+                    parts.append(" ")
+            parts.append(name)
+
+            if join:
+                if self._is_featuring_join(join):
+                    break
+                parts.append(join)
+
+        return "".join(parts).strip()
 
     def __init__(self, release):
         """
@@ -180,13 +223,14 @@ class DiscogsRelease:
             position = getattr(track, "position", "")
             title = self._format_title(getattr(track, "title", "Unknown"))
             duration = getattr(track, "duration", "")
+            track_artist = self._extract_track_artist(track) or self.artist
 
             # Use Discogs position if available
             if position:
-                tracks.append(DiscogsTrack(position, title, duration))
+                tracks.append(DiscogsTrack(position, title, duration, track_artist))
             # Handle empty position - assume sequential
             elif title and title.lower() not in ["tracklist", "notes"]:
-                tracks.append(DiscogsTrack(str(len(tracks) + 1), title, duration))
+                tracks.append(DiscogsTrack(str(len(tracks) + 1), title, duration, track_artist))
 
         # Sort all tracks by position for proper display
         def sort_key(t):
@@ -438,6 +482,14 @@ class MetadataHandler:
         print(f"Warning: No Discogs track found for {track.vinyl_number}")
         return None
 
+    def _resolve_track_artist(self, track, release, discogs_track=None) -> str:
+        """Resolve track-level artist, falling back to release artist."""
+        if discogs_track is None:
+            discogs_track = self._find_discogs_track(track, release)
+        if discogs_track and getattr(discogs_track, "artist", None):
+            return discogs_track.artist
+        return release.artist or "Unknown Artist"
+
     def _get_disc_number(self, position: str) -> str:
         """Determine disc number from vinyl position (A/B=1, C/D=2, etc.)"""
         if not position or not position[0].isalpha():
@@ -461,13 +513,17 @@ class MetadataHandler:
             print(f"DEBUG: Tagging FLAC {file_path} with position {track.vinyl_number}")
             audio = FLAC(file_path)
             
+            discogs_track = self._find_discogs_track(track, release)
+            track_artist = self._resolve_track_artist(track, release, discogs_track)
+            album_artist = release.artist
+
             # Always tag what we have, even if find_discogs_track fails
-            audio["artist"] = [release.artist]
+            audio["artist"] = [track_artist]
+            audio["albumartist"] = [album_artist]
             audio["album"] = [release.get_full_album_title()]
             audio["tracknumber"] = [str(track.vinyl_number)]
             audio["discnumber"] = [self._get_disc_number(track.vinyl_number)]
 
-            discogs_track = self._find_discogs_track(track, release)
             if discogs_track:
                 audio["title"] = [discogs_track.title]
             elif track.title:
@@ -524,12 +580,16 @@ class MetadataHandler:
             except Exception:
                 pass  # Tags already exist
 
+            discogs_track = self._find_discogs_track(track, release)
+            track_artist = self._resolve_track_artist(track, release, discogs_track)
+            album_artist = release.artist
+
             # Core tags
-            audio.tags["TPE1"] = TPE1(encoding=3, text=release.artist)
+            audio.tags["TPE1"] = TPE1(encoding=3, text=track_artist)
+            audio.tags["TPE2"] = TPE2(encoding=3, text=album_artist)
             audio.tags["TALB"] = TALB(encoding=3, text=release.get_full_album_title())
             audio.tags["TRCK"] = TRCK(encoding=3, text=str(track.vinyl_number))
-            
-            discogs_track = self._find_discogs_track(track, release)
+
             title = "Unknown Track"
             if discogs_track:
                 title = discogs_track.title
@@ -628,12 +688,16 @@ class MetadataHandler:
             except Exception:
                 pass  # Tags already exist
 
+            discogs_track = self._find_discogs_track(track, release)
+            track_artist = self._resolve_track_artist(track, release, discogs_track)
+            album_artist = release.artist
+
             # Core tags
-            audio.tags["TPE1"] = TPE1(encoding=3, text=release.artist)
+            audio.tags["TPE1"] = TPE1(encoding=3, text=track_artist)
+            audio.tags["TPE2"] = TPE2(encoding=3, text=album_artist)
             audio.tags["TALB"] = TALB(encoding=3, text=release.get_full_album_title())
             audio.tags["TRCK"] = TRCK(encoding=3, text=str(track.vinyl_number))
-            
-            discogs_track = self._find_discogs_track(track, release)
+
             title = "Unknown Track"
             if discogs_track:
                 title = discogs_track.title
@@ -748,7 +812,8 @@ class MetadataHandler:
         ext = format_config["extension"]
 
         discogs_track = self._find_discogs_track(track, release)
-        artist = self.sanitize_filename(release.artist)
+        track_artist = self._resolve_track_artist(track, release, discogs_track)
+        artist = self.sanitize_filename(track_artist)
         
         title = "Unknown"
         if discogs_track:
