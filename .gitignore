@@ -1,15 +1,1 @@
-__pycache__/
-*.py[cod]
-temp_uploads/
-*.wav
-*.mp3
-*.flac
-*.aiff
-*.aif
-.env
-*.log
-.DS_Store
-venv/
-.venv/
-output/
-config/settings.json
+__pycache__/*.py[cod]temp_uploads/*.wav*.mp3*.flac*.aiff*.aif.env*.log.DS_Storevenv/.venv/output/config/settings.jsonbuild/dist/temp_web/temp_web_check/_darkfix/_djtransport/_djwave/_final3/_reactivity/_settingscompact/_svgonly/.vscode/chatgpt54_debug_prompt.txtCODEX_INSTRUCTIONS.mdTODO.mdconfig/queue_state.json
