@@ -213,6 +213,7 @@ class TrackMapping(BaseModel):
     detected: int
     discogs: str
     title: Optional[str] = ""
+    artist: Optional[str] = ""
 
 class TrackBoundary(BaseModel):
     number: int
@@ -234,6 +235,7 @@ class MultiTrackMapping(BaseModel):
     detected: int
     discogs: str
     title: Optional[str] = ""
+    artist: Optional[str] = ""
 
 class MultiProcessRequest(BaseModel):
     release_id: int
@@ -370,7 +372,7 @@ async def analyze_file(request: dict):
 @app.post("/api/search")
 async def search_discogs_api(request: SearchRequest):
     releases = metadata_handler.search_releases(request.query, max_results=request.max_results)
-    return {"results": [{"id": r.id, "artist": r.artist, "title": r.title, "year": r.year, "label": r.label, "cover_url": r.cover_url, "uri": r.uri, "tracks": [{"position": t.position, "title": t.title, "duration": t.duration_str} for t in r.tracks]} for _, r in releases]}
+    return {"results": [{"id": r.id, "artist": r.artist, "title": r.title, "year": r.year, "label": r.label, "cover_url": r.cover_url, "uri": r.uri, "tracks": [{"position": t.position, "title": t.title, "duration": t.duration_str, "artist": t.artist} for t in r.tracks]} for _, r in releases]}
 
 @app.post("/api/process")
 async def process_file_api(request: ProcessRequest):
@@ -403,6 +405,7 @@ async def process_file_background(request: ProcessRequest, job_id: str):
             if t:
                 t.vinyl_number = m.discogs
                 t.title = m.title
+                t.artist = m.artist or ""
 
         output_base = Path(config.default_output_dir).expanduser()
         all_outs = []
@@ -433,6 +436,7 @@ async def process_file_background(request: ProcessRequest, job_id: str):
                         "number": track.number,
                         "vinyl_number": track.vinyl_number,
                         "title": track.title,
+                        "artist": getattr(track, "artist", ""),
                     },
                     track_index=track_idx,
                     track_total=len(det_tracks),
@@ -497,6 +501,7 @@ async def process_file_background(request: ProcessRequest, job_id: str):
                         "number": track.number,
                         "vinyl_number": track.vinyl_number,
                         "title": track.title,
+                        "artist": getattr(track, "artist", ""),
                     },
                     track_index=track_idx,
                     track_total=len(det_tracks),
@@ -598,6 +603,7 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
                         "number": m.detected,
                         "vinyl_number": m.discogs,
                         "title": m.title,
+                        "artist": m.artist or "",
                     },
                     track_index=track_idx,
                     track_total=len(request.track_mapping),
@@ -616,6 +622,7 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
                         "number": m.detected,
                         "vinyl_number": m.discogs,
                         "title": m.title,
+                        "artist": m.artist or "",
                     },
                     "track_index": track_idx,
                     "track_total": len(request.track_mapping),
@@ -671,6 +678,7 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
                         "number": m.detected,
                         "vinyl_number": m.discogs,
                         "title": m.title,
+                        "artist": m.artist or "",
                     },
                     track_index=track_idx,
                     track_total=len(request.track_mapping),
@@ -689,6 +697,7 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
                         "number": m.detected,
                         "vinyl_number": m.discogs,
                         "title": m.title,
+                        "artist": m.artist or "",
                     },
                     "track_index": track_idx,
                     "track_total": len(request.track_mapping),

@@ -961,6 +961,26 @@
             padding: 10px 12px;
             margin-bottom: 10px;
         }
+        .active-track-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 6px;
+        }
+        .active-track-left { flex: 1; min-width: 0; }
+        .active-track-right {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+        .active-track-right .active-track-status {
+            margin-bottom: 0;
+            text-align: right;
+        }
+        .active-track-right .active-track-formats { justify-content: flex-end; }
         .active-track-label {
             font-size: 9px;
             font-weight: 700;
@@ -1414,7 +1434,7 @@
                                             <div class="progress-bar-fill" :style="'width:' + Math.round((processingProgress || 0) * 100) + '%'"></div>
                                         </div>
                                         <div class="progress-active-line" x-show="processingCurrentTrackVinyl || processingCurrentTrackTitle">
-                                            <span class="progress-active-track" x-text="(processingCurrentTrackVinyl ? processingCurrentTrackVinyl + ' — ' : '') + (processingCurrentTrackTitle || '')"></span>
+                                            <span class="progress-active-track" x-text="(processingCurrentTrackVinyl ? processingCurrentTrackVinyl + ' — ' : '') + (processingCurrentTrackArtist ? processingCurrentTrackArtist + ' — ' : '') + (processingCurrentTrackTitle || '')"></span>
                                             <span class="progress-active-sep" x-show="processingJob.track_index && processingJob.track_total">·</span>
                                             <span class="progress-active-idx" x-show="processingJob.track_index && processingJob.track_total" x-text="'track ' + (processingJob.track_index || 0) + '/' + (processingJob.track_total || 0)"></span>
                                         </div>
@@ -1472,22 +1492,28 @@
 
                     <div class="processing-body">
                         <div x-show="activeProcessingTrack" class="active-track-card">
-                            <div class="active-track-label">Active Track</div>
-                            <div class="active-track-title" x-text="activeProcessingTrack ? ((activeProcessingTrack.vinyl_number || ('#' + activeProcessingTrack.number)) + (activeProcessingTrack.title ? ' — ' + activeProcessingTrack.title : '')) : ''"></div>
-                            <div class="active-track-meta">
-                                <span class="active-track-chip" x-text="activeProcessingTrack?.duration ? formatDuration(activeProcessingTrack.duration) : '--'"></span>
-                                <span class="active-track-chip" x-text="activeTrackProgressLabel()"></span>
+                            <div class="active-track-top">
+                                <div class="active-track-left">
+                                    <div class="active-track-label">Active Track</div>
+                                    <div class="active-track-title" x-text="trackFullLabel(activeProcessingTrack)"></div>
+                                    <div class="active-track-meta">
+                                        <span class="active-track-chip" x-text="activeProcessingTrack?.duration ? formatDuration(activeProcessingTrack.duration) : '--'"></span>
+                                        <span class="active-track-chip" x-text="activeTrackProgressLabel()"></span>
+                                    </div>
+                                </div>
+                                <div class="active-track-right">
+                                    <div class="active-track-formats">
+                                        <template x-for="fmt in outputFormats" :key="fmt">
+                                            <span class="fmt-chip" :class="activeProcessingTrack ? (processingTrackState[activeProcessingTrack.number]?.formats?.[fmt] || 'queued') : 'queued'" x-text="processingFormatLabels[fmt] || fmt"></span>
+                                        </template>
+                                    </div>
+                                    <div class="active-track-status" x-text="processingStatusLine || (processingMessage || 'Processing...')"></div>
+                                </div>
                             </div>
                             <div class="active-track-bar">
                                 <div class="active-track-bar-fill"
                                      :class="activeProcessingTrack ? trackStatus(activeProcessingTrack) : ''"
                                      :style="'width:' + (activeProcessingTrack ? trackPercent(activeProcessingTrack) : 0) + '%'"></div>
-                            </div>
-                            <div class="active-track-status" x-text="processingStatusLine || (processingMessage || 'Processing...')"></div>
-                            <div class="active-track-formats">
-                                <template x-for="fmt in outputFormats" :key="fmt">
-                                    <span class="fmt-chip" :class="activeProcessingTrack ? (processingTrackState[activeProcessingTrack.number]?.formats?.[fmt] || 'queued') : 'queued'" x-text="processingFormatLabels[fmt] || fmt"></span>
-                                </template>
                             </div>
                         </div>
 
@@ -1505,7 +1531,7 @@
                                                 <div class="track-row" :class="trackStatus(track)">
                                                     <div class="track-row-dot" :class="trackStatus(track)"></div>
                                                     <div class="track-row-left">
-                                                        <div class="track-row-title" x-text="(track.vinyl_number || ('#' + track.number)) + (track.title ? ' — ' + track.title : '')"></div>
+                                                        <div class="track-row-title" x-text="trackFullLabel(track)"></div>
                                                         <div class="track-row-fmt-chips">
                                                             <template x-for="fmt in outputFormats" :key="fmt">
                                                                 <span class="fmt-chip sm" :class="processingTrackState[track.number]?.formats?.[fmt] || 'queued'" x-text="processingFormatLabels[fmt] || fmt"></span>
@@ -1528,7 +1554,7 @@
                                             <div class="track-row" :class="trackStatus(track)">
                                                 <div class="track-row-dot" :class="trackStatus(track)"></div>
                                                 <div class="track-row-left">
-                                                    <div class="track-row-title" x-text="(track.vinyl_number || ('#' + track.number)) + (track.title ? ' — ' + track.title : '')"></div>
+                                                    <div class="track-row-title" x-text="trackFullLabel(track)"></div>
                                                     <div class="track-row-sub" x-text="formatDuration(track.duration)"></div>
                                                 </div>
                                             </div>
@@ -1549,7 +1575,7 @@
                                             <div class="track-row done">
                                                 <div class="track-row-dot done"></div>
                                                 <div class="track-row-left">
-                                                    <div class="track-row-title" x-text="(track.vinyl_number || ('#' + track.number)) + (track.title ? ' — ' + track.title : '')"></div>
+                                                    <div class="track-row-title" x-text="trackFullLabel(track)"></div>
                                                 </div>
                                             </div>
                                         </template>
@@ -1566,7 +1592,7 @@
                                             <div class="track-row failed">
                                                 <div class="track-row-dot failed"></div>
                                                 <div class="track-row-left">
-                                                    <div class="track-row-title" x-text="(track.vinyl_number || ('#' + track.number)) + (track.title ? ' — ' + track.title : '')"></div>
+                                                    <div class="track-row-title" x-text="trackFullLabel(track)"></div>
                                                 </div>
                                             </div>
                                         </template>
@@ -1583,7 +1609,7 @@
                                             <div class="track-row cancelled">
                                                 <div class="track-row-dot cancelled"></div>
                                                 <div class="track-row-left">
-                                                    <div class="track-row-title" x-text="(track.vinyl_number || ('#' + track.number)) + (track.title ? ' — ' + track.title : '')"></div>
+                                                    <div class="track-row-title" x-text="trackFullLabel(track)"></div>
                                                 </div>
                                             </div>
                                         </template>

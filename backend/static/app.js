@@ -17,7 +17,7 @@ function vinylApp() {
         processingJob: { id: '', filename: '', duration: 0, tracks: 0, formats: 0 },
         processingStartTime: null, processingEtaSec: null, processingTick: 0, processingTicker: null,
         processingTracks: [], processingTrackState: {}, processingFormatLabels: {},
-        processingCurrentTrackNumber: null, processingCurrentTrackTitle: '', processingCurrentTrackVinyl: '',
+        processingCurrentTrackNumber: null, processingCurrentTrackTitle: '', processingCurrentTrackVinyl: '', processingCurrentTrackArtist: '',
         processingCurrentFormatLabel: '',
         processingStepBase: null, processingStepSpan: null,
         systemMetrics: { cpu_percent: null, ram_used_gb: null, ram_total_gb: null, ram_percent: null, process_rss_mb: null },
@@ -130,6 +130,7 @@ function vinylApp() {
             this.processingCurrentTrackNumber = null;
             this.processingCurrentTrackTitle = '';
             this.processingCurrentTrackVinyl = '';
+            this.processingCurrentTrackArtist = '';
             this.processingCurrentFormatLabel = '';
             this.processingStepBase = null;
             this.processingStepSpan = null;
@@ -144,6 +145,7 @@ function vinylApp() {
                 number: t.number,
                 vinyl_number: t.vinyl_number || '',
                 title: t.title || '',
+                artist: t.artist || '',
                 duration: t.duration || (t.end - t.start),
             }));
             this.processingJob.tracks = this.processingTracks.length;
@@ -400,10 +402,11 @@ function vinylApp() {
                 return {
                     detected: t.number,
                     discogs: discogsTrack?.position || '?',
-                    title: discogsTrack?.title || ''
+                    title: discogsTrack?.title || '',
+                    artist: discogsTrack?.artist || ''
                 };
             });
-            this.initProcessingTracks(active.map((t, i) => ({ ...t, vinyl_number: mapping[i]?.discogs || '', title: mapping[i]?.title || '' })));
+            this.initProcessingTracks(active.map((t, i) => ({ ...t, vinyl_number: mapping[i]?.discogs || '', title: mapping[i]?.title || '', artist: mapping[i]?.artist || '' })));
             const bounds = active.map(t => ({ number: t.number, start: t.start, end: t.end, duration: t.duration || (t.end-t.start) }));
             try {
                 const res = await fetch('/api/process', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ 
@@ -426,11 +429,12 @@ function vinylApp() {
             this.allDetectedTracks.filter(t => !t.ignored).forEach((t, i) => {
                 const dt = this.selectedRelease.tracks[this.customMapping[i] || 0];
                 if (dt) {
-                    mapping.push({ 
-                        source_file_id: t.file_id, 
-                        detected: t.number, 
+                    mapping.push({
+                        source_file_id: t.file_id,
+                        detected: t.number,
                         discogs: dt.position,
-                        title: dt.title 
+                        title: dt.title,
+                        artist: dt.artist || ''
                     });
                     processedIds.add(t.file_id);
                 }
@@ -438,7 +442,7 @@ function vinylApp() {
             this.lastProcessedIds = Array.from(processedIds);
             this.initProcessingTracks(this.allDetectedTracks.filter(t => !t.ignored).map(t => {
                 const m = mapping.find(x => x.detected === t.number && x.source_file_id === t.file_id);
-                return { ...t, vinyl_number: m?.discogs || '', title: m?.title || t.title || '' };
+                return { ...t, vinyl_number: m?.discogs || '', title: m?.title || t.title || '', artist: m?.artist || '' };
             }));
             try {
                 const res = await fetch('/api/multi-process', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ 
@@ -572,6 +576,7 @@ function vinylApp() {
                 this.processingCurrentTrackNumber = d.track.number ?? this.processingCurrentTrackNumber;
                 this.processingCurrentTrackTitle = d.track.title || this.processingCurrentTrackTitle;
                 this.processingCurrentTrackVinyl = d.track.vinyl_number || this.processingCurrentTrackVinyl;
+                this.processingCurrentTrackArtist = d.track.artist || this.processingCurrentTrackArtist;
             }
             if (d.format_label) {
                 this.processingCurrentFormatLabel = d.format_label;
@@ -1364,6 +1369,15 @@ function vinylApp() {
         },
         trackPercent(track) {
             return this.processingTrackState[track.number]?.percent || 0;
+        },
+        trackFullLabel(track) {
+            if (!track) return '';
+            const pos = track.vinyl_number || ('#' + track.number);
+            const artist = track.artist || '';
+            const title = track.title || '';
+            if (artist && title) return `${pos} — ${artist} — ${title}`;
+            if (title) return `${pos} — ${title}`;
+            return pos;
         },
         activeTrackProgressLabel() {
             const track = this.activeProcessingTrack;
