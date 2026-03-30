@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 import json
+import threading
 from datetime import datetime, timedelta
 import logging
 
@@ -36,13 +37,26 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import Config
-from audio_processor import AudioProcessor, Track, SUPPORTED_INPUT_EXTENSIONS, OUTPUT_FORMATS, resolve_ffmpeg
+from audio_processor import AudioProcessor, Track, SUPPORTED_INPUT_EXTENSIONS, OUTPUT_FORMATS, resolve_ffmpeg, ProcessingCancelled
 from metadata_handler import MetadataHandler
 
 try:
     import psutil
-except Exception:
+    _psutil_error = None
+except Exception as e:
     psutil = None
+    _psutil_error = repr(e)
+
+def _ensure_psutil():
+    global psutil, _psutil_error
+    if psutil is not None:
+        return
+    try:
+        import importlib
+        psutil = importlib.import_module("psutil")
+        _psutil_error = None
+    except Exception as e:
+        _psutil_error = repr(e)
 
 def _ffmpeg() -> str:
     """Return the ffmpeg executable to use (validated by resolve_ffmpeg)."""
@@ -61,6 +75,7 @@ app.add_middleware(
 # --- GLOBAL STATE ---
 uploaded_files: Dict[str, dict] = {}
 processing_jobs: Dict[str, dict] = {}
+processing_cancel_flags: Dict[str, threading.Event] = {}
 websocket_connections: List[WebSocket] = []
 
 def _update_job_progress(job_id: str, **updates) -> None:
@@ -69,6 +84,9 @@ def _update_job_progress(job_id: str, **updates) -> None:
         return
     updates.setdefault("updated_at", time.time())
     job.update(updates)
+
+def _cancel_event(job_id: str) -> Optional[threading.Event]:
+    return processing_cancel_flags.get(job_id)
 
 # --- PATHS ---
 def get_base_path():
@@ -357,10 +375,12 @@ async def search_discogs_api(request: SearchRequest):
 @app.post("/api/process")
 async def process_file_api(request: ProcessRequest):
     job_id = str(uuid.uuid4())
+    processing_cancel_flags[job_id] = threading.Event()
     processing_jobs[job_id] = {
         "job_id": job_id,
         "file_id": request.file_id,
         "status": "processing",
+        "cancel_requested": False,
         "progress": 0.1,
         "message": "Processing...",
         "updated_at": time.time(),
@@ -369,6 +389,11 @@ async def process_file_api(request: ProcessRequest):
     return {"job_id": job_id}
 
 async def process_file_background(request: ProcessRequest, job_id: str):
+    cancel_event = _cancel_event(job_id)
+    def _check_cancel():
+        if cancel_event and cancel_event.is_set():
+            raise ProcessingCancelled("Processing cancelled")
+
     try:
         file_info = uploaded_files[request.file_id]
         release = metadata_handler.get_release_by_id(request.release_id)
@@ -384,7 +409,9 @@ async def process_file_background(request: ProcessRequest, job_id: str):
         total = len(request.output_formats) * len(det_tracks)
         count = 0
 
+        current_temp = None
         for fmt_idx, fmt in enumerate(request.output_formats, start=1):
+            _check_cancel()
             album_folder = output_base / metadata_handler.create_album_folder_name(release, fmt)
             album_folder.mkdir(parents=True, exist_ok=True)
             cover_data = None
@@ -393,12 +420,13 @@ async def process_file_background(request: ProcessRequest, job_id: str):
                 if metadata_handler.download_cover_art(release.cover_url, cp): cover_data = metadata_handler.prepare_cover_for_embedding(cp)
 
             for track_idx, track in enumerate(det_tracks, start=1):
+                _check_cancel()
                 count += 1
-                prog = 0.1 + (count/total)*0.8
+                prog_start = 0.1 + ((count - 1) / total) * 0.8
                 msg = "Processing..."
                 _update_job_progress(
                     job_id,
-                    progress=prog,
+                    progress=prog_start,
                     message=msg,
                     stage="track_start",
                     track={
@@ -417,7 +445,7 @@ async def process_file_background(request: ProcessRequest, job_id: str):
                     "type": "progress",
                     "stage": "track_start",
                     "file_id": request.file_id,
-                    "progress": prog,
+                    "progress": prog_start,
                     "message": msg,
                     "track": {
                         "number": track.number,
@@ -436,20 +464,52 @@ async def process_file_background(request: ProcessRequest, job_id: str):
                 if not vinyl_number:
                     vinyl_number = f"T{track.number}"
                 temp = album_folder / f"temp_{vinyl_number}{OUTPUT_FORMATS[fmt]['extension']}"
-                audio_processor.extract_track(Path(file_info["path"]), track, temp, fmt, restoration_level=request.restoration_level, hum_freq=request.hum_freq)
+                current_temp = temp
+                await asyncio.to_thread(
+                    audio_processor.extract_track,
+                    Path(file_info["path"]),
+                    track,
+                    temp,
+                    fmt,
+                    False,
+                    request.restoration_level,
+                    request.hum_freq,
+                    cancel_event=cancel_event,
+                )
+                _check_cancel()
                 metadata_handler.tag_file(temp, track, release, cover_data, fmt)
+                _check_cancel()
                 final_name = metadata_handler.create_track_filename(track, release, fmt)
                 final_path = album_folder / final_name
                 if final_path.exists(): final_path.unlink()
                 temp.rename(final_path)
+                current_temp = None
                 # Final safety check: force track tag from final filename
                 metadata_handler.fix_track_tags_from_filename(final_path, fmt)
                 all_outs.append(f"[{fmt.upper()}] {final_name}")
+                prog_done = 0.1 + (count / total) * 0.8
+                _update_job_progress(
+                    job_id,
+                    progress=prog_done,
+                    message=msg,
+                    stage="track_done",
+                    track={
+                        "number": track.number,
+                        "vinyl_number": track.vinyl_number,
+                        "title": track.title,
+                    },
+                    track_index=track_idx,
+                    track_total=len(det_tracks),
+                    format=fmt,
+                    format_label=OUTPUT_FORMATS[fmt]["label"],
+                    format_index=fmt_idx,
+                    format_total=len(request.output_formats),
+                )
                 await broadcast_message({
                     "type": "progress",
                     "stage": "track_done",
                     "file_id": request.file_id,
-                    "progress": prog,
+                    "progress": prog_done,
                     "message": msg,
                     "track": {
                         "number": track.number,
@@ -469,16 +529,31 @@ async def process_file_background(request: ProcessRequest, job_id: str):
             uploaded_files[request.file_id]["status"] = "completed"
             save_queue_state()
         await broadcast_message({"type": "complete", "file_id": request.file_id, "tracks": all_outs})
+    except ProcessingCancelled:
+        if current_temp and current_temp.exists():
+            try:
+                current_temp.unlink()
+            except Exception:
+                pass
+        _update_job_progress(job_id, status="cancelled", message="Cancelled", stage="cancelled", cancel_requested=True)
+        if request.file_id in uploaded_files:
+            uploaded_files[request.file_id]["status"] = "cancelled"
+            save_queue_state()
+        await broadcast_message({"type": "cancelled", "file_id": request.file_id, "job_id": job_id, "status": "cancelled"})
     except Exception as e:
         _update_job_progress(job_id, status="error", error=str(e), message="Error")
         await broadcast_message({"type": "error", "file_id": request.file_id, "message": str(e)})
+    finally:
+        processing_cancel_flags.pop(job_id, None)
 
 @app.post("/api/multi-process")
 async def multi_process_api(request: MultiProcessRequest):
     job_id = str(uuid.uuid4())
+    processing_cancel_flags[job_id] = threading.Event()
     processing_jobs[job_id] = {
         "job_id": job_id,
         "status": "processing",
+        "cancel_requested": False,
         "progress": 0.1,
         "message": "Processing...",
         "updated_at": time.time(),
@@ -487,6 +562,11 @@ async def multi_process_api(request: MultiProcessRequest):
     return {"job_id": job_id}
 
 async def multi_process_background(request: MultiProcessRequest, job_id: str):
+    cancel_event = _cancel_event(job_id)
+    def _check_cancel():
+        if cancel_event and cancel_event.is_set():
+            raise ProcessingCancelled("Processing cancelled")
+
     try:
         release = metadata_handler.get_release_by_id(request.release_id)
         output_base = Path(config.default_output_dir).expanduser()
@@ -494,7 +574,9 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
         total = len(request.output_formats) * len(request.track_mapping)
         count = 0
 
+        current_temp = None
         for fmt_idx, fmt in enumerate(request.output_formats, start=1):
+            _check_cancel()
             album_folder = output_base / metadata_handler.create_album_folder_name(release, fmt)
             album_folder.mkdir(parents=True, exist_ok=True)
             cover_data = None
@@ -503,12 +585,13 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
                 if metadata_handler.download_cover_art(release.cover_url, cp): cover_data = metadata_handler.prepare_cover_for_embedding(cp)
 
             for track_idx, m in enumerate(request.track_mapping, start=1):
+                _check_cancel()
                 count += 1
-                prog = 0.1 + (count/total)*0.8
+                prog_start = 0.1 + ((count - 1) / total) * 0.8
                 msg = "Processing..."
                 _update_job_progress(
                     job_id,
-                    progress=prog,
+                    progress=prog_start,
                     message=msg,
                     stage="track_start",
                     track={
@@ -527,7 +610,7 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
                     "type": "progress",
                     "stage": "track_start",
                     "file_id": "multi",
-                    "progress": prog,
+                    "progress": prog_start,
                     "message": msg,
                     "track": {
                         "number": m.detected,
@@ -555,18 +638,33 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
                 if not vinyl_number:
                     vinyl_number = f"T{m.detected}"
                 temp = album_folder / f"temp_{vinyl_number}{OUTPUT_FORMATS[fmt]['extension']}"
-                audio_processor.extract_track(Path(f_info["path"]), track_obj, temp, fmt, restoration_level=request.restoration_level, hum_freq=request.hum_freq)
+                current_temp = temp
+                await asyncio.to_thread(
+                    audio_processor.extract_track,
+                    Path(f_info["path"]),
+                    track_obj,
+                    temp,
+                    fmt,
+                    False,
+                    request.restoration_level,
+                    request.hum_freq,
+                    cancel_event=cancel_event,
+                )
+                _check_cancel()
                 metadata_handler.tag_file(temp, track_obj, release, cover_data, fmt)
+                _check_cancel()
                 final_name = metadata_handler.create_track_filename(track_obj, release, fmt)
                 final_path = album_folder / final_name
                 if final_path.exists(): final_path.unlink()
                 temp.rename(final_path)
+                current_temp = None
                 # Final safety check: force track tag from final filename
                 metadata_handler.fix_track_tags_from_filename(final_path, fmt)
                 all_outs.append(f"[{fmt.upper()}] {final_name}")
+                prog_done = 0.1 + (count / total) * 0.8
                 _update_job_progress(
                     job_id,
-                    progress=prog,
+                    progress=prog_done,
                     message=msg,
                     stage="track_done",
                     track={
@@ -585,7 +683,7 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
                     "type": "progress",
                     "stage": "track_done",
                     "file_id": "multi",
-                    "progress": prog,
+                    "progress": prog_done,
                     "message": msg,
                     "track": {
                         "number": m.detected,
@@ -605,8 +703,22 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
             if fid in uploaded_files: uploaded_files[fid]["status"] = "completed"
         save_queue_state()
         await broadcast_message({"type": "complete", "file_id": "multi", "tracks": all_outs})
+    except ProcessingCancelled:
+        if current_temp and current_temp.exists():
+            try:
+                current_temp.unlink()
+            except Exception:
+                pass
+        _update_job_progress(job_id, status="cancelled", message="Cancelled", stage="cancelled", cancel_requested=True)
+        for fid in set(m.source_file_id for m in request.track_mapping):
+            if fid in uploaded_files:
+                uploaded_files[fid]["status"] = "cancelled"
+        save_queue_state()
+        await broadcast_message({"type": "cancelled", "file_id": "multi", "job_id": job_id, "status": "cancelled"})
     except Exception as e:
         _update_job_progress(job_id, status="error", error=str(e), message="Error")
+    finally:
+        processing_cancel_flags.pop(job_id, None)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -702,13 +814,17 @@ async def get_status():
 
 @app.get("/api/system-metrics")
 async def get_system_metrics():
+    _ensure_psutil()
     data = {
         "cpu_percent": None,
         "ram_used_gb": None,
         "ram_total_gb": None,
         "ram_percent": None,
         "process_rss_mb": None,
+        "psutil_available": bool(psutil),
     }
+    if _psutil_error:
+        data["psutil_error"] = _psutil_error
     if psutil:
         try:
             data["cpu_percent"] = psutil.cpu_percent(interval=0.1)
@@ -790,6 +906,21 @@ async def get_audio(file_id: str):
 
 @app.get("/api/process/{job_id}")
 async def get_job(job_id: str): return processing_jobs.get(job_id, {"status": "not_found"})
+
+@app.post("/api/process/{job_id}/cancel")
+async def cancel_job(job_id: str):
+    job = processing_jobs.get(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    status = job.get("status")
+    if status not in ("processing", "cancelling"):
+        return {"job_id": job_id, "status": status, "cancel_requested": False}
+    event = _cancel_event(job_id)
+    if event:
+        event.set()
+    _update_job_progress(job_id, status="cancelling", message="Cancelling...", stage="cancelling", cancel_requested=True)
+    await broadcast_message({"type": "cancelling", "job_id": job_id, "file_id": job.get("file_id"), "status": "cancelling"})
+    return {"job_id": job_id, "status": "cancelling", "cancel_requested": True}
 
 @app.post("/api/quit")
 async def quit_api(request: dict = None):

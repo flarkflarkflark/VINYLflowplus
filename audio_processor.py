@@ -9,6 +9,8 @@ Supports FLAC, MP3, and AIFF output formats.
 import os
 import re
 import subprocess
+import time
+import threading
 import sys
 import shutil
 import logging
@@ -20,6 +22,10 @@ CREATE_NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
 
 logger = logging.getLogger("VINYLflowplus")
 _FFMPEG_CACHE = None
+
+
+class ProcessingCancelled(Exception):
+    pass
 
 
 def _ffmpeg_debug_path() -> Path:
@@ -577,6 +583,7 @@ class AudioProcessor:
         verbose: bool = False,
         restoration_level: int = 0,
         hum_freq: int = 50,
+        cancel_event: Optional[threading.Event] = None,
     ) -> bool:
         """
         Extract a single track and convert to the specified format.
@@ -589,6 +596,7 @@ class AudioProcessor:
             verbose: Print detailed output
             restoration_level: 0=none, 1=light clean, 2=full restore
             hum_freq: Electrical hum frequency in Hz (50 or 60) for full restore
+            cancel_event: Optional event to cancel extraction mid-process
 
         Returns:
             True if successful
@@ -628,11 +636,45 @@ class AudioProcessor:
             str(output_file),
         ])
 
+        if cancel_event and cancel_event.is_set():
+            raise ProcessingCancelled("Track extraction cancelled")
+
         try:
-            result = subprocess.run(
-                cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=1800,
-                creationflags=CREATE_NO_WINDOW
-            )
+            if cancel_event:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    encoding="utf-8",
+                    errors="replace",
+                    creationflags=CREATE_NO_WINDOW,
+                )
+                stdout = ""
+                stderr = ""
+                while True:
+                    if cancel_event.is_set():
+                        proc.terminate()
+                        try:
+                            proc.wait(timeout=2)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                            proc.wait(timeout=2)
+                        raise ProcessingCancelled("Track extraction cancelled")
+                    try:
+                        stdout, stderr = proc.communicate(timeout=0.2)
+                        break
+                    except subprocess.TimeoutExpired:
+                        continue
+                result = subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
+            else:
+                result = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=1800,
+                    creationflags=CREATE_NO_WINDOW,
+                )
 
             if result.returncode != 0:
                 print(f"Error: ffmpeg failed: {result.stderr}")
@@ -659,6 +701,10 @@ class AudioProcessor:
 
             return True
 
+        except ProcessingCancelled:
+            if output_file.exists():
+                output_file.unlink()
+            raise
         except subprocess.TimeoutExpired:
             print(f"Error: Track extraction timed out")
             return False
@@ -673,6 +719,7 @@ class AudioProcessor:
         output_dir: Path,
         output_format: str = "flac",
         verbose: bool = False,
+        cancel_event: Optional[threading.Event] = None,
     ) -> List[Path]:
         """
         Extract all tracks from input file.
@@ -698,7 +745,7 @@ class AudioProcessor:
             track_id = track.vinyl_number if track.vinyl_number else f"{track.number:02d}"
             output_file = output_dir / f"temp_{track_id}{ext}"
 
-            if self.extract_track(input_file, track, output_file, output_format, verbose):
+            if self.extract_track(input_file, track, output_file, output_format, verbose, cancel_event=cancel_event):
                 output_files.append(output_file)
             else:
                 print(f"Failed to extract track {track.number}")

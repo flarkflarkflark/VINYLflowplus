@@ -253,10 +253,26 @@
             cursor: default;
         }
         .wave-mini-wrap {
+            position: relative;
             padding: 8px 12px;
             border-bottom: 1px solid var(--border);
             background: var(--card2);
         }
+        .cue-overview {
+            position: absolute;
+            inset: 8px 12px 8px 12px;
+            pointer-events: none;
+        }
+        .cue-overview-marker {
+            position: absolute;
+            top: 2px;
+            font-size: 8px;
+            font-weight: 700;
+            color: var(--text-light);
+            opacity: 0.7;
+            transform: translateX(-50%);
+        }
+        body:not(.dark) .cue-overview-marker { color: var(--text-dim); }
         .wave-main-wrap {
             position: relative;
         }
@@ -301,16 +317,101 @@
             background: var(--bg2);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 20px;
+            padding: 14px;
             box-shadow: 0 40px 80px rgba(0,0,0,0.35);
+            max-height: 92vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
         body:not(.dark) .processing-panel { box-shadow: 0 30px 60px rgba(15, 23, 42, 0.18); }
+        .processing-header {
+            position: sticky;
+            top: 0;
+            z-index: 5;
+            background: var(--bg2);
+            padding-bottom: 8px;
+            margin-bottom: 8px;
+        }
+        .processing-body {
+            overflow-y: auto;
+            padding-right: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .processing-summary {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .progress-compact {
+            background: var(--amber);
+            border-radius: var(--radius-sm);
+            padding: 10px 12px 8px;
+        }
+        .progress-top {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 6px;
+        }
+        .progress-title {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-style: italic;
+            font-weight: 800;
+            font-size: 16px;
+            color: rgba(0,0,0,0.7);
+        }
+        .progress-pct {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-style: italic;
+            font-weight: 800;
+            font-size: 24px;
+            color: rgba(0,0,0,0.7);
+            line-height: 1;
+        }
+        .progress-bar {
+            height: 6px;
+            background: rgba(0,0,0,0.15);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            background: rgba(0,0,0,0.55);
+            border-radius: 4px;
+            transition: width 0.6s ease;
+        }
+        .progress-meta {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 8px;
+        }
+        .progress-meta-item { text-align: left; }
+        .progress-meta-label {
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: rgba(0,0,0,0.5);
+        }
+        .progress-meta-val {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-style: italic;
+            font-weight: 800;
+            font-size: 12px;
+            color: rgba(0,0,0,0.7);
+            line-height: 1;
+        }
         .job-bar {
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: var(--radius);
-            padding: 12px 16px;
-            margin-bottom: 12px;
+            padding: 8px 12px;
+            margin-bottom: 8px;
             display: flex;
             align-items: center;
             gap: 14px;
@@ -331,7 +432,7 @@
         .job-filename {
             font-family: 'Barlow Condensed', sans-serif;
             font-weight: 700;
-            font-size: 16px;
+            font-size: 14px;
             flex: 1;
             min-width: 0;
             white-space: nowrap;
@@ -352,21 +453,21 @@
             font-family: 'Barlow Condensed', sans-serif;
             font-style: italic;
             font-weight: 800;
-            font-size: 18px;
+            font-size: 14px;
             line-height: 1;
         }
         .job-stat-val.amber { color: var(--amber); }
         .metrics-row {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            gap: 10px;
-            margin-bottom: 12px;
+            gap: 8px;
+            margin-bottom: 8px;
         }
         .metric-card {
             background: var(--card);
             border: 1px solid var(--border);
             border-radius: var(--radius-sm);
-            padding: 10px 12px;
+            padding: 8px 10px;
         }
         .metric-label {
             font-size: 9px;
@@ -380,9 +481,9 @@
             font-family: 'Barlow Condensed', sans-serif;
             font-style: italic;
             font-weight: 800;
-            font-size: 24px;
+            font-size: 18px;
             line-height: 1;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
             color: var(--text);
         }
         .metric-value.warn { color: var(--amber); }
@@ -406,9 +507,9 @@
             background: #080c10;
             border: 1px solid var(--border);
             border-radius: var(--radius-sm);
-            padding: 10px 12px;
-            margin-bottom: 12px;
-            height: 78px;
+            padding: 8px 10px;
+            margin-bottom: 8px;
+            height: 64px;
             overflow: hidden;
             position: relative;
         }
@@ -440,6 +541,154 @@
             color: var(--text-light);
             text-transform: uppercase;
             margin-bottom: 8px;
+        }
+        .active-track-card {
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 10px 12px;
+            margin-bottom: 10px;
+        }
+        .active-track-label {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-light);
+            margin-bottom: 4px;
+        }
+        .active-track-title {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-style: italic;
+            font-weight: 800;
+            font-size: 16px;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 4px;
+        }
+        .active-track-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .active-track-chip {
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            border: 1px solid var(--border-hi);
+            padding: 2px 6px;
+            border-radius: 999px;
+        }
+        .active-track-bar {
+            height: 6px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 6px;
+        }
+        .active-track-bar-fill {
+            height: 100%;
+            background: var(--amber);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+        .active-track-bar-fill.active {
+            opacity: 0.7;
+            animation: trackPulse 1.2s ease-in-out infinite;
+        }
+        .active-track-bar-fill.cancelled { background: rgba(148,163,184,0.8); }
+        .active-track-status {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-bottom: 4px;
+        }
+        .active-track-formats { display: flex; gap: 6px; flex-wrap: wrap; }
+        .track-groups { display: flex; flex-direction: column; gap: 10px; }
+        .track-group-title {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-family: 'Barlow Condensed', sans-serif;
+            font-style: italic;
+            font-weight: 800;
+            font-size: 11px;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            color: var(--text-light);
+            margin-bottom: 6px;
+        }
+        .track-list { display: flex; flex-direction: column; gap: 6px; }
+        .track-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 8px;
+            border-radius: var(--radius-sm);
+            border: 1px solid var(--border);
+            background: var(--card);
+        }
+        .track-row.active { border-color: rgba(245,166,35,0.45); }
+        .track-row.done { border-color: rgba(46,204,113,0.35); background: rgba(46,204,113,0.06); }
+        .track-row.failed { border-color: rgba(231,76,60,0.4); background: rgba(231,76,60,0.06); }
+        .track-row.cancelled { border-color: rgba(148,163,184,0.4); background: rgba(148,163,184,0.06); }
+        .track-row.queued { background: var(--card2); }
+        .track-row-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--text-light);
+            flex-shrink: 0;
+        }
+        .track-row-dot.active { background: var(--amber); }
+        .track-row-dot.done { background: var(--green); }
+        .track-row-dot.failed { background: var(--red); }
+        .track-row-dot.cancelled { background: #94a3b8; }
+        .track-row-left { min-width: 0; flex: 1; }
+        .track-row-title {
+            font-weight: 700;
+            font-size: 12px;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .track-row-sub { font-size: 10px; color: var(--text-light); }
+        .track-row-pct {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-style: italic;
+            font-weight: 800;
+            font-size: 14px;
+            color: var(--text);
+            flex-shrink: 0;
+        }
+        .track-row-pct.done { color: var(--green); }
+        .track-row-pct.failed { color: var(--red); }
+        .track-row-pct.active { color: var(--amber); }
+        .track-row-pct.cancelled { color: #94a3b8; }
+        .track-row-bar {
+            height: 3px;
+            background: rgba(255,255,255,0.06);
+            border-radius: 2px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+        .track-row-bar-fill {
+            height: 100%;
+            background: var(--amber);
+            border-radius: 2px;
+        }
+        .track-row-bar-fill.done { background: var(--green); }
+        .track-row-bar-fill.failed { background: var(--red); }
+        .track-row-bar-fill.cancelled { background: rgba(148,163,184,0.8); }
+        @keyframes trackPulse {
+            0% { opacity: 0.4; }
+            50% { opacity: 0.9; }
+            100% { opacity: 0.4; }
         }
         .tracks-grid {
             display: grid;
@@ -531,6 +780,7 @@
         .fmt-chip.done { border-color: rgba(46,204,113,0.35); color: var(--green); background: rgba(46,204,113,0.07); }
         .fmt-chip.active { border-color: var(--amber); color: var(--amber); background: rgba(245,166,35,0.1); }
         .fmt-chip.queued { border-color: var(--border-hi); color: var(--text-light); background: transparent; }
+        .fmt-chip.cancelled { border-color: rgba(148,163,184,0.35); color: var(--text-light); background: rgba(148,163,184,0.08); }
         .progress-banner {
             background: var(--amber);
             border-radius: var(--radius);
@@ -614,6 +864,10 @@
             font-size: 16px;
             color: rgba(0,0,0,0.65);
             line-height: 1;
+        }
+        @media (max-width: 980px) {
+            .metrics-row { grid-template-columns: repeat(2, 1fr); }
+            .progress-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
         }
 
         /* ── DJ Transport ──────────────────────────── */
@@ -703,113 +957,233 @@
             <!-- Processing Overlay -->
             <div x-show="isProcessing" x-cloak class="processing-overlay">
                 <div class="processing-panel">
-                    <div class="job-bar">
-                        <div class="job-id-tag" x-text="processingJob.id || 'JOB'"></div>
-                        <div class="job-filename" x-text="processingJob.filename || 'Processing...'"></div>
-                        <div class="job-stats">
-                            <div class="job-stat">
-                                <div class="job-stat-label">Duration</div>
-                                <div class="job-stat-val" x-text="processingJob.duration ? formatDuration(processingJob.duration) : '--'"></div>
+                    <div class="processing-header">
+                        <div class="job-bar">
+                            <div class="job-id-tag" x-text="processingJob.id || 'JOB'"></div>
+                            <div class="job-filename" x-text="processingJob.filename || 'Processing...'"></div>
+                            <div class="job-stats">
+                                <div class="job-stat">
+                                    <div class="job-stat-label">Duration</div>
+                                    <div class="job-stat-val" x-text="processingJob.duration ? formatDuration(processingJob.duration) : '--'"></div>
+                                </div>
+                                <div class="job-stat">
+                                    <div class="job-stat-label">Tracks</div>
+                                    <div class="job-stat-val amber" x-text="processingJob.tracks || '--'"></div>
+                                </div>
+                                <div class="job-stat">
+                                    <div class="job-stat-label">Formats</div>
+                                    <div class="job-stat-val" x-text="processingJob.formats || '--'"></div>
+                                </div>
+                                <div class="job-stat">
+                                    <div class="job-stat-label">ETA</div>
+                                    <div class="job-stat-val amber" x-text="processingEtaSec ? formatDuration(processingEtaSec) : '--'"></div>
+                                </div>
                             </div>
-                            <div class="job-stat">
-                                <div class="job-stat-label">Tracks</div>
-                                <div class="job-stat-val amber" x-text="processingJob.tracks || '--'"></div>
-                            </div>
-                            <div class="job-stat">
-                                <div class="job-stat-label">Formats</div>
-                                <div class="job-stat-val" x-text="processingJob.formats || '--'"></div>
-                            </div>
-                            <div class="job-stat">
-                                <div class="job-stat-label">ETA</div>
-                                <div class="job-stat-val amber" x-text="processingEtaSec ? formatDuration(processingEtaSec) : '--'"></div>
-                            </div>
+                            <button
+                                x-show="showCancelButton"
+                                @click="requestCancel()"
+                                :disabled="processingCancelRequested"
+                                :class="processingCancelRequested ? 'bg-slate-500/40 text-slate-300 border-slate-400/30 cursor-not-allowed' : 'bg-red-600 text-white border-red-500/50 hover:bg-red-500'"
+                                class="px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest border shadow-sm"
+                                title="Cancel processing"
+                                x-text="processingCancelRequested ? 'Cancelling...' : 'Cancel'">
+                            </button>
                         </div>
-                    </div>
 
-                    <div class="metrics-row">
-                        <div class="metric-card">
-                            <div class="metric-label">CPU Load</div>
-                            <div class="metric-value" :class="systemMetrics.cpu_percent >= 85 ? 'crit' : 'warn'" x-text="systemMetrics.cpu_percent !== null ? Math.round(systemMetrics.cpu_percent) + '%' : '--'"></div>
-                            <div class="metric-bar"><div class="metric-bar-fill" :class="systemMetrics.cpu_percent >= 85 ? 'crit' : ''" :style="'width:' + (systemMetrics.cpu_percent || 0) + '%'"></div></div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">RAM Used</div>
-                            <div class="metric-value" x-text="systemMetrics.ram_used_gb !== null ? systemMetrics.ram_used_gb + ' GB' : '--'"></div>
-                            <div class="metric-bar"><div class="metric-bar-fill" :style="'width:' + (systemMetrics.ram_percent || 0) + '%'"></div></div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Process RAM</div>
-                            <div class="metric-value info" x-text="systemMetrics.process_rss_mb !== null ? systemMetrics.process_rss_mb + ' MB' : '--'"></div>
-                            <div class="metric-bar"><div class="metric-bar-fill info" :style="'width:' + Math.min(100, (systemMetrics.process_rss_mb || 0) / 500 * 100) + '%'"></div></div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">FFmpeg</div>
-                            <div class="metric-value" :class="ffmpegStatus.ok ? '' : 'crit'" x-text="ffmpegStatus.ok ? 'ONLINE' : 'ERROR'"></div>
-                            <div class="metric-bar"><div class="metric-bar-fill" :class="ffmpegStatus.ok ? '' : 'crit'" :style="'width:' + (ffmpegStatus.ok ? '100' : '40') + '%'"></div></div>
-                        </div>
-                    </div>
-
-                    <div class="ffmpeg-card">
-                        <div class="ffmpeg-tag">FFMPEG STATUS</div>
-                        <div class="ff-line" x-text="ffmpegStatus.version || 'ffmpeg not found'"></div>
-                        <div class="ff-line active" x-text="ffmpegStatus.last_error || (ffmpegStatus.ok ? 'Engine ready' : 'Engine error')"></div>
-                        <template x-for="(line, li) in (ffmpegLines.length ? ffmpegLines : ['Engine ready'])" :key="li">
-                            <div class="ff-line" :class="li === ffmpegLines.length-1 ? 'hi' : 'active'" x-text="line"></div>
-                        </template>
-                    </div>
-
-                    <div x-show="processingTracks.length > 0">
-                        <div class="section-title">Track Progress</div>
-                        <div class="tracks-grid">
-                            <template x-for="track in processingTracks" :key="track.number">
-                                <div class="track-card">
-                                    <div class="track-top">
-                                        <div class="track-left">
-                                            <div class="track-icon" :class="processingTrackState[track.number]?.status === 'queued' ? 'dim' : ''"></div>
-                                            <div>
-                                                <div class="track-num" :class="processingTrackState[track.number]?.status === 'queued' ? 'dim' : ''" x-text="'Track ' + track.number"></div>
-                                                <div class="track-name" :class="processingTrackState[track.number]?.status === 'queued' ? 'dim' : ''" x-text="(track.vinyl_number || '') + (track.title ? ' - ' + track.title : '')"></div>
-                                                <div class="track-dur" x-text="formatDuration(track.duration)"></div>
-                                            </div>
-                                        </div>
-                                        <div class="track-pct" :class="processingTrackState[track.number]?.status || 'queued'" x-text="(processingTrackState[track.number]?.percent || 0) + '%'"></div>
+                        <div class="processing-summary">
+                            <div class="progress-compact">
+                                <div class="progress-top">
+                                    <div class="progress-title" x-text="formatStage(processingStage)"></div>
+                                    <div class="progress-pct" x-text="Math.round((processingProgress || 0) * 100) + '%'"></div>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-bar-fill" :style="'width:' + Math.round((processingProgress || 0) * 100) + '%'"></div>
+                                </div>
+                                <div class="progress-meta">
+                                    <div class="progress-meta-item">
+                                        <div class="progress-meta-label">Elapsed</div>
+                                        <div class="progress-meta-val" x-text="processingStartTime ? formatDuration((processingTick - processingStartTime) / 1000) : '--'"></div>
                                     </div>
-                                    <div class="track-bar"><div class="track-bar-fill" :class="processingTrackState[track.number]?.status || 'queued'" :style="'width:' + (processingTrackState[track.number]?.percent || 0) + '%'"></div></div>
-                                    <div class="fmt-row">
-                                        <template x-for="fmt in outputFormats" :key="fmt">
-                                            <span class="fmt-chip" :class="processingTrackState[track.number]?.formats?.[fmt] || 'queued'" x-text="processingFormatLabels[fmt] || fmt"></span>
-                                        </template>
+                                    <div class="progress-meta-item">
+                                        <div class="progress-meta-label">Stage</div>
+                                        <div class="progress-meta-val" x-text="formatStage(processingStage)"></div>
+                                    </div>
+                                    <div class="progress-meta-item">
+                                        <div class="progress-meta-label">Tracks</div>
+                                        <div class="progress-meta-val" x-text="processingTracks.length ? (processedTrackCount + '/' + processingTracks.length) : (processingJob.tracks || '--')"></div>
+                                    </div>
+                                    <div class="progress-meta-item">
+                                        <div class="progress-meta-label">ETA</div>
+                                        <div class="progress-meta-val" x-text="processingEtaSec ? formatDuration(processingEtaSec) : '--'"></div>
                                     </div>
                                 </div>
+                            </div>
+
+                            <div class="metrics-row">
+                                <div class="metric-card">
+                                    <div class="metric-label">CPU Load</div>
+                                    <div class="metric-value" :class="systemMetrics.cpu_percent >= 85 ? 'crit' : 'warn'" x-text="systemMetrics.cpu_percent !== null ? Math.round(systemMetrics.cpu_percent) + '%' : '--'"></div>
+                                    <div class="metric-bar"><div class="metric-bar-fill" :class="systemMetrics.cpu_percent >= 85 ? 'crit' : ''" :style="'width:' + (systemMetrics.cpu_percent || 0) + '%'"></div></div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-label">RAM Used</div>
+                                    <div class="metric-value" x-text="systemMetrics.ram_used_gb !== null ? systemMetrics.ram_used_gb + ' GB' : '--'"></div>
+                                    <div class="metric-bar"><div class="metric-bar-fill" :style="'width:' + (systemMetrics.ram_percent || 0) + '%'"></div></div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-label">Process RAM</div>
+                                    <div class="metric-value info" x-text="systemMetrics.process_rss_mb !== null ? systemMetrics.process_rss_mb + ' MB' : '--'"></div>
+                                    <div class="metric-bar"><div class="metric-bar-fill info" :style="'width:' + Math.min(100, (systemMetrics.process_rss_mb || 0) / 500 * 100) + '%'"></div></div>
+                                </div>
+                                <div class="metric-card">
+                                    <div class="metric-label">FFmpeg</div>
+                                    <div class="metric-value" :class="ffmpegStatus.ok ? '' : 'crit'" x-text="ffmpegStatus.ok ? 'ONLINE' : 'ERROR'"></div>
+                                    <div class="metric-bar"><div class="metric-bar-fill" :class="ffmpegStatus.ok ? '' : 'crit'" :style="'width:' + (ffmpegStatus.ok ? '100' : '40') + '%'"></div></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="processing-body">
+                        <div x-show="activeProcessingTrack" class="active-track-card">
+                            <div class="active-track-label">Active Track</div>
+                            <div class="active-track-title" x-text="activeProcessingTrack ? ((activeProcessingTrack.vinyl_number ? activeProcessingTrack.vinyl_number + ' - ' : '') + (activeProcessingTrack.title || '')) : ''"></div>
+                            <div class="active-track-meta">
+                                <span class="active-track-chip" x-text="activeProcessingTrack ? 'Track ' + activeProcessingTrack.number : ''"></span>
+                                <span class="active-track-chip" x-text="activeProcessingTrack?.duration ? formatDuration(activeProcessingTrack.duration) : '--'"></span>
+                                <span class="active-track-chip" x-text="activeTrackProgressLabel()"></span>
+                            </div>
+                            <div class="active-track-bar">
+                                <div class="active-track-bar-fill"
+                                     :class="activeProcessingTrack ? trackStatus(activeProcessingTrack) : ''"
+                                     :style="'width:' + (activeProcessingTrack ? trackPercent(activeProcessingTrack) : 0) + '%'"></div>
+                            </div>
+                            <div class="active-track-status" x-text="processingStatusLine || (processingMessage || 'Processing...')"></div>
+                            <div class="active-track-formats">
+                                <template x-for="fmt in outputFormats" :key="fmt">
+                                    <span class="fmt-chip" :class="activeProcessingTrack ? (processingTrackState[activeProcessingTrack.number]?.formats?.[fmt] || 'queued') : 'queued'" x-text="processingFormatLabels[fmt] || fmt"></span>
+                                </template>
+                            </div>
+                        </div>
+
+                        <div class="ffmpeg-card">
+                            <div class="ffmpeg-tag">FFMPEG STATUS</div>
+                            <div class="ff-line" x-text="ffmpegStatus.version || 'ffmpeg not found'"></div>
+                            <div class="ff-line active" x-text="ffmpegStatus.last_error || (ffmpegStatus.ok ? 'Engine ready' : 'Engine error')"></div>
+                            <template x-for="(line, li) in (ffmpegLines.length ? ffmpegLines : ['Engine ready'])" :key="li">
+                                <div class="ff-line" :class="li === ffmpegLines.length-1 ? 'hi' : 'active'" x-text="line"></div>
                             </template>
                         </div>
-                    </div>
 
-                    <div class="progress-banner">
-                        <div class="banner-top">
-                            <div class="banner-left">
-                                <div class="spin-ring"></div>
-                                <div class="banner-title" x-text="processingStage === 'analyzing' ? 'Analyzing...' : 'Processing...'"></div>
+                        <div x-show="processingTracks.length > 0" class="track-groups">
+                            <div class="track-group" x-show="activeProcessingTracks.length > 0">
+                                <div class="track-group-title">
+                                    <span>Processing</span>
+                                    <span x-text="activeProcessingTracks.length"></span>
+                                </div>
+                                <template x-if="activeProcessingTracks.length > 1">
+                                    <div class="track-list">
+                                        <template x-for="track in activeProcessingTracks.filter(t => !activeProcessingTrack || t.number !== activeProcessingTrack.number)" :key="track.number">
+                                            <div class="track-row" :class="trackStatus(track)">
+                                                <div class="track-row-dot" :class="trackStatus(track)"></div>
+                                                <div class="track-row-left">
+                                                    <div class="track-row-title" x-text="'Track ' + track.number + (track.vinyl_number ? ' | ' + track.vinyl_number : '') + (track.title ? ' - ' + track.title : '')"></div>
+                                                    <div class="track-row-sub" x-text="formatDuration(track.duration)"></div>
+                                                    <div class="track-row-bar">
+                                                        <div class="track-row-bar-fill" :class="trackStatus(track)" :style="'width:' + trackPercent(track) + '%'"></div>
+                                                    </div>
+                                                </div>
+                                                <div class="track-row-pct" :class="trackStatus(track)" x-text="trackPercent(track) + '%'"></div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </template>
                             </div>
-                            <div class="banner-pct" x-text="Math.round((processingProgress || 0) * 100) + '%'"></div>
-                        </div>
-                        <div class="banner-bar">
-                            <div class="banner-bar-fill" :style="'width:' + Math.round((processingProgress || 0) * 100) + '%'"></div>
-                        </div>
-                        <div class="banner-footer">
-                            <div class="keep-open">Please keep this window open</div>
-                            <div class="banner-meta">
-                                <div class="bm-item">
-                                    <div class="bm-label">Elapsed</div>
-                                    <div class="bm-val" x-text="processingStartTime ? formatDuration((processingTick - processingStartTime) / 1000) : '--'"></div>
+
+                            <div class="track-group" x-show="queuedProcessingTracks.length > 0">
+                                <div class="track-group-title">
+                                    <span>Queued</span>
+                                    <span x-text="queuedProcessingTracks.length"></span>
                                 </div>
-                                <div class="bm-item">
-                                    <div class="bm-label">Stage</div>
-                                    <div class="bm-val" x-text="processingStage ? processingStage.toUpperCase() : '--'"></div>
+                                <div class="track-list">
+                                    <template x-for="track in queuedProcessingTracks" :key="track.number">
+                                        <div class="track-row" :class="trackStatus(track)">
+                                            <div class="track-row-dot" :class="trackStatus(track)"></div>
+                                            <div class="track-row-left">
+                                                <div class="track-row-title" x-text="'Track ' + track.number + (track.vinyl_number ? ' | ' + track.vinyl_number : '') + (track.title ? ' - ' + track.title : '')"></div>
+                                                <div class="track-row-sub" x-text="formatDuration(track.duration)"></div>
+                                                <div class="track-row-bar">
+                                                    <div class="track-row-bar-fill" :class="trackStatus(track)" :style="'width:' + trackPercent(track) + '%'"></div>
+                                                </div>
+                                            </div>
+                                            <div class="track-row-pct" :class="trackStatus(track)" x-text="trackPercent(track) + '%'"></div>
+                                        </div>
+                                    </template>
                                 </div>
-                                <div class="bm-item">
-                                    <div class="bm-label">Tracks</div>
-                                    <div class="bm-val" x-text="processingJob.tracks || '--'"></div>
+                            </div>
+
+                            <div class="track-group" x-show="doneProcessingTracks.length > 0">
+                                <div class="track-group-title">
+                                    <span>Done</span>
+                                    <span x-text="doneProcessingTracks.length"></span>
+                                </div>
+                                <div class="track-list">
+                                    <template x-for="track in doneProcessingTracks" :key="track.number">
+                                        <div class="track-row" :class="trackStatus(track)">
+                                            <div class="track-row-dot" :class="trackStatus(track)"></div>
+                                            <div class="track-row-left">
+                                                <div class="track-row-title" x-text="'Track ' + track.number + (track.vinyl_number ? ' | ' + track.vinyl_number : '') + (track.title ? ' - ' + track.title : '')"></div>
+                                                <div class="track-row-sub" x-text="formatDuration(track.duration)"></div>
+                                                <div class="track-row-bar">
+                                                    <div class="track-row-bar-fill" :class="trackStatus(track)" :style="'width:' + trackPercent(track) + '%'"></div>
+                                                </div>
+                                            </div>
+                                            <div class="track-row-pct" :class="trackStatus(track)" x-text="trackPercent(track) + '%'"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+
+                            <div class="track-group" x-show="failedProcessingTracks.length > 0">
+                                <div class="track-group-title">
+                                    <span>Failed</span>
+                                    <span x-text="failedProcessingTracks.length"></span>
+                                </div>
+                                <div class="track-list">
+                                    <template x-for="track in failedProcessingTracks" :key="track.number">
+                                        <div class="track-row" :class="trackStatus(track)">
+                                            <div class="track-row-dot" :class="trackStatus(track)"></div>
+                                            <div class="track-row-left">
+                                                <div class="track-row-title" x-text="'Track ' + track.number + (track.vinyl_number ? ' | ' + track.vinyl_number : '') + (track.title ? ' - ' + track.title : '')"></div>
+                                                <div class="track-row-sub" x-text="formatDuration(track.duration)"></div>
+                                                <div class="track-row-bar">
+                                                    <div class="track-row-bar-fill" :class="trackStatus(track)" :style="'width:' + trackPercent(track) + '%'"></div>
+                                                </div>
+                                            </div>
+                                            <div class="track-row-pct" :class="trackStatus(track)" x-text="trackPercent(track) + '%'"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                            <div class="track-group" x-show="cancelledProcessingTracks.length > 0">
+                                <div class="track-group-title">
+                                    <span>Cancelled</span>
+                                    <span x-text="cancelledProcessingTracks.length"></span>
+                                </div>
+                                <div class="track-list">
+                                    <template x-for="track in cancelledProcessingTracks" :key="track.number">
+                                        <div class="track-row" :class="trackStatus(track)">
+                                            <div class="track-row-dot" :class="trackStatus(track)"></div>
+                                            <div class="track-row-left">
+                                                <div class="track-row-title" x-text="'Track ' + track.number + (track.vinyl_number ? ' | ' + track.vinyl_number : '') + (track.title ? ' - ' + track.title : '')"></div>
+                                                <div class="track-row-sub" x-text="formatDuration(track.duration)"></div>
+                                                <div class="track-row-bar">
+                                                    <div class="track-row-bar-fill" :class="trackStatus(track)" :style="'width:' + trackPercent(track) + '%'"></div>
+                                                </div>
+                                            </div>
+                                            <div class="track-row-pct" :class="trackStatus(track)" x-text="trackPercent(track) + '%'"></div>
+                                        </div>
+                                    </template>
                                 </div>
                             </div>
                         </div>
@@ -904,6 +1278,7 @@
                             <div class="flex items-center justify-between mb-2">
                                 <span class="text-[11px] font-black uppercase tracking-widest text-brand font-condensed">Hotcues</span>
                                 <button class="text-[10px] font-bold px-3 py-1 rounded-lg border border-dashed opacity-60 hover:opacity-100 hover:border-brand transition"
+                                        title="Add cue at playhead (C)"
                                         @click="addCueAtPlayhead()">+ Add cue</button>
                             </div>
                         <div class="cue-banks-grid">
@@ -913,7 +1288,8 @@
                                 <template x-for="slot in cueSlotsA" :key="slot.slotNumber">
                                     <div class="cue-row2"
                                          :class="{'has-cue': slot.cue, 'empty': !slot.cue, 'selected': slot.cue && selectedRegionId === 'track-' + slot.slotNumber}">
-                                        <button @click="cueRowAction(slot.slotNumber)" class="cue-arrow2">
+                                        <button @click="cueRowAction(slot.slotNumber)" class="cue-arrow2"
+                                                :title="slot.cue ? 'Jump & play cue' : 'Set cue at playhead'">
                                             <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                         </button>
                                         <span class="cue-dot2" :style="'background:' + getTrackColor(slot.idx).replace('0.35','1')"></span>
@@ -921,15 +1297,26 @@
                                         <span class="cue-time2 editable"
                                               x-text="slot.cue ? formatDuration(slot.cue.start) : '--:--'"
                                               :contenteditable="!!slot.cue"
+                                              title="Edit cue start (mm:ss)"
                                               @blur="slot.cue && setCueTime(slot.cue,'start',$event.target.innerText)"
                                               @keydown.enter.prevent="$event.target.blur()"></span>
-                                        <span class="cue-time2" x-text="slot.cue ? formatDuration(slot.cue.end) : '--:--'"></span>
-                                        <span class="cue-dur2" x-text="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"></span>
+                                        <span class="cue-time2 editable"
+                                              x-text="slot.cue ? formatDuration(slot.cue.end) : '--:--'"
+                                              :contenteditable="!!slot.cue"
+                                              title="Edit cue end (mm:ss)"
+                                              @blur="slot.cue && setCueTime(slot.cue,'end',$event.target.innerText)"
+                                              @keydown.enter.prevent="$event.target.blur()"></span>
+                                        <span class="cue-time2 cue-dur2 editable"
+                                              x-text="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
+                                              :contenteditable="!!slot.cue"
+                                              title="Edit cue length (mm:ss)"
+                                              @blur="slot.cue && setCueTime(slot.cue,'duration',$event.target.innerText)"
+                                              @keydown.enter.prevent="$event.target.blur()"></span>
                                         <input class="cue-title2" :disabled="!slot.cue"
                                                :value="slot.cue ? (slot.cue.title || '') : ''"
                                                :placeholder="slot.cue ? '' : '—'"
                                                @input="slot.cue && (slot.cue.title=$event.target.value)">
-                                        <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2">×</button>
+                                        <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
                                     </div>
                                 </template>
                             </div>
@@ -939,7 +1326,8 @@
                                 <template x-for="slot in cueSlotsB" :key="slot.slotNumber">
                                     <div class="cue-row2"
                                          :class="{'has-cue': slot.cue, 'empty': !slot.cue, 'selected': slot.cue && selectedRegionId === 'track-' + slot.slotNumber}">
-                                        <button @click="cueRowAction(slot.slotNumber)" class="cue-arrow2">
+                                        <button @click="cueRowAction(slot.slotNumber)" class="cue-arrow2"
+                                                :title="slot.cue ? 'Jump & play cue' : 'Set cue at playhead'">
                                             <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                         </button>
                                         <span class="cue-dot2" :style="'background:' + getTrackColor(slot.idx).replace('0.35','1')"></span>
@@ -947,15 +1335,102 @@
                                         <span class="cue-time2 editable"
                                               x-text="slot.cue ? formatDuration(slot.cue.start) : '--:--'"
                                               :contenteditable="!!slot.cue"
+                                              title="Edit cue start (mm:ss)"
                                               @blur="slot.cue && setCueTime(slot.cue,'start',$event.target.innerText)"
                                               @keydown.enter.prevent="$event.target.blur()"></span>
-                                        <span class="cue-time2" x-text="slot.cue ? formatDuration(slot.cue.end) : '--:--'"></span>
-                                        <span class="cue-dur2" x-text="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"></span>
+                                        <span class="cue-time2 editable"
+                                              x-text="slot.cue ? formatDuration(slot.cue.end) : '--:--'"
+                                              :contenteditable="!!slot.cue"
+                                              title="Edit cue end (mm:ss)"
+                                              @blur="slot.cue && setCueTime(slot.cue,'end',$event.target.innerText)"
+                                              @keydown.enter.prevent="$event.target.blur()"></span>
+                                        <span class="cue-time2 cue-dur2 editable"
+                                              x-text="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
+                                              :contenteditable="!!slot.cue"
+                                              title="Edit cue length (mm:ss)"
+                                              @blur="slot.cue && setCueTime(slot.cue,'duration',$event.target.innerText)"
+                                              @keydown.enter.prevent="$event.target.blur()"></span>
                                         <input class="cue-title2" :disabled="!slot.cue"
                                                :value="slot.cue ? (slot.cue.title || '') : ''"
                                                :placeholder="slot.cue ? '' : '—'"
                                                @input="slot.cue && (slot.cue.title=$event.target.value)">
-                                        <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2">×</button>
+                                        <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
+                                    </div>
+                                </template>
+                            </div>
+                            <!-- Bank C: T17-T24 -->
+                            <div>
+                                <div class="cue-bank-header">C</div>
+                                <template x-for="slot in cueSlotsC" :key="slot.slotNumber">
+                                    <div class="cue-row2"
+                                         :class="{'has-cue': slot.cue, 'empty': !slot.cue, 'selected': slot.cue && selectedRegionId === 'track-' + slot.slotNumber}">
+                                        <button @click="cueRowAction(slot.slotNumber)" class="cue-arrow2"
+                                                :title="slot.cue ? 'Jump & play cue' : 'Set cue at playhead'">
+                                            <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                        </button>
+                                        <span class="cue-dot2" :style="'background:' + getTrackColor(slot.idx).replace('0.35','1')"></span>
+                                        <span class="cue-label2" x-text="'Track ' + slot.slotNumber"></span>
+                                        <span class="cue-time2 editable"
+                                              x-text="slot.cue ? formatDuration(slot.cue.start) : '--:--'"
+                                              :contenteditable="!!slot.cue"
+                                              title="Edit cue start (mm:ss)"
+                                              @blur="slot.cue && setCueTime(slot.cue,'start',$event.target.innerText)"
+                                              @keydown.enter.prevent="$event.target.blur()"></span>
+                                        <span class="cue-time2 editable"
+                                              x-text="slot.cue ? formatDuration(slot.cue.end) : '--:--'"
+                                              :contenteditable="!!slot.cue"
+                                              title="Edit cue end (mm:ss)"
+                                              @blur="slot.cue && setCueTime(slot.cue,'end',$event.target.innerText)"
+                                              @keydown.enter.prevent="$event.target.blur()"></span>
+                                        <span class="cue-time2 cue-dur2 editable"
+                                              x-text="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
+                                              :contenteditable="!!slot.cue"
+                                              title="Edit cue length (mm:ss)"
+                                              @blur="slot.cue && setCueTime(slot.cue,'duration',$event.target.innerText)"
+                                              @keydown.enter.prevent="$event.target.blur()"></span>
+                                        <input class="cue-title2" :disabled="!slot.cue"
+                                               :value="slot.cue ? (slot.cue.title || '') : ''"
+                                               :placeholder="slot.cue ? '' : 'ƒ?"'"
+                                               @input="slot.cue && (slot.cue.title=$event.target.value)">
+                                        <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
+                                    </div>
+                                </template>
+                            </div>
+                            <!-- Bank D: T25-T32 -->
+                            <div>
+                                <div class="cue-bank-header">D</div>
+                                <template x-for="slot in cueSlotsD" :key="slot.slotNumber">
+                                    <div class="cue-row2"
+                                         :class="{'has-cue': slot.cue, 'empty': !slot.cue, 'selected': slot.cue && selectedRegionId === 'track-' + slot.slotNumber}">
+                                        <button @click="cueRowAction(slot.slotNumber)" class="cue-arrow2"
+                                                :title="slot.cue ? 'Jump & play cue' : 'Set cue at playhead'">
+                                            <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                        </button>
+                                        <span class="cue-dot2" :style="'background:' + getTrackColor(slot.idx).replace('0.35','1')"></span>
+                                        <span class="cue-label2" x-text="'Track ' + slot.slotNumber"></span>
+                                        <span class="cue-time2 editable"
+                                              x-text="slot.cue ? formatDuration(slot.cue.start) : '--:--'"
+                                              :contenteditable="!!slot.cue"
+                                              title="Edit cue start (mm:ss)"
+                                              @blur="slot.cue && setCueTime(slot.cue,'start',$event.target.innerText)"
+                                              @keydown.enter.prevent="$event.target.blur()"></span>
+                                        <span class="cue-time2 editable"
+                                              x-text="slot.cue ? formatDuration(slot.cue.end) : '--:--'"
+                                              :contenteditable="!!slot.cue"
+                                              title="Edit cue end (mm:ss)"
+                                              @blur="slot.cue && setCueTime(slot.cue,'end',$event.target.innerText)"
+                                              @keydown.enter.prevent="$event.target.blur()"></span>
+                                        <span class="cue-time2 cue-dur2 editable"
+                                              x-text="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
+                                              :contenteditable="!!slot.cue"
+                                              title="Edit cue length (mm:ss)"
+                                              @blur="slot.cue && setCueTime(slot.cue,'duration',$event.target.innerText)"
+                                              @keydown.enter.prevent="$event.target.blur()"></span>
+                                        <input class="cue-title2" :disabled="!slot.cue"
+                                               :value="slot.cue ? (slot.cue.title || '') : ''"
+                                               :placeholder="slot.cue ? '' : 'ƒ?"'"
+                                               @input="slot.cue && (slot.cue.title=$event.target.value)">
+                                        <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
                                     </div>
                                 </template>
                             </div>
@@ -964,6 +1439,11 @@
 
                         <div class="wave-mini-wrap">
                             <div id="waveform-mini"></div>
+                            <div class="cue-overview" x-show="cueOverviewMarkers.length">
+                                <template x-for="m in cueOverviewMarkers" :key="m.number">
+                                    <div class="cue-overview-marker" :style="'left:' + m.left + '%'" x-text="'T' + m.number"></div>
+                                </template>
+                            </div>
                         </div>
 
                         <!-- Time Ruler -->
@@ -974,9 +1454,13 @@
                         <!-- DJ Transport -->
                         <div class="wave-tb">
                             <div style="display:flex;align-items:center;gap:6px">
-                                <button @mousedown="startSeek(-1)" @mouseup="stopSeek()" @mouseleave="stopSeek()" class="dj-btn" title="Spoel terug">
+                                <button @click="prevCue()" class="dj-btn" title="Previous cue">
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
                                 </button>
+                                <button @mousedown="startSeek(-1)" @mouseup="stopSeek()" @mouseleave="stopSeek()" class="dj-btn" title="Scrub backward (hold)">
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+                                </button>
+                                <button @click="skipBy(-5)" class="dj-btn text-[10px] font-black" title="Back 5s">-5s</button>
                                 <button @click="playing ? pauseWaveform() : playWaveform()" class="dj-btn dj-btn-play" :title="playing ? 'Pause' : 'Play'">
                                     <svg x-show="!playing" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                     <svg x-show="playing"  viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
@@ -984,8 +1468,12 @@
                                 <button @click="stopWaveform()" class="dj-btn dj-btn-stop" title="Stop & reset">
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
                                 </button>
-                                <button @mousedown="startSeek(1)" @mouseup="stopSeek()" @mouseleave="stopSeek()" class="dj-btn" title="Spoel vooruit">
+                                <button @click="skipBy(5)" class="dj-btn text-[10px] font-black" title="Forward 5s">+5s</button>
+                                <button @mousedown="startSeek(1)" @mouseup="stopSeek()" @mouseleave="stopSeek()" class="dj-btn" title="Scrub forward (hold)">
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg>
+                                </button>
+                                <button @click="nextCue()" class="dj-btn" title="Next cue">
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M16 6h2v12h-2zm-1.5 6-8.5 6V6z"/></svg>
                                 </button>
                             </div>
                             <div style="display:flex;align-items:center;gap:5px">
@@ -1125,9 +1613,15 @@
                     </style>
                 </div>
 
-                <div x-show="successMessage" x-cloak class="bg-green-100 dark:bg-green-900/30 border-4 border-green-500 rounded-3xl p-8 text-center shadow-2xl">
-                    <h2 class="text-3xl font-black text-green-900 dark:text-green-400 mb-3 italic tracking-tighter">SUCCESS</h2>
-                    <p class="text-[14px] font-black mb-4 text-green-900 dark:text-green-200" x-text="successMessage"></p>
+                <div x-show="successMessage" x-cloak
+                     class="border-4 rounded-3xl p-8 text-center shadow-2xl"
+                     :class="successType === 'cancelled' ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-500' : 'bg-green-100 dark:bg-green-900/30 border-green-500'">
+                    <h2 class="text-3xl font-black mb-3 italic tracking-tighter"
+                        :class="successType === 'cancelled' ? 'text-amber-900 dark:text-amber-300' : 'text-green-900 dark:text-green-400'"
+                        x-text="successType === 'cancelled' ? 'CANCELLED' : 'SUCCESS'"></h2>
+                    <p class="text-[14px] font-black mb-4"
+                       :class="successType === 'cancelled' ? 'text-amber-900 dark:text-amber-200' : 'text-green-900 dark:text-green-200'"
+                       x-text="successMessage"></p>
                     <p class="text-[12px] font-bold text-green-800 dark:text-green-300" x-show="nextFileName" x-text="'Next file: ' + nextFileName"></p>
                     <div x-show="processingStats" class="mt-3 p-3 rounded-xl font-mono text-[10px] leading-relaxed bg-black/20">
                         <span style="color:#E5A100" x-text="processingStats?.tracks"></span> tracks &bull;

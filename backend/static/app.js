@@ -8,14 +8,18 @@ function vinylApp() {
         ws: null, dragging: false, showSettings: false, uploadProgress: 0, searchLoading: false,
         trackCountMismatch: false, uploadedFiles: [], currentFileId: null, currentFile: null,
         selectedFileIds: [], detectedTracks: [], currentPlayingTrack: null, waveform: null,
-        waveformLoading: false, waveformRegions: null, waveformMinimap: null, currentZoom: 50, waveformMode: 'mono', searchQuery: '',
+        waveformLoading: false, waveformRegions: null, waveformMinimap: null, currentZoom: 50, userZoomed: false, waveformMode: 'mono', searchQuery: '',
         playing: false, uiScale: parseFloat(localStorage.getItem('uiScale') || '1'),
         ffmpegLines: [], processingStats: null,
         searchResults: [], selectedRelease: null, customMapping: [], searchAbortController: null,
         isProcessing: false, processingProgress: 0, processingMessage: '', successMessage: '',
-        processingStage: '', processingJob: { id: '', filename: '', duration: 0, tracks: 0, formats: 0 },
+        processingStage: '', processingJobStatus: '', processingCancelRequested: false, processingCancelled: false,
+        processingJob: { id: '', filename: '', duration: 0, tracks: 0, formats: 0 },
         processingStartTime: null, processingEtaSec: null, processingTick: 0, processingTicker: null,
         processingTracks: [], processingTrackState: {}, processingFormatLabels: {},
+        processingCurrentTrackNumber: null, processingCurrentTrackTitle: '', processingCurrentTrackVinyl: '',
+        processingCurrentFormatLabel: '',
+        processingStepBase: null, processingStepSpan: null,
         systemMetrics: { cpu_percent: null, ram_used_gb: null, ram_total_gb: null, ram_percent: null, process_rss_mb: null },
         ffmpegStatus: { ok: true, version: '', last_error: '' },
         metricsTimer: null,
@@ -24,12 +28,13 @@ function vinylApp() {
         lastProgressUpdate: 0,
         lastProcessedIds: [], outputFormats: ['flac'], availableFormats: [], restorationLevel: 0,
         showQuitModal: false,
+        successType: '',
         config: { silence_threshold: -40, min_silence_duration: 1.5, output_dir: '', flac_compression: 8, discogs_user_token: '', discogs_user_agent: '' },
         supportedExtensions: ['.wav', '.aiff', '.aif', '.flac', '.mp3'],
         discogsConfigured: true, darkMode: localStorage.getItem('darkMode') !== 'false',
         systemStatus: { ffmpeg_ok: true, data_dir: '', ffmpeg_path: '', ffmpeg_source: '', ffmpeg_fallback: false },
         cueBank: 0,
-        maxCues: 16,
+        maxCues: 32,
         _waveInitToken: 0,
         selectedRegionId: null,
         searchError: '',
@@ -80,11 +85,25 @@ function vinylApp() {
         startProcessingStage(stage, jobId = '') {
             this.isProcessing = true;
             this.processingStage = stage;
+            this.processingJobStatus = stage;
+            this.processingCancelRequested = false;
+            this.processingCancelled = false;
+            this.successMessage = '';
+            this.successType = '';
             this.processingStartTime = Date.now();
             this.processingEtaSec = null;
             this.processingTick = Date.now();
+            this.processingCurrentTrackNumber = null;
+            this.processingCurrentTrackTitle = '';
+            this.processingCurrentTrackVinyl = '';
+            this.processingCurrentFormatLabel = '';
+            this.processingStepBase = null;
+            this.processingStepSpan = null;
             if (!this.processingTicker) {
-                this.processingTicker = setInterval(() => { this.processingTick = Date.now(); }, 1000);
+                this.processingTicker = setInterval(() => {
+                    this.processingTick = Date.now();
+                    this.updateInterpolatedProgress();
+                }, 500);
             }
             this.refreshSystemMetrics();
             this.startMetricsPolling();
@@ -101,8 +120,17 @@ function vinylApp() {
         stopProcessingStage() {
             this.isProcessing = false;
             this.processingStage = '';
+            this.processingJobStatus = '';
+            this.processingCancelRequested = false;
+            this.processingCancelled = false;
             this.processingStartTime = null;
             this.processingEtaSec = null;
+            this.processingCurrentTrackNumber = null;
+            this.processingCurrentTrackTitle = '';
+            this.processingCurrentTrackVinyl = '';
+            this.processingCurrentFormatLabel = '';
+            this.processingStepBase = null;
+            this.processingStepSpan = null;
             if (this.processingTicker) clearInterval(this.processingTicker);
             this.processingTicker = null;
             this.stopProcessPolling();
@@ -126,7 +154,7 @@ function vinylApp() {
             this.processingTracks.forEach(track => {
                 const fmtState = {};
                 this.outputFormats.forEach(fmt => { fmtState[fmt] = 'queued'; });
-                this.processingTrackState[track.number] = { percent: 0, status: 'queued', formats: fmtState };
+                this.processingTrackState[track.number] = { percent: 0, status: 'queued', formats: fmtState, startAt: null, duration: track.duration || 0 };
             });
         },
 
@@ -316,6 +344,14 @@ function vinylApp() {
                 const cue = this.getCueByIndex(bank, idx);
                 if (cue) this.jumpToTrack(cue);
             }
+            if (['arrowleft', 'arrowright', 'arrowup', 'arrowdown'].includes(key) && this.selectedRegionId) {
+                e.preventDefault();
+                const step = e.shiftKey ? 1 : 0.1;
+                if (key === 'arrowleft') return this.nudgeSelectedCue(-step, -step);
+                if (key === 'arrowright') return this.nudgeSelectedCue(step, step);
+                if (key === 'arrowup') return this.nudgeCueLength(step);
+                if (key === 'arrowdown') return this.nudgeCueLength(-step);
+            }
         },
 
         async processFiles() {
@@ -383,8 +419,37 @@ function vinylApp() {
             } catch (e) { this.stopProcessingStage(); }
         },
 
+        async requestCancel() {
+            if (!this.canCancelProcessing) return;
+            this.processingCancelRequested = true;
+            this.processingJobStatus = 'cancelling';
+            this.processingMessage = 'Cancelling...';
+            try {
+                await fetch(`/api/process/${this.processingJob.id}/cancel`, { method: 'POST' });
+            } catch (e) {
+                this.processingCancelRequested = false;
+            }
+        },
+
+        markTracksCancelled() {
+            Object.keys(this.processingTrackState).forEach((key) => {
+                const state = this.processingTrackState[key];
+                if (!state) return;
+                if (!['done', 'error', 'failed'].includes(state.status)) {
+                    state.status = 'cancelled';
+                }
+                if (state.formats) {
+                    Object.keys(state.formats).forEach(fmt => {
+                        if (!['done'].includes(state.formats[fmt])) state.formats[fmt] = 'cancelled';
+                    });
+                }
+            });
+            this.processingTrackState = { ...this.processingTrackState };
+        },
+
         startProcessPolling(jobId) {
             this.processingJob.id = jobId;
+            this.processingJobStatus = 'processing';
             this.stopProcessPolling();
             this.processPollTick = 0;
             this.lastProgressUpdate = 0;
@@ -393,6 +458,7 @@ function vinylApp() {
                     const r = await fetch(`/api/process/${jobId}`); 
                     const j = await r.json();
                     if (j.status === 'processing') { 
+                        this.processingJobStatus = 'processing';
                         this.processingMessage = j.message || 'Processing...'; 
                         if (j.updated_at && j.updated_at !== this.lastProgressUpdate) {
                             this.lastProgressUpdate = j.updated_at;
@@ -416,15 +482,40 @@ function vinylApp() {
                             this.fetchQueue();
                         }
                     }
+                    else if (j.status === 'cancelling') {
+                        this.processingJobStatus = 'cancelling';
+                        this.processingCancelRequested = true;
+                        this.processingStage = j.stage || 'cancelling';
+                        this.processingMessage = j.message || 'Cancelling...';
+                        if (j.progress !== undefined) this.processingProgress = 0 + j.progress;
+                    }
+                    else if (j.status === 'cancelled') {
+                        this.processingJobStatus = 'cancelled';
+                        this.processingCancelled = true;
+                        this.processingCancelRequested = false;
+                        this.processingStage = j.stage || 'cancelled';
+                        this.processingMessage = j.message || 'Cancelled';
+                        if (j.progress !== undefined) this.processingProgress = 0 + j.progress;
+                        this.markTracksCancelled();
+                        this.stopProcessPolling();
+                        this.stopMetricsPolling();
+                        this.successType = 'cancelled';
+                        this.successMessage = 'Cancelled';
+                        this.stopProcessingStage();
+                        this.fetchQueue();
+                    }
                     else if (j.status === 'complete') {
+                        this.processingJobStatus = 'complete';
                         this.stopProcessPolling();
                         const elapsed = this.processingStartTime ? Math.round((Date.now() - this.processingStartTime) / 1000) : 0;
                         this.processingStats = { tracks: j.tracks ? j.tracks.length : 0, files: j.tracks || [], elapsed, formats: this.outputFormats.length };
                         this.stopProcessingStage();
+                        this.successType = 'success';
                         this.successMessage = 'done';
                         this.fetchQueue();
                     }
                     else if (j.status === 'error') { 
+                        this.processingJobStatus = 'error';
                         this.stopProcessPolling(); 
                         this.stopProcessingStage(); 
                         alert('Error: ' + j.error); 
@@ -435,6 +526,24 @@ function vinylApp() {
 
         handleProgressEvent(d) {
             if (!this.isProcessing) return;
+            if (d.stage) {
+                this.processingStage = d.stage;
+            }
+            if (d.track_total !== undefined || d.track_index !== undefined) {
+                this.processingJob = {
+                    ...this.processingJob,
+                    track_index: d.track_index ?? this.processingJob.track_index ?? 0,
+                    track_total: d.track_total ?? this.processingJob.track_total ?? 0,
+                };
+            }
+            if (d.track) {
+                this.processingCurrentTrackNumber = d.track.number ?? this.processingCurrentTrackNumber;
+                this.processingCurrentTrackTitle = d.track.title || this.processingCurrentTrackTitle;
+                this.processingCurrentTrackVinyl = d.track.vinyl_number || this.processingCurrentTrackVinyl;
+            }
+            if (d.format_label) {
+                this.processingCurrentFormatLabel = d.format_label;
+            }
             if (d.progress !== undefined) {
                 this.processingProgress = 0 + d.progress;
                 if (this.processingStartTime && d.progress > 0.05) {
@@ -464,20 +573,53 @@ function vinylApp() {
                 if (!this.processingTrackState[trackNum]) {
                     const fmtState = {};
                     this.outputFormats.forEach(fmt => { fmtState[fmt] = 'queued'; });
-                    this.processingTrackState[trackNum] = { percent: 0, status: 'queued', formats: fmtState };
+                    const trackObj = this.processingTracks.find(t => t.number === trackNum);
+                    this.processingTrackState[trackNum] = { percent: 0, status: 'queued', formats: fmtState, startAt: null, duration: trackObj?.duration || 0 };
                 }
                 const state = this.processingTrackState[trackNum];
                 if (d.stage === 'track_start') {
                     state.status = 'active';
                     state.formats = { ...state.formats, [d.format]: 'active' };
+                    state.startAt = Date.now();
+                    if (d.track_total && d.format_total && d.track_index && d.format_index) {
+                        const totalSteps = d.track_total * d.format_total;
+                        const stepIndex = (d.format_index - 1) * d.track_total + (d.track_index - 1);
+                        this.processingStepSpan = totalSteps ? (0.8 / totalSteps) : null;
+                        this.processingStepBase = totalSteps ? (0.1 + stepIndex * this.processingStepSpan) : null;
+                    }
                 } else if (d.stage === 'track_done') {
                     state.formats = { ...state.formats, [d.format]: 'done' };
                     const doneCount = Object.values(state.formats).filter(v => v === 'done').length;
                     state.percent = Math.round((doneCount / this.outputFormats.length) * 100);
                     if (doneCount === this.outputFormats.length) state.status = 'done';
+                    state.startAt = null;
+                    this.processingStepBase = d.progress ?? this.processingStepBase;
                 }
                 // Force Alpine reactivity
                 this.processingTrackState = { ...this.processingTrackState };
+            }
+        },
+
+        updateInterpolatedProgress() {
+            if (!this.isProcessing) return;
+            const active = this.activeProcessingTrack;
+            if (!active) return;
+            const state = this.processingTrackState[active.number];
+            if (!state || !state.startAt) return;
+            const durationSec = state.duration || active.duration || 0;
+            const elapsedSec = (Date.now() - state.startAt) / 1000;
+            let fraction = 0;
+            if (durationSec > 1) {
+                fraction = Math.min(elapsedSec / durationSec, 0.98);
+            } else {
+                const cycle = (Date.now() - state.startAt) % 3500;
+                fraction = 0.2 + (cycle / 3500) * 0.7;
+            }
+            state.percent = Math.max(state.percent || 0, Math.floor(fraction * 100));
+            this.processingTrackState = { ...this.processingTrackState };
+            if (this.processingStepBase !== null && this.processingStepSpan) {
+                const progress = this.processingStepBase + this.processingStepSpan * fraction;
+                if (progress > this.processingProgress) this.processingProgress = progress;
             }
         },
 
@@ -512,6 +654,10 @@ function vinylApp() {
             this.waveformLoading = true;
             try {
                 this.resetWaveScroll();
+                if (!this.userZoomed) {
+                    const cueZoom = this.computeCueZoom();
+                    if (cueZoom) this.currentZoom = cueZoom;
+                }
                 const ws = WaveSurfer.create({ 
                     container: '#waveform', 
                     waveColor: document.body.classList.contains('dark') ? '#2a3a50' : '#475569', 
@@ -554,6 +700,7 @@ function vinylApp() {
                         wfContainer.scrollLeft += e.deltaY * 3;
                         return;
                     }
+                    this.userZoomed = true;
                     const rect = wfContainer.getBoundingClientRect();
                     const mouseRel = (e.clientX - rect.left + wfContainer.scrollLeft) / (wfContainer.scrollWidth || 1);
                     const oldZoom = this.currentZoom;
@@ -773,7 +920,7 @@ function vinylApp() {
         },
 
         toggleCueBank() {
-            this.cueBank = this.cueBank === 0 ? 1 : 0;
+            this.cueBank = (this.cueBank + 1) % 4;
         },
 
         getCueByIndex(bank, idx) {
@@ -795,20 +942,36 @@ function vinylApp() {
 
         zoomIn() {
             if (!this.waveform) return;
+            this.userZoomed = true;
             this.currentZoom = Math.min(this.currentZoom * 1.25, 500);
             this.waveform.zoom(this.currentZoom);
         },
 
         zoomOut() {
             if (!this.waveform) return;
+            this.userZoomed = true;
             this.currentZoom = Math.max(1, this.currentZoom / 1.25);
             this.waveform.zoom(this.currentZoom);
         },
 
         resetZoom() {
             if (!this.waveform) return;
-            this.currentZoom = 50;
+            this.userZoomed = false;
+            this.currentZoom = this.computeCueZoom() || 50;
             this.waveform.zoom(this.currentZoom);
+        },
+
+        computeCueZoom() {
+            const wfEl = document.getElementById('waveform');
+            const width = wfEl?.clientWidth || 0;
+            const duration = this.currentFile?.duration || this.waveform?.getDuration() || 0;
+            if (!width || !duration) return 50;
+            const trackCount = this.detectedTracks.length || 0;
+            const visibleCues = Math.min(4, Math.max(2, trackCount || 4));
+            const avgCue = trackCount ? (duration / trackCount) : (duration / visibleCues);
+            const targetDuration = Math.max(10, avgCue * visibleCues);
+            const pxPerSec = width / targetDuration;
+            return Math.min(200, Math.max(5, Math.round(pxPerSec)));
         },
 
         toggleWaveformMode() {
@@ -873,11 +1036,49 @@ function vinylApp() {
             } 
         },
 
+        getSortedCues() {
+            return [...this.detectedTracks].sort((a, b) => a.start - b.start);
+        },
+
+        prevCue() {
+            const cues = this.getSortedCues();
+            if (!cues.length) return;
+            const time = this.waveform ? this.waveform.getCurrentTime() : 0;
+            let idx = cues.findIndex(c => `track-${c.number}` === this.selectedRegionId);
+            if (idx < 0) {
+                idx = cues.findIndex(c => c.start >= time);
+                idx = idx <= 0 ? cues.length - 1 : idx - 1;
+            } else {
+                idx = idx === 0 ? cues.length - 1 : idx - 1;
+            }
+            this.jumpToTrack(cues[idx]);
+        },
+
+        nextCue() {
+            const cues = this.getSortedCues();
+            if (!cues.length) return;
+            const time = this.waveform ? this.waveform.getCurrentTime() : 0;
+            let idx = cues.findIndex(c => `track-${c.number}` === this.selectedRegionId);
+            if (idx < 0) {
+                idx = cues.findIndex(c => c.start > time);
+                idx = idx === -1 ? 0 : idx;
+            } else {
+                idx = idx === cues.length - 1 ? 0 : idx + 1;
+            }
+            this.jumpToTrack(cues[idx]);
+        },
+
+        skipBy(seconds) {
+            if (!this.waveform) return;
+            const t = this.waveform.getCurrentTime() + seconds;
+            this.waveform.setTime(Math.max(0, Math.min(t, this.waveform.getDuration())));
+        },
+
         // ── Cue row helpers ─────────────────────────────────────────────────
         cueRowAction(slotNumber) {
             const cue = this.detectedTracks.find(t => t.number === slotNumber);
             if (cue) {
-                this.selectCue(cue);
+                this.jumpToTrack(cue);
             } else {
                 this.setCueAtPlayhead(slotNumber);
             }
@@ -899,11 +1100,50 @@ function vinylApp() {
             } else { secs = parseFloat(value); }
             if (isNaN(secs) || secs < 0) return;
             const dur = this.waveform ? this.waveform.getDuration() : 9999;
+            const minLen = 0.5;
             if (field === 'start') {
-                cue.start = Math.min(secs, cue.end - 0.5);
-            } else {
-                cue.end = Math.min(Math.max(secs, cue.start + 0.5), dur);
+                cue.start = Math.min(secs, cue.end - minLen);
+            } else if (field === 'end') {
+                cue.end = Math.min(Math.max(secs, cue.start + minLen), dur);
+            } else if (field === 'duration') {
+                const nextEnd = cue.start + secs;
+                cue.end = Math.min(Math.max(nextEnd, cue.start + minLen), dur);
             }
+            cue.duration = cue.end - cue.start;
+            this.addTrackRegions();
+        },
+
+        nudgeSelectedCue(deltaStart, deltaEnd) {
+            if (!this.selectedRegionId) return;
+            const trackNum = parseInt(this.selectedRegionId.replace('track-', ''));
+            const cue = this.detectedTracks.find(t => t.number === trackNum);
+            if (!cue) return;
+            const dur = this.waveform ? this.waveform.getDuration() : 9999;
+            const length = cue.end - cue.start;
+            let nextStart = cue.start + deltaStart;
+            let nextEnd = cue.end + deltaEnd;
+            if (deltaStart === deltaEnd) {
+                nextStart = Math.max(0, Math.min(nextStart, dur - length));
+                nextEnd = nextStart + length;
+            } else {
+                nextStart = Math.max(0, Math.min(nextStart, dur));
+                nextEnd = Math.max(nextStart + 0.5, Math.min(nextEnd, dur));
+            }
+            cue.start = nextStart;
+            cue.end = nextEnd;
+            cue.duration = cue.end - cue.start;
+            this.addTrackRegions();
+            if (this.waveform) this.waveform.setTime(cue.start);
+        },
+
+        nudgeCueLength(delta) {
+            if (!this.selectedRegionId) return;
+            const trackNum = parseInt(this.selectedRegionId.replace('track-', ''));
+            const cue = this.detectedTracks.find(t => t.number === trackNum);
+            if (!cue) return;
+            const dur = this.waveform ? this.waveform.getDuration() : 9999;
+            const nextEnd = Math.min(Math.max(cue.end + delta, cue.start + 0.5), dur);
+            cue.end = nextEnd;
             cue.duration = cue.end - cue.start;
             this.addTrackRegions();
         },
@@ -1020,6 +1260,79 @@ function vinylApp() {
             if (selected.length === 0) return false;
             return !selected.every(f => f.detected_tracks && f.detected_tracks.length);
         },
+        trackStatus(track) {
+            return this.processingTrackState[track.number]?.status || 'queued';
+        },
+        trackPercent(track) {
+            return this.processingTrackState[track.number]?.percent || 0;
+        },
+        activeTrackProgressLabel() {
+            const track = this.activeProcessingTrack;
+            if (!track) return '--';
+            const status = this.trackStatus(track);
+            if (status === 'active') return 'In progress';
+            if (status === 'done') return `${this.trackPercent(track)}%`;
+            if (status === 'cancelled') return 'Cancelled';
+            if (['error', 'failed'].includes(status)) return 'Failed';
+            return `${this.trackPercent(track)}%`;
+        },
+        formatStage(stage) {
+            if (!stage) return '--';
+            const s = String(stage).toLowerCase();
+            const map = {
+                track_start: 'Starting track',
+                track_done: 'Track complete',
+                analyzing: 'Analyzing',
+                processing: 'Processing',
+                cancelling: 'Cancelling',
+                cancelled: 'Cancelled',
+                merging: 'Merging',
+                uploading: 'Uploading',
+            };
+            if (map[s]) return map[s];
+            const label = s.replace(/_/g, ' ');
+            return label.charAt(0).toUpperCase() + label.slice(1);
+        },
+        get processingStatusLine() {
+            const parts = [];
+            const stageLabel = this.formatStage(this.processingStage);
+            if (stageLabel && stageLabel !== '--') parts.push(stageLabel);
+            const idx = this.processingJob.track_index;
+            const total = this.processingJob.track_total;
+            if (idx && total) parts.push(`Track ${idx}/${total}`);
+            if (this.processingCurrentFormatLabel) parts.push(this.processingCurrentFormatLabel);
+            if (this.processingMessage && this.processingMessage !== 'Processing...' && this.processingMessage !== stageLabel) {
+                parts.push(this.processingMessage);
+            }
+            return parts.join(' | ');
+        },
+        get canCancelProcessing() {
+            return this.isProcessing && this.processingJobStatus === 'processing' && this.processingJob.id && !this.processingCancelRequested;
+        },
+        get showCancelButton() {
+            return this.isProcessing && this.processingJob.id && ['processing', 'cancelling'].includes(this.processingJobStatus);
+        },
+        get processedTrackCount() {
+            return this.processingTracks.filter(t => ['done', 'error', 'failed', 'cancelled'].includes(this.trackStatus(t))).length;
+        },
+        get activeProcessingTracks() {
+            return this.processingTracks.filter(t => this.trackStatus(t) === 'active');
+        },
+        get queuedProcessingTracks() {
+            return this.processingTracks.filter(t => this.trackStatus(t) === 'queued');
+        },
+        get doneProcessingTracks() {
+            return this.processingTracks.filter(t => this.trackStatus(t) === 'done');
+        },
+        get failedProcessingTracks() {
+            return this.processingTracks.filter(t => ['error', 'failed'].includes(this.trackStatus(t)));
+        },
+        get cancelledProcessingTracks() {
+            return this.processingTracks.filter(t => this.trackStatus(t) === 'cancelled');
+        },
+        get activeProcessingTrack() {
+            return this.activeProcessingTracks[0] || null;
+        },
 
         get allDetectedTracks() {
             let tracks = [];
@@ -1031,6 +1344,15 @@ function vinylApp() {
             return tracks;
         },
 
+        get cueOverviewMarkers() {
+            const duration = this.currentFile?.duration || this.waveform?.getDuration() || 0;
+            if (!duration) return [];
+            return this.getSortedCues().map(t => ({
+                number: t.number,
+                left: Math.max(0, Math.min(100, (t.start / duration) * 100)),
+            }));
+        },
+
         get visibleCues() {
             const sorted = [...this.detectedTracks].sort((a, b) => a.number - b.number);
             const start = this.cueBank * 8;
@@ -1040,18 +1362,36 @@ function vinylApp() {
         get cueSlotsA() {
             return Array.from({ length: 8 }, (_, idx) => {
                 const slotNumber = idx + 1;
-                const cue = this.detectedTracks.find(t => t.number === slotNumber) || null;
-                return { slotNumber, cue, idx };
+                const cueIndex = this.detectedTracks.findIndex(t => t.number === slotNumber);
+                const cue = cueIndex >= 0 ? this.detectedTracks[cueIndex] : null;
+                return { slotNumber, cue, idx: cueIndex >= 0 ? cueIndex : slotNumber - 1 };
             });
         },
         get cueSlotsB() {
             return Array.from({ length: 8 }, (_, idx) => {
                 const slotNumber = idx + 9;
-                const cue = this.detectedTracks.find(t => t.number === slotNumber) || null;
-                return { slotNumber, cue, idx };
+                const cueIndex = this.detectedTracks.findIndex(t => t.number === slotNumber);
+                const cue = cueIndex >= 0 ? this.detectedTracks[cueIndex] : null;
+                return { slotNumber, cue, idx: cueIndex >= 0 ? cueIndex : slotNumber - 1 };
             });
         },
-        get cueSlots() { return [...this.cueSlotsA, ...this.cueSlotsB]; },
+        get cueSlotsC() {
+            return Array.from({ length: 8 }, (_, idx) => {
+                const slotNumber = idx + 17;
+                const cueIndex = this.detectedTracks.findIndex(t => t.number === slotNumber);
+                const cue = cueIndex >= 0 ? this.detectedTracks[cueIndex] : null;
+                return { slotNumber, cue, idx: cueIndex >= 0 ? cueIndex : slotNumber - 1 };
+            });
+        },
+        get cueSlotsD() {
+            return Array.from({ length: 8 }, (_, idx) => {
+                const slotNumber = idx + 25;
+                const cueIndex = this.detectedTracks.findIndex(t => t.number === slotNumber);
+                const cue = cueIndex >= 0 ? this.detectedTracks[cueIndex] : null;
+                return { slotNumber, cue, idx: cueIndex >= 0 ? cueIndex : slotNumber - 1 };
+            });
+        },
+        get cueSlots() { return [...this.cueSlotsA, ...this.cueSlotsB, ...this.cueSlotsC, ...this.cueSlotsD]; },
 
         get nextFileName() {
             if (!this.uploadedFiles.length) return '';
@@ -1062,6 +1402,7 @@ function vinylApp() {
         statusClass(s) {
             if(s==='uploaded') return 'text-blue-400'; if(s==='analyzed') return 'text-purple-400';
             if(s==='processing') return 'text-brand animate-pulse'; if(s==='completed') return 'text-green-400';
+            if(s==='cancelled') return 'text-slate-400';
             return 'text-gray-500';
         },
 

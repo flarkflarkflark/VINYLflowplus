@@ -7,8 +7,8 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag (optional, for manual runs)"
-        required: false
+        description: "Release tag (e.g. v1.0.4)"
+        required: true
         type: string
 
 permissions:
@@ -32,7 +32,7 @@ jobs:
             macos_target: "11.0"
             is_intel: "False"
             arch: arm64
-          - os: macos-14
+          - os: macos-13
             name: macOS App (Intel Legacy)
             asset_name: VINYLflowplus-macOS-Intel.zip
             macos_arch: "x86_64"
@@ -57,6 +57,35 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve release tag
+        id: release_meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${{ github.ref_name }}"
+          fi
+          if [ -z "$tag" ]; then
+            echo "Release tag is required." >&2
+            exit 1
+          fi
+          if ! echo "$tag" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.+-]+)?$'; then
+            echo "Release tag must look like vX.Y.Z (got: $tag)." >&2
+            exit 1
+          fi
+          git fetch --tags --force
+          if ! git rev-parse "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "Release tag not found in repository: $tag" >&2
+            exit 1
+          fi
+          git checkout "refs/tags/$tag"
+          echo "RELEASE_TAG=$tag" >> "$GITHUB_ENV"
+          echo "release_tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
@@ -121,8 +150,7 @@ jobs:
           if [ "${{ matrix.is_intel }}" = "True" ]; then PREFIX="arch -x86_64 "; fi
           $PREFIX python -m pip install --upgrade pip
           if [ "${{ matrix.skip_gui }}" = "True" ]; then
-            grep -vE "PyQt" requirements.txt > req_lite.txt
-            $PREFIX pip install -r req_lite.txt
+            $PREFIX pip install -r requirements-lite.txt
           else
             $PREFIX pip install -r requirements.txt
           fi
@@ -151,7 +179,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: powershell
         run: |
-          Move-Item dist\VINYLflowplus.exe VINYLflowplus-Windows.exe
+          Move-Item dist\VINYLflowplus.exe "${{ matrix.asset_name }}"
 
       - name: Package macOS
         if: runner.os == 'macOS'
@@ -188,22 +216,13 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: ${{ matrix.asset_name }}
-          tag_name: ${{ inputs.tag || github.ref_name }}
+          tag_name: ${{ env.RELEASE_TAG }}
+          name: VINYLflowplus ${{ env.RELEASE_TAG }}
           body: |
-            # <img src="https://raw.githubusercontent.com/flarkflarkflark/VINYLflowplus/main/assets/vinylflowplus-logo.svg" height="40" vertical-align="middle" /> v1.0.3 Stable
-            
-            **Professional Vinyl Digitization | Official v1.0.3 Stable Release**
-            
-            This release introduces a professional interactive track editor and critical stability fixes for all platforms.
-            
-            ### What's New in v1.0.3:
-            - **Interactive Track Editor:** New dedicated toolbar with +T Add and -T Delete tools.
-            - **Grab-to-Pan:** Natural waveform movement (click and drag to slide the audio).
-            - **Persistence:** Save your preferred output formats and restoration settings as default.
-            - **UI Polish:** High-contrast Dark Mode enhancements for maximum readability.
-            - **Windows Fixes:** Resolved "Silent Failures" and improved subprocess handling.
-            - **macOS Legacy:** Native Intel (x86_64) build for OpenCore and older Macs (Catalina+).
-            
+            # <img src="https://raw.githubusercontent.com/flarkflarkflark/VINYLflowplus/main/assets/vinylflowplus-logo.svg" height="40" vertical-align="middle" /> VINYLflowplus ${{ env.RELEASE_TAG }}
+
+            Official release artifacts built from tag `${{ env.RELEASE_TAG }}`.
+
             ---
             
             ### Download for your Platform:
