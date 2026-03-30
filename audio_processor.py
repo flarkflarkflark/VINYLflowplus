@@ -340,6 +340,8 @@ class AudioProcessor:
         min_silence_duration=1.5,
         min_track_length=30,
         flac_compression=8,
+        declick_threshold=6,
+        declick_burst=4,
     ):
         """
         Initialize audio processor.
@@ -348,6 +350,8 @@ class AudioProcessor:
         self.min_silence_duration = min_silence_duration
         self.min_track_length = min_track_length
         self.flac_compression = flac_compression
+        self.declick_threshold = declick_threshold
+        self.declick_burst = declick_burst
         self.last_error = ""
 
     def get_audio_duration(self, file_path: Path) -> Optional[float]:
@@ -570,8 +574,8 @@ class AudioProcessor:
             return None
 
         # highpass=f=15: removes inaudible turntable motor rumble (below 15 Hz) without touching bass
-        # adeclick=t=3:b=3: conservative click/pop removal (threshold 3 vs default 2, less likely to catch drum transients)
-        filters = ["highpass=f=15", "adeclick=t=3:b=3", "loudnorm=I=-14:LRA=11:TP=-1"]
+        # adeclick t=threshold (higher = less aggressive), b=burst tolerance
+        filters = ["highpass=f=15", f"adeclick=t={self.declick_threshold}:b={self.declick_burst}", "loudnorm=I=-14:LRA=11:TP=-1"]
         return ", ".join(filters)
 
     def extract_track(

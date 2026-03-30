@@ -120,6 +120,7 @@ class DiscogsRelease:
             return ""
 
         parts: List[str] = []
+        pending_join: str = ""
         for artist in artists:
             if isinstance(artist, dict):
                 name = artist.get("anv") or artist.get("name")
@@ -134,14 +135,14 @@ class DiscogsRelease:
                 continue
 
             if parts:
-                if not parts[-1].endswith(" ") and not parts[-1].endswith("/"):
-                    parts.append(" ")
+                # Use the join from the previous artist; fall back to "&"
+                sep = pending_join if pending_join else "&"
+                parts.append(f" {sep} ")
             parts.append(name)
 
-            if join:
-                if self._is_featuring_join(join):
-                    break
-                parts.append(join)
+            if self._is_featuring_join(join):
+                break
+            pending_join = join.strip()
 
         return "".join(parts).strip()
 
@@ -215,9 +216,39 @@ class DiscogsRelease:
         # Parse tracklist
         self.tracks = self._parse_tracklist(getattr(release, "tracklist", []), debug=False)
 
+    @staticmethod
+    def _is_sub_position(position: str) -> bool:
+        """Return True for sub-track positions like A1.a, A1.b, B2.1 etc."""
+        return bool(re.match(r'^[A-Za-z]\d+\.[A-Za-z0-9]+$', position))
+
+    @staticmethod
+    def _parent_position(position: str) -> str:
+        """Return the parent position for a sub-track: 'A1.a' -> 'A1'."""
+        return position.split('.')[0]
+
+    @staticmethod
+    def _sort_key(position: str):
+        """Sort key that handles A1, A1.a, A1.b, A2, B1 etc. correctly."""
+        p = str(position)
+        # Sub-track: A1.a -> ('A', 1, 'a')
+        m = re.match(r'^([A-Za-z])(\d+)\.([A-Za-z0-9]+)$', p)
+        if m:
+            return (m.group(1).upper(), int(m.group(2)), m.group(3).lower())
+        # Normal: A1 -> ('A', 1, '')
+        m2 = re.match(r'^([A-Za-z])(\d+)$', p)
+        if m2:
+            return (m2.group(1).upper(), int(m2.group(2)), '')
+        return (p.upper(), 0, '')
+
     def _parse_tracklist(self, tracklist, debug=False) -> List[DiscogsTrack]:
-        """Parse Discogs tracklist to DiscogsTrack objects."""
-        tracks = []
+        """Parse Discogs tracklist to DiscogsTrack objects.
+
+        Sub-tracks (A1.a, A1.b, A1.c) are collapsed into their parent position
+        (A1) with titles joined by ' / ', because on vinyl they are one physical
+        groove segment. The duration of the parent index entry is used if present;
+        otherwise sub-track durations are summed.
+        """
+        raw: List[DiscogsTrack] = []
 
         for track in tracklist:
             position = getattr(track, "position", "")
@@ -225,23 +256,45 @@ class DiscogsRelease:
             duration = getattr(track, "duration", "")
             track_artist = self._extract_track_artist(track) or self.artist
 
-            # Use Discogs position if available
             if position:
-                tracks.append(DiscogsTrack(position, title, duration, track_artist))
-            # Handle empty position - assume sequential
+                raw.append(DiscogsTrack(position, title, duration, track_artist))
             elif title and title.lower() not in ["tracklist", "notes"]:
-                tracks.append(DiscogsTrack(str(len(tracks) + 1), title, duration, track_artist))
+                raw.append(DiscogsTrack(str(len(raw) + 1), title, duration, track_artist))
 
-        # Sort all tracks by position for proper display
-        def sort_key(t):
-            p = str(t.position)
-            if len(p) >= 2 and p[0].isalpha() and p[1:].isdigit():
-                return (p[0].upper(), int(p[1:]))
-            return (p.upper(), 0)
+        raw.sort(key=lambda t: self._sort_key(t.position))
 
-        if tracks:
-            tracks.sort(key=sort_key)
-        
+        # Collapse sub-tracks into parent
+        tracks: List[DiscogsTrack] = []
+        parent_map: dict = {}  # parent_position -> index in tracks list
+
+        for t in raw:
+            if self._is_sub_position(t.position):
+                parent_pos = self._parent_position(t.position)
+                if parent_pos in parent_map:
+                    # Append sub-title to existing parent
+                    idx = parent_map[parent_pos]
+                    tracks[idx].title += f" / {t.title}"
+                    # Accumulate duration if parent had none
+                    if not tracks[idx].duration_str and t.duration_str:
+                        tracks[idx].duration_seconds = (tracks[idx].duration_seconds or 0) + (t.duration_seconds or 0)
+                else:
+                    # First sub-track seen for this parent — create parent entry
+                    parent = DiscogsTrack(parent_pos, t.title, t.duration_str, t.artist)
+                    tracks.append(parent)
+                    parent_map[parent_pos] = len(tracks) - 1
+            else:
+                # Regular track — if a parent entry was already created by sub-tracks, skip
+                if t.position in parent_map:
+                    # Index/heading row: update duration if we have one
+                    idx = parent_map[t.position]
+                    if t.duration_str:
+                        tracks[idx].duration_str = t.duration_str
+                        tracks[idx].duration_seconds = t.duration_seconds
+                else:
+                    tracks.append(t)
+                    # Not a parent, but record position so later duplicates are skipped
+                    parent_map[t.position] = len(tracks) - 1
+
         return tracks
 
     def display_summary(self) -> str:

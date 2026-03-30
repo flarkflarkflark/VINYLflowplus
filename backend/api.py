@@ -844,11 +844,13 @@ async def get_formats(): return {"formats": [{"id": k, "label": v["label"]} for 
 @app.get("/api/config")
 async def get_config_api(): 
     return {
-        "silence_threshold": audio_processor.silence_threshold, 
-        "min_silence_duration": audio_processor.min_silence_duration, 
-        "min_track_length": audio_processor.min_track_length, 
-        "output_dir": config.default_output_dir, 
+        "silence_threshold": audio_processor.silence_threshold,
+        "min_silence_duration": audio_processor.min_silence_duration,
+        "min_track_length": audio_processor.min_track_length,
+        "output_dir": config.default_output_dir,
         "flac_compression": audio_processor.flac_compression,
+        "declick_threshold": audio_processor.declick_threshold,
+        "declick_burst": audio_processor.declick_burst,
         "discogs_user_token": config.discogs_token,
         "discogs_user_agent": config.discogs_user_agent,
         "default_output_formats": config.default_output_formats,
@@ -861,6 +863,8 @@ async def update_config_api(updates: dict):
         config.default_output_dir = updates["output_dir"]
         config.save_output_dir(updates["output_dir"])
     if "flac_compression" in updates: audio_processor.flac_compression = int(updates["flac_compression"])
+    if "declick_threshold" in updates: audio_processor.declick_threshold = int(updates["declick_threshold"])
+    if "declick_burst" in updates: audio_processor.declick_burst = int(updates["declick_burst"])
     if "discogs_user_token" in updates or "discogs_user_agent" in updates:
         token = updates.get("discogs_user_token", config.discogs_token)
         user_agent = updates.get("discogs_user_agent", config.discogs_user_agent)

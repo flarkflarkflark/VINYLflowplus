@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VINYLflowplus v1.0.3</title>
+    <title>VINYLflowplus v1.0.5</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -608,7 +608,8 @@
             margin-bottom: 4px;
         }
         .active-track-formats { display: flex; gap: 6px; flex-wrap: wrap; }
-        .track-groups { display: flex; flex-direction: column; gap: 10px; }
+        .track-groups { display: flex; flex-direction: row; gap: 12px; align-items: flex-start; }
+        .track-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 10px; }
         .track-group-title {
             display: flex;
             align-items: center;
@@ -1047,9 +1048,8 @@
                     <div class="processing-body">
                         <div x-show="activeProcessingTrack" class="active-track-card">
                             <div class="active-track-label">Active Track</div>
-                            <div class="active-track-title" x-text="activeProcessingTrack ? ((activeProcessingTrack.vinyl_number ? activeProcessingTrack.vinyl_number + ' - ' : '') + (activeProcessingTrack.title || '')) : ''"></div>
+                            <div class="active-track-title" x-text="activeProcessingTrack ? ((activeProcessingTrack.vinyl_number || ('#' + activeProcessingTrack.number)) + (activeProcessingTrack.title ? ' — ' + activeProcessingTrack.title : '')) : ''"></div>
                             <div class="active-track-meta">
-                                <span class="active-track-chip" x-text="activeProcessingTrack ? 'Track ' + activeProcessingTrack.number : ''"></span>
                                 <span class="active-track-chip" x-text="activeProcessingTrack?.duration ? formatDuration(activeProcessingTrack.duration) : '--'"></span>
                                 <span class="active-track-chip" x-text="activeTrackProgressLabel()"></span>
                             </div>
@@ -1076,114 +1076,101 @@
                         </div>
 
                         <div x-show="processingTracks.length > 0" class="track-groups">
-                            <div class="track-group" x-show="activeProcessingTracks.length > 0">
-                                <div class="track-group-title">
-                                    <span>Processing</span>
-                                    <span x-text="activeProcessingTracks.length"></span>
+                            <!-- Left column: Processing + Queued -->
+                            <div class="track-col">
+                                <div class="track-group" x-show="activeProcessingTracks.length > 0">
+                                    <div class="track-group-title">
+                                        <span>Processing</span>
+                                        <span x-text="activeProcessingTracks.length"></span>
+                                    </div>
+                                    <template x-if="activeProcessingTracks.length > 1">
+                                        <div class="track-list">
+                                            <template x-for="track in activeProcessingTracks.filter(t => !activeProcessingTrack || t.number !== activeProcessingTrack.number)" :key="track.number">
+                                                <div class="track-row" :class="trackStatus(track)">
+                                                    <div class="track-row-dot" :class="trackStatus(track)"></div>
+                                                    <div class="track-row-left">
+                                                        <div class="track-row-title" x-text="(track.vinyl_number || ('#' + track.number)) + (track.title ? ' — ' + track.title : '')"></div>
+                                                        <div class="track-row-bar">
+                                                            <div class="track-row-bar-fill" :class="trackStatus(track)" :style="'width:' + trackPercent(track) + '%'"></div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="track-row-pct" :class="trackStatus(track)" x-text="trackPercent(track) + '%'"></div>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </template>
                                 </div>
-                                <template x-if="activeProcessingTracks.length > 1">
+
+                                <div class="track-group" x-show="queuedProcessingTracks.length > 0">
+                                    <div class="track-group-title">
+                                        <span>Queued</span>
+                                        <span x-text="queuedProcessingTracks.length"></span>
+                                    </div>
                                     <div class="track-list">
-                                        <template x-for="track in activeProcessingTracks.filter(t => !activeProcessingTrack || t.number !== activeProcessingTrack.number)" :key="track.number">
+                                        <template x-for="track in queuedProcessingTracks" :key="track.number">
                                             <div class="track-row" :class="trackStatus(track)">
                                                 <div class="track-row-dot" :class="trackStatus(track)"></div>
                                                 <div class="track-row-left">
-                                                    <div class="track-row-title" x-text="'Track ' + track.number + (track.vinyl_number ? ' | ' + track.vinyl_number : '') + (track.title ? ' - ' + track.title : '')"></div>
+                                                    <div class="track-row-title" x-text="(track.vinyl_number || ('#' + track.number)) + (track.title ? ' — ' + track.title : '')"></div>
                                                     <div class="track-row-sub" x-text="formatDuration(track.duration)"></div>
-                                                    <div class="track-row-bar">
-                                                        <div class="track-row-bar-fill" :class="trackStatus(track)" :style="'width:' + trackPercent(track) + '%'"></div>
-                                                    </div>
                                                 </div>
-                                                <div class="track-row-pct" :class="trackStatus(track)" x-text="trackPercent(track) + '%'"></div>
                                             </div>
                                         </template>
                                     </div>
-                                </template>
-                            </div>
-
-                            <div class="track-group" x-show="queuedProcessingTracks.length > 0">
-                                <div class="track-group-title">
-                                    <span>Queued</span>
-                                    <span x-text="queuedProcessingTracks.length"></span>
-                                </div>
-                                <div class="track-list">
-                                    <template x-for="track in queuedProcessingTracks" :key="track.number">
-                                        <div class="track-row" :class="trackStatus(track)">
-                                            <div class="track-row-dot" :class="trackStatus(track)"></div>
-                                            <div class="track-row-left">
-                                                <div class="track-row-title" x-text="'Track ' + track.number + (track.vinyl_number ? ' | ' + track.vinyl_number : '') + (track.title ? ' - ' + track.title : '')"></div>
-                                                <div class="track-row-sub" x-text="formatDuration(track.duration)"></div>
-                                                <div class="track-row-bar">
-                                                    <div class="track-row-bar-fill" :class="trackStatus(track)" :style="'width:' + trackPercent(track) + '%'"></div>
-                                                </div>
-                                            </div>
-                                            <div class="track-row-pct" :class="trackStatus(track)" x-text="trackPercent(track) + '%'"></div>
-                                        </div>
-                                    </template>
                                 </div>
                             </div>
 
-                            <div class="track-group" x-show="doneProcessingTracks.length > 0">
-                                <div class="track-group-title">
-                                    <span>Done</span>
-                                    <span x-text="doneProcessingTracks.length"></span>
-                                </div>
-                                <div class="track-list">
-                                    <template x-for="track in doneProcessingTracks" :key="track.number">
-                                        <div class="track-row" :class="trackStatus(track)">
-                                            <div class="track-row-dot" :class="trackStatus(track)"></div>
-                                            <div class="track-row-left">
-                                                <div class="track-row-title" x-text="'Track ' + track.number + (track.vinyl_number ? ' | ' + track.vinyl_number : '') + (track.title ? ' - ' + track.title : '')"></div>
-                                                <div class="track-row-sub" x-text="formatDuration(track.duration)"></div>
-                                                <div class="track-row-bar">
-                                                    <div class="track-row-bar-fill" :class="trackStatus(track)" :style="'width:' + trackPercent(track) + '%'"></div>
+                            <!-- Right column: Done + Failed + Cancelled -->
+                            <div class="track-col">
+                                <div class="track-group" x-show="doneProcessingTracks.length > 0">
+                                    <div class="track-group-title">
+                                        <span>Done</span>
+                                        <span x-text="doneProcessingTracks.length"></span>
+                                    </div>
+                                    <div class="track-list">
+                                        <template x-for="track in doneProcessingTracks" :key="track.number">
+                                            <div class="track-row done">
+                                                <div class="track-row-dot done"></div>
+                                                <div class="track-row-left">
+                                                    <div class="track-row-title" x-text="(track.vinyl_number || ('#' + track.number)) + (track.title ? ' — ' + track.title : '')"></div>
                                                 </div>
                                             </div>
-                                            <div class="track-row-pct" :class="trackStatus(track)" x-text="trackPercent(track) + '%'"></div>
-                                        </div>
-                                    </template>
+                                        </template>
+                                    </div>
                                 </div>
-                            </div>
 
-                            <div class="track-group" x-show="failedProcessingTracks.length > 0">
-                                <div class="track-group-title">
-                                    <span>Failed</span>
-                                    <span x-text="failedProcessingTracks.length"></span>
-                                </div>
-                                <div class="track-list">
-                                    <template x-for="track in failedProcessingTracks" :key="track.number">
-                                        <div class="track-row" :class="trackStatus(track)">
-                                            <div class="track-row-dot" :class="trackStatus(track)"></div>
-                                            <div class="track-row-left">
-                                                <div class="track-row-title" x-text="'Track ' + track.number + (track.vinyl_number ? ' | ' + track.vinyl_number : '') + (track.title ? ' - ' + track.title : '')"></div>
-                                                <div class="track-row-sub" x-text="formatDuration(track.duration)"></div>
-                                                <div class="track-row-bar">
-                                                    <div class="track-row-bar-fill" :class="trackStatus(track)" :style="'width:' + trackPercent(track) + '%'"></div>
+                                <div class="track-group" x-show="failedProcessingTracks.length > 0">
+                                    <div class="track-group-title">
+                                        <span>Failed</span>
+                                        <span x-text="failedProcessingTracks.length"></span>
+                                    </div>
+                                    <div class="track-list">
+                                        <template x-for="track in failedProcessingTracks" :key="track.number">
+                                            <div class="track-row failed">
+                                                <div class="track-row-dot failed"></div>
+                                                <div class="track-row-left">
+                                                    <div class="track-row-title" x-text="(track.vinyl_number || ('#' + track.number)) + (track.title ? ' — ' + track.title : '')"></div>
                                                 </div>
                                             </div>
-                                            <div class="track-row-pct" :class="trackStatus(track)" x-text="trackPercent(track) + '%'"></div>
-                                        </div>
-                                    </template>
+                                        </template>
+                                    </div>
                                 </div>
-                            </div>
-                            <div class="track-group" x-show="cancelledProcessingTracks.length > 0">
-                                <div class="track-group-title">
-                                    <span>Cancelled</span>
-                                    <span x-text="cancelledProcessingTracks.length"></span>
-                                </div>
-                                <div class="track-list">
-                                    <template x-for="track in cancelledProcessingTracks" :key="track.number">
-                                        <div class="track-row" :class="trackStatus(track)">
-                                            <div class="track-row-dot" :class="trackStatus(track)"></div>
-                                            <div class="track-row-left">
-                                                <div class="track-row-title" x-text="'Track ' + track.number + (track.vinyl_number ? ' | ' + track.vinyl_number : '') + (track.title ? ' - ' + track.title : '')"></div>
-                                                <div class="track-row-sub" x-text="formatDuration(track.duration)"></div>
-                                                <div class="track-row-bar">
-                                                    <div class="track-row-bar-fill" :class="trackStatus(track)" :style="'width:' + trackPercent(track) + '%'"></div>
+
+                                <div class="track-group" x-show="cancelledProcessingTracks.length > 0">
+                                    <div class="track-group-title">
+                                        <span>Cancelled</span>
+                                        <span x-text="cancelledProcessingTracks.length"></span>
+                                    </div>
+                                    <div class="track-list">
+                                        <template x-for="track in cancelledProcessingTracks" :key="track.number">
+                                            <div class="track-row cancelled">
+                                                <div class="track-row-dot cancelled"></div>
+                                                <div class="track-row-left">
+                                                    <div class="track-row-title" x-text="(track.vinyl_number || ('#' + track.number)) + (track.title ? ' — ' + track.title : '')"></div>
                                                 </div>
                                             </div>
-                                            <div class="track-row-pct" :class="trackStatus(track)" x-text="trackPercent(track) + '%'"></div>
-                                        </div>
-                                    </template>
+                                        </template>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -1458,7 +1445,7 @@
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
                                 </button>
                                 <button @mousedown="startSeek(-1)" @mouseup="stopSeek()" @mouseleave="stopSeek()" class="dj-btn" title="Scrub backward (hold)">
-                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6 8.5 6V6l-8.5 6z"/></svg>
                                 </button>
                                 <button @click="skipBy(-5)" class="dj-btn text-[10px] font-black" title="Back 5s">-5s</button>
                                 <button @click="playing ? pauseWaveform() : playWaveform()" class="dj-btn dj-btn-play" :title="playing ? 'Pause' : 'Play'">
@@ -1470,7 +1457,7 @@
                                 </button>
                                 <button @click="skipBy(5)" class="dj-btn text-[10px] font-black" title="Forward 5s">+5s</button>
                                 <button @mousedown="startSeek(1)" @mouseup="stopSeek()" @mouseleave="stopSeek()" class="dj-btn" title="Scrub forward (hold)">
-                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg>
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg>
                                 </button>
                                 <button @click="nextCue()" class="dj-btn" title="Next cue">
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M16 6h2v12h-2zm-1.5 6-8.5 6V6z"/></svg>
@@ -1478,7 +1465,9 @@
                             </div>
                             <div style="display:flex;align-items:center;gap:5px">
                                 <button @click="zoomOut()" class="wave-zoom2">−</button>
-                                <button @click="resetZoom()" class="wave-zoom2">RST</button>
+                                <button @click="resetZoom()" class="wave-zoom2" title="Reset zoom to fit">
+                                    <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M15 3l2.3 2.3-2.89 2.87 1.42 1.42L18.7 6.7 21 9V3h-6zM3 9l2.3-2.3 2.87 2.89 1.42-1.42L6.7 5.3 9 3H3v6zm6 12-2.3-2.3 2.89-2.87-1.42-1.42L5.3 17.3 3 15v6h6zm12-6-2.3 2.3-2.87-2.89-1.42 1.42 2.89 2.87L15 21h6v-6z"/></svg>
+                                </button>
                                 <button @click="zoomIn()" class="wave-zoom2">+</button>
                             </div>
                         </div>
@@ -1569,20 +1558,40 @@
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
                         <template x-for="(track, idx) in detectedTracks" :key="idx">
-                            <div class="p-4 rounded-xl border flex items-center gap-4 shadow-inner" :class="darkMode ? 'bg-black/20 border-gray-800' : 'bg-slate-100 border-gray-200'">
-                                <div class="flex-1">
-                                    <div class="flex items-center gap-2">
-                                        <button @click="jumpToTrack(track)" class="hover:text-brand transition">Play</button>
-                                        <p class="text-[11px] font-black text-brand uppercase">Track <span x-text="track.number"></span></p>
+                            <div class="p-4 rounded-xl border flex items-center gap-3 shadow-inner" :class="darkMode ? 'bg-black/20 border-gray-800' : 'bg-slate-100 border-gray-200'">
+                                <!-- Transport buttons -->
+                                <div class="flex flex-col gap-1 flex-shrink-0">
+                                    <p class="text-[10px] font-black text-brand uppercase tracking-widest text-center">T<span x-text="track.number"></span></p>
+                                    <div class="flex gap-1">
+                                        <!-- Prev -->
+                                        <button @click="prevCue()" class="dj-btn" style="width:26px;height:26px" title="Previous track">
+                                            <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
+                                        </button>
+                                        <!-- Play/Pause -->
+                                        <button @click="jumpToTrack(track)" class="dj-btn dj-btn-play" style="width:26px;height:26px" title="Play from track start">
+                                            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                        </button>
+                                        <!-- Stop -->
+                                        <button @click="stopWaveform()" class="dj-btn dj-btn-stop" style="width:26px;height:26px" title="Stop">
+                                            <svg viewBox="0 0 24 24" width="10" height="10" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
+                                        </button>
+                                        <!-- Next -->
+                                        <button @click="nextCue()" class="dj-btn" style="width:26px;height:26px" title="Next track">
+                                            <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg>
+                                        </button>
                                     </div>
-                                    <p class="text-[11px] font-bold opacity-50" x-text="formatDuration(track.duration)"></p>
+                                    <p class="text-[10px] font-bold opacity-50 text-center" x-text="formatDuration(track.duration)"></p>
                                 </div>
-                                <select x-model="customMapping[idx]" class="track-mapping-select flex-[2] p-2 rounded text-[11px] font-bold outline-none focus:border-brand transition">
+                                <!-- Discogs mapping select -->
+                                <select x-model="customMapping[idx]" class="track-mapping-select flex-1 p-2 rounded text-[11px] font-bold outline-none focus:border-brand transition">
                                     <template x-for="(dt, dtIdx) in (selectedRelease?.tracks || [])" :key="dtIdx">
                                         <option :value="dtIdx" x-text="dt.position + ' - ' + dt.title"></option>
                                     </template>
                                 </select>
-                                <button @click="removeTrack(idx)" class="text-red-500 hover:text-red-400 font-bold text-[12px] p-1">X</button>
+                                <!-- Remove -->
+                                <button @click="removeTrack(idx)" class="flex-shrink-0 text-red-500 hover:text-red-400 transition" title="Remove track">
+                                    <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                                </button>
                             </div>
                         </template>
                     </div>
@@ -1652,7 +1661,7 @@
                 </div>
                 <div class="flex items-center gap-4">
                     <a href="https://github.com/flarkflarkflark/VINYLflowplus/issues" target="_blank" title="Support" class="text-[11px] font-black uppercase tracking-widest text-brand transition">Support</a>
-                    <span class="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400" title="Version">v1.0.3 STABLE</span>
+                    <span class="text-[11px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400" title="Version">v1.0.5 STABLE</span>
                 </div>
             </div>
         </footer>
@@ -1693,6 +1702,18 @@
                             <div>
                                 <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">Min Silence Duration (s)</label>
                                 <input type="number" step="0.1" x-model="config.min_silence_duration" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg">
+                            </div>
+                        </div>
+                        <h3 class="text-[13px] font-black text-brand uppercase tracking-widest">Declick (Restore &amp; Normalize)</h3>
+                        <p class="text-[11px] opacity-50 -mt-4">Higher values = less aggressive. Default: threshold 6, burst 4.</p>
+                        <div class="space-y-6">
+                            <div>
+                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">Threshold (2–30)</label>
+                                <input type="number" min="2" max="30" x-model="config.declick_threshold" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">Burst (1–10)</label>
+                                <input type="number" min="1" max="10" x-model="config.declick_burst" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg">
                             </div>
                         </div>
                     </div>

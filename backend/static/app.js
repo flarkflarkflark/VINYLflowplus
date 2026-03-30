@@ -140,7 +140,7 @@ function vinylApp() {
         initProcessingTracks(tracks) {
             this.processingTracks = tracks.map(t => ({
                 number: t.number,
-                vinyl_number: t.vinyl_number || `T${t.number}`,
+                vinyl_number: t.vinyl_number || '',
                 title: t.title || '',
                 duration: t.duration || (t.end - t.start),
             }));
@@ -365,18 +365,18 @@ function vinylApp() {
             this.processingProgress = 0.02; this.processingMessage = 'Processing...';
             this.lastProcessedIds = [this.currentFileId];
             const active = this.detectedTracks.filter(t => !t.ignored);
-            this.initProcessingTracks(active);
             this.processingJob.filename = this.currentFile?.filename || '';
             this.processingJob.duration = this.currentFile?.duration || 0;
             this.processingJob.formats = this.outputFormats.length;
             const mapping = active.map((t, i) => {
                 const discogsTrack = this.selectedRelease.tracks[this.customMapping[this.detectedTracks.indexOf(t)]];
-                return { 
-                    detected: t.number, 
+                return {
+                    detected: t.number,
                     discogs: discogsTrack?.position || '?',
                     title: discogsTrack?.title || ''
                 };
             });
+            this.initProcessingTracks(active.map((t, i) => ({ ...t, vinyl_number: mapping[i]?.discogs || '', title: mapping[i]?.title || '' })));
             const bounds = active.map(t => ({ number: t.number, start: t.start, end: t.end, duration: t.duration || (t.end-t.start) }));
             try {
                 const res = await fetch('/api/process', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ 
@@ -409,7 +409,10 @@ function vinylApp() {
                 }
             });
             this.lastProcessedIds = Array.from(processedIds);
-            this.initProcessingTracks(this.allDetectedTracks.filter(t => !t.ignored));
+            this.initProcessingTracks(this.allDetectedTracks.filter(t => !t.ignored).map(t => {
+                const m = mapping.find(x => x.detected === t.number && x.source_file_id === t.file_id);
+                return { ...t, vinyl_number: m?.discogs || '', title: m?.title || t.title || '' };
+            }));
             try {
                 const res = await fetch('/api/multi-process', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ 
                     release_id: this.selectedRelease.id, track_mapping: mapping, track_boundaries_map: boundsMap, 
@@ -475,7 +478,7 @@ function vinylApp() {
                                 format_total: j.format_total,
                             });
                         } else if (j.progress !== undefined) {
-                            this.processingProgress = 0 + j.progress;
+                            this.processingProgress = Math.max(this.processingProgress, j.progress);
                         }
                         this.processPollTick = (this.processPollTick || 0) + 1;
                         if (this.processPollTick % 4 === 0) {
@@ -487,7 +490,7 @@ function vinylApp() {
                         this.processingCancelRequested = true;
                         this.processingStage = j.stage || 'cancelling';
                         this.processingMessage = j.message || 'Cancelling...';
-                        if (j.progress !== undefined) this.processingProgress = 0 + j.progress;
+                        if (j.progress !== undefined) this.processingProgress = Math.max(this.processingProgress, j.progress);
                     }
                     else if (j.status === 'cancelled') {
                         this.processingJobStatus = 'cancelled';
@@ -545,7 +548,7 @@ function vinylApp() {
                 this.processingCurrentFormatLabel = d.format_label;
             }
             if (d.progress !== undefined) {
-                this.processingProgress = 0 + d.progress;
+                this.processingProgress = Math.max(this.processingProgress, d.progress);
                 if (this.processingStartTime && d.progress > 0.05) {
                     if (!this._etaWindow) this._etaWindow = [];
                     const now = Date.now() / 1000;
