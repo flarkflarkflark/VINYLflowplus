@@ -27,7 +27,7 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ---
 
-## Current highlights (v1.0.4)
+## Current highlights (v1.0.5)
 
 - **Professional vinyl workflow** - track splitting, Discogs metadata, and vinyl-side numbering
 - **Interactive cue / hotcue editor** - edit cue start, length, and end with up to 32 slots
