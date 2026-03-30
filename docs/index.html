@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Install VINYLflowplus v1.0.3 | Professional Vinyl Digitization</title>
+    <title>Install VINYLflowplus v1.0.4 | Professional Vinyl Digitization</title>
     <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/flarkflarkflark/VINYLflowplus/main/assets/VFplus.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -112,16 +112,28 @@
     <main class="max-w-4xl mx-auto px-6 py-12">
         
         <header class="text-center mb-16">
-            <div class="inline-block px-4 py-1 rounded-full bg-brand/10 border border-brand/20 text-brand text-xs font-bold mb-4 uppercase tracking-widest">Version 1.0.3 Stable</div>
+            <div class="inline-block px-4 py-1 rounded-full bg-brand/10 border border-brand/20 text-brand text-xs font-bold mb-4 uppercase tracking-widest">Latest release</div>
             <h1 class="text-4xl md:text-6xl font-extrabold mb-4 italic tracking-tight">Installation Guide</h1>
-            <p class="text-xl text-slate-400">Digitize your vinyl collection with professional precision.</p>
+            <p class="text-xl text-slate-400">Professional vinyl track splitting with accurate metadata and modern cue editing.</p>
         </header>
+
+        <section class="mb-16">
+            <div class="card border-brand/30 bg-brand/5">
+                <h2 class="text-2xl font-bold mb-4">Current highlights</h2>
+                <ul class="space-y-3 text-slate-300">
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Interactive cue / hotcue editor with up to 32 slots</span></li>
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Realtime processing updates with smoother progress feedback</span></li>
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Cancelable processing with safe cleanup</span></li>
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Bundled FFmpeg in desktop builds</span></li>
+                </ul>
+            </div>
+        </section>
 
         <!-- Quick Jump -->
         <div class="flex flex-wrap justify-center gap-4 mb-16">
-            <a href="#desktop" class="px-4 py-2 bg-brand text-black font-bold rounded-full text-sm border border-brand shadow-[0_0_20px_rgba(229,161,0,0.2)] hover:scale-105 transition-transform">🖥️ Click & Run (Recommended)</a>
-            <a href="#docker" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-full text-sm border border-slate-700">🐳 Docker (Stable)</a>
-            <a href="#manual" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-full text-sm border border-slate-700">⚙️ Manual Python</a>
+            <a href="#desktop" class="px-4 py-2 bg-brand text-black font-bold rounded-full text-sm border border-brand shadow-[0_0_20px_rgba(229,161,0,0.2)] hover:scale-105 transition-transform">Click & Run (Recommended)</a>
+            <a href="#docker" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-full text-sm border border-slate-700">Docker (Stable)</a>
+            <a href="#manual" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-full text-sm border border-slate-700">Manual Python</a>
         </div>
 
         <!-- Desktop App Section -->
@@ -157,8 +169,8 @@
                             <div class="flex items-center gap-3">
                                 <svg class="w-6 h-6 text-slate-500 group-hover:text-brand" fill="currentColor" viewBox="0 0 24 24"><path d="M17.05 20.28c-.96.95-2.06 1.92-3.4 1.92-1.2 0-1.6-.74-3.15-.74-1.54 0-2.02.72-3.13.74-1.33.02-2.52-1.04-3.52-2.04-2.04-2.04-3.12-5.74-3.12-8.5 0-2.82 1.48-4.32 2.92-4.32 1.44 0 2.24.78 3.28.78 1.04 0 1.62-.78 3.22-.78 1.3 0 2.76.66 3.66 1.84-2.4 1.4-2.02 4.66.42 5.92-.88 2.22-2.3 4.24-3.28 5.18zM12.03 5.46c.86-1.08.76-2.5.24-3.5 0 0-1.26.1-2.22 1.18-.88 1-.76 2.42-.24 3.42.06.1 1.34 0 2.22-1.1z"/></svg>
                                 <div class="flex flex-col">
-                                    <span class="font-semibold text-sm">macOS (Universal)</span>
-                                    <span class="text-[10px] text-slate-500">M1/M2/M3 & Intel (12+)</span>
+                                    <span class="font-semibold text-sm">macOS (Apple Silicon)</span>
+                                    <span class="text-[10px] text-slate-500">ARM64 for M1/M2/M3</span>
                                 </div>
                             </div>
                             <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
@@ -188,6 +200,7 @@
                             <svg class="w-5 h-5 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
                         </a>
                     </div>
+                    <p class="text-xs text-slate-500 mt-4">Note: The Apple Silicon build is ARM64 and distributed as <code>VINYLflowplus-macOS-Universal.zip</code>. Intel legacy builds use a separate artifact.</p>
                 </div>
 
                 <div class="mb-8">
@@ -196,22 +209,22 @@
                     </h3>
                     <ul class="space-y-4 text-slate-400">
                         <li class="flex items-start gap-2">
-                            <span class="text-brand mt-1 font-bold">→</span>
+                            <span class="text-brand mt-1 font-bold">-</span>
                             <span><strong>Windows:</strong> Download the <code>.exe</code> and double-click to start. Everything is pre-configured.</span>
                         </li>
                         <li class="flex items-start gap-2">
-                            <span class="text-brand mt-1 font-bold">→</span>
+                            <span class="text-brand mt-1 font-bold">-</span>
                             <span><strong>macOS:</strong> Unzip and drag the <code>.app</code> to your Applications folder.</span>
                         </li>
                         <li class="flex items-start gap-2">
-                            <span class="text-brand mt-1 font-bold">→</span>
+                            <span class="text-brand mt-1 font-bold">-</span>
                             <span><strong>Linux:</strong> Download the <code>.AppImage</code>, make it executable (<code>chmod +x</code>), and run.</span>
                         </li>
                     </ul>
                 </div>
 
                 <div class="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-                    <p class="text-sm text-brand italic font-semibold">New in v1.0.3: "Merge & Analyze" for multi-file albums, Windows stability fixes, and dedicated macOS Intel Legacy support.</p>
+                    <p class="text-sm text-brand italic font-semibold">Current in v1.0.4: cue / hotcue editor, realtime processing updates, smoother progress feedback, and cancelable processing.</p>
                 </div>
             </div>
         </section>

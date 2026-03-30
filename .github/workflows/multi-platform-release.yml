@@ -219,9 +219,9 @@ jobs:
           tag_name: ${{ env.RELEASE_TAG }}
           name: VINYLflowplus ${{ env.RELEASE_TAG }}
           body: |
-            # <img src="https://raw.githubusercontent.com/flarkflarkflark/VINYLflowplus/main/assets/vinylflowplus-logo.svg" height="40" vertical-align="middle" /> VINYLflowplus ${{ env.RELEASE_TAG }}
+            # <img src="https://raw.githubusercontent.com/flarkflarkflark/VINYLflowplus/main/assets/vinylflowplus-logo.svg" height="40" vertical-align="middle" />
 
-            Official release artifacts built from tag `${{ env.RELEASE_TAG }}`.
+            Official release artifacts for `${{ env.RELEASE_TAG }}`.
 
             ---
             
