@@ -109,20 +109,60 @@
             border: 1px solid #334155 !important;
         }
 
-        /* Wavesurfer region labels */
-        .wavesurfer-region:before {
+        /* Track boundary handles — thick, amber, obvious grab indicators */
+        [part~="region-handle"] {
+            width: 12px !important;
+            background: rgba(229, 161, 0, 0.75) !important;
+            border: none !important;
+            cursor: ew-resize !important;
+            transition: background 0.1s, width 0.1s;
+            display: flex !important;
+            align-items: center;
+            justify-content: center;
+        }
+        [part~="region-handle"]:hover {
+            width: 16px !important;
+            background: rgba(229, 161, 0, 1) !important;
+        }
+        [part~="region-handle"]::after {
+            content: '';
+            display: block;
+            width: 2px;
+            height: 40%;
+            min-height: 16px;
+            background: repeating-linear-gradient(
+                to bottom,
+                rgba(0,0,0,0.55) 0px,
+                rgba(0,0,0,0.55) 2px,
+                transparent 2px,
+                transparent 5px
+            );
+            border-radius: 1px;
+            pointer-events: none;
+        }
+        /* Region body — no drag, default cursor to avoid confusion */
+        [part~="region"] {
+            cursor: default !important;
+        }
+
+        /* Wavesurfer region labels — minimap (.wavesurfer-region) + main view ([part~=region]) */
+        .wavesurfer-region:before,
+        [part~="region"]:before {
             content: attr(data-region-label);
             position: absolute;
-            top: 5px;
-            left: 5px;
-            color: black;
-            background: rgba(229, 161, 0, 0.9);
-            padding: 2px 6px;
-            font-size: 10px;
+            top: 6px;
+            left: 6px;
+            color: #000;
+            background: rgba(229, 161, 0, 0.92);
+            padding: 2px 7px;
+            font-size: 11px;
             font-weight: 900;
+            font-family: 'Barlow Condensed', sans-serif;
+            letter-spacing: .05em;
             border-radius: 4px;
             pointer-events: none;
             z-index: 10;
+            white-space: nowrap;
         }
 
         /* Light Mode */
@@ -140,26 +180,185 @@
         body:not(.dark) .bg-slate-100 { background-color: var(--bg2) !important; }
         body:not(.dark) .bg-white { background-color: var(--card) !important; }
         
-        /* Sidebar & Upload Zone Overrides */
-        body:not(.dark) aside div.bg-card, 
-        body:not(.dark) .file-upload-zone { 
-            background-color: var(--card) !important; 
-            color: var(--text) !important;
-            border-color: var(--border) !important;
+        /* Queue top bar */
+        .queue-topbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            transition: border-color 0.15s, background 0.15s;
         }
-        
-        .dark aside div.bg-card, 
-        .dark .file-upload-zone { 
-            background-color: var(--card) !important; 
-            color: var(--text) !important;
-            border-color: var(--border) !important;
+        .queue-topbar.dragging {
+            border-color: var(--amber);
+            background: rgba(245, 166, 35, 0.05);
         }
-
-        .dark .queue-item { background-color: var(--card2) !important; color: var(--text); }
-        .dark .queue-item.selected { background-color: rgba(245, 166, 35, 0.08) !important; border-left: 4px solid var(--amber); }
-        
-        body:not(.dark) .queue-item { background-color: var(--card) !important; color: var(--text); }
-        body:not(.dark) .queue-item.selected { background-color: rgba(245, 166, 35, 0.08) !important; border-left: 4px solid var(--amber); }
+        .queue-drop-compact {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 12px;
+            border: 1.5px dashed var(--border-hi);
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--amber);
+            flex-shrink: 0;
+            transition: border-color 0.15s, background 0.15s;
+            white-space: nowrap;
+        }
+        .queue-drop-compact:hover, .queue-drop-compact.dragging {
+            border-color: var(--amber);
+            background: rgba(245, 166, 35, 0.06);
+        }
+        .queue-topbar-meta {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .queue-topbar-count {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--text-light);
+            white-space: nowrap;
+        }
+        .queue-topbar-btn {
+            padding: 4px 9px;
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            background: var(--amber);
+            color: #000;
+            border: none;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+        .queue-topbar-btn:hover { opacity: 0.85; }
+        .queue-topbar-btn.dim { background: transparent; color: var(--amber); border: 1.5px solid rgba(245,166,35,0.4); }
+        .queue-topbar-btn.dim:hover { background: rgba(245,166,35,0.08); }
+        .queue-chips-scroll {
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 6px;
+            flex: 1;
+            min-width: 0;
+            padding: 2px 0;
+        }
+        .queue-chip {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 6px 10px;
+            border-radius: var(--radius-sm);
+            border: 1.5px solid var(--border);
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: border-color 0.15s, background 0.15s;
+            position: relative;
+        }
+        .queue-chip:hover { border-color: var(--border-hi); }
+        .queue-chip.current { border-color: var(--amber); background: rgba(245,166,35,0.06); }
+        .queue-chip.selected { border-color: var(--amber); background: rgba(245,166,35,0.1); }
+        .queue-chip-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .queue-chip-body {
+            display: flex;
+            flex-direction: column;
+            min-width: 0;
+        }
+        .queue-chip-name {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text);
+            white-space: nowrap;
+        }
+        .queue-chip-meta {
+            font-size: 10px;
+            color: var(--text-light);
+            white-space: nowrap;
+        }
+        .queue-chip-cur {
+            font-size: 8px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            background: var(--amber);
+            color: #000;
+            padding: 1px 5px;
+            border-radius: 3px;
+            flex-shrink: 0;
+        }
+        .queue-chip-remove {
+            font-size: 14px;
+            color: var(--text-light);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 0 2px;
+            line-height: 1;
+            opacity: 0;
+            transition: opacity 0.15s, color 0.15s;
+            flex-shrink: 0;
+        }
+        .queue-chip:hover .queue-chip-remove { opacity: 1; }
+        .queue-chip-remove:hover { color: var(--red); }
+        .queue-chips-empty {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-dim);
+            font-style: italic;
+            white-space: nowrap;
+        }
+        .queue-merge-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 7px 14px;
+            background: var(--amber);
+            color: #000;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            cursor: pointer;
+            flex-shrink: 0;
+            transition: opacity 0.15s;
+            white-space: nowrap;
+        }
+        .queue-merge-btn:hover { opacity: 0.88; }
+        .queue-merge-count {
+            background: rgba(0,0,0,0.15);
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+        }
+        .queue-panel {
+            padding: 10px 14px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+        }
+        .queue-panel-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
 
         /* Settings modal Fixes */
         .dark .settings-input { background-color: var(--bg) !important; color: var(--text) !important; border-color: var(--border) !important; }
@@ -385,11 +584,60 @@
             border-radius: 4px;
             transition: width 0.6s ease;
         }
-        .progress-meta {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+        /* Two-column progress banner */
+        .progress-split { display: flex; gap: 16px; align-items: stretch; }
+        .progress-split-left { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+        .progress-split-right {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
             gap: 8px;
+            min-width: 90px;
+            border-left: 1px solid rgba(0,0,0,0.15);
+            padding-left: 16px;
         }
+        .progress-stat { text-align: right; }
+        .progress-stat-label {
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: rgba(0,0,0,0.45);
+        }
+        .progress-stat-val {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-style: italic;
+            font-weight: 800;
+            font-size: 13px;
+            color: rgba(0,0,0,0.7);
+            line-height: 1.1;
+        }
+        .progress-stat-val.eta { color: rgba(0,0,0,0.85); }
+        .progress-active-line {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 2px;
+        }
+        .progress-active-track {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-weight: 700;
+            font-size: 11px;
+            color: rgba(0,0,0,0.65);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .progress-active-sep { font-size: 10px; color: rgba(0,0,0,0.3); }
+        .progress-active-idx {
+            font-size: 10px;
+            font-weight: 600;
+            color: rgba(0,0,0,0.45);
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        /* keep old meta selectors for any remaining references */
+        .progress-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
         .progress-meta-item { text-align: left; }
         .progress-meta-label {
             font-size: 8px;
@@ -532,6 +780,46 @@
         }
         .ff-line.active { color: var(--text-dim); }
         .ff-line.hi { color: var(--amber); }
+        .ffmpeg-status-bar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            background: rgba(0,0,0,0.12);
+            border-radius: var(--radius-sm);
+            margin-top: 6px;
+            overflow: hidden;
+        }
+        body:not(.dark) .ffmpeg-status-bar { background: rgba(0,0,0,0.04); }
+        .ffmpeg-status-tag {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-weight: 700;
+            font-size: 9px;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--text-light);
+            flex-shrink: 0;
+        }
+        .ffmpeg-status-ver {
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            color: var(--amber);
+            flex-shrink: 0;
+        }
+        .ffmpeg-status-sep {
+            color: var(--text-light);
+            font-size: 10px;
+            flex-shrink: 0;
+        }
+        .ffmpeg-status-line {
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            color: var(--text-light);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            min-width: 0;
+        }
         .section-title {
             font-family: 'Barlow Condensed', sans-serif;
             font-style: italic;
@@ -563,9 +851,6 @@
             font-weight: 800;
             font-size: 16px;
             color: var(--text);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
             margin-bottom: 4px;
         }
         .active-track-meta {
@@ -654,9 +939,6 @@
             font-weight: 700;
             font-size: 12px;
             color: var(--text);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
         }
         .track-row-sub { font-size: 10px; color: var(--text-light); }
         .track-row-pct {
@@ -733,10 +1015,6 @@
             font-weight: 600;
             font-size: 13px;
             color: var(--text);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 170px;
         }
         .track-name.dim { color: var(--text-dim); }
         .track-dur { font-size: 11px; color: var(--text-light); margin-top: 1px; }
@@ -782,6 +1060,8 @@
         .fmt-chip.active { border-color: var(--amber); color: var(--amber); background: rgba(245,166,35,0.1); }
         .fmt-chip.queued { border-color: var(--border-hi); color: var(--text-light); background: transparent; }
         .fmt-chip.cancelled { border-color: rgba(148,163,184,0.35); color: var(--text-light); background: rgba(148,163,184,0.08); }
+        .fmt-chip.sm { font-size: 8px; padding: 1px 5px; border-width: 1px; }
+        .track-row-fmt-chips { display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
         .progress-banner {
             background: var(--amber);
             border-radius: var(--radius);
@@ -885,23 +1165,27 @@
         /* ── Cue banks grid ─────────────────────────── */
         .cue-banks-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
         .cue-bank-header { font-family:'Barlow Condensed',sans-serif; font-style:italic; font-weight:900; font-size:10px; letter-spacing:.15em; color:#888; text-transform:uppercase; padding:2px 4px 3px; }
-        .cue-row2 { display:grid; grid-template-columns:24px 10px 52px 40px 40px 30px 1fr 22px; align-items:center; gap:5px; padding:3px 6px; border-radius:7px; border:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.03); margin-bottom:3px; }
+        .cue-row2 { display:flex; align-items:center; gap:5px; padding:4px 6px; border-radius:7px; border:1px solid rgba(255,255,255,.07); background:rgba(255,255,255,.03); margin-bottom:3px; }
         .cue-row2.has-cue { border-color:rgba(255,255,255,.14); }
-        .cue-row2.empty { opacity:.55; }
+        .cue-row2.empty { opacity:.5; }
         .cue-row2.selected { background:rgba(229,161,0,.1); border-color:rgba(229,161,0,.45); }
-        .cue-arrow2 { width:22px; height:20px; border-radius:4px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); color:inherit; display:flex; align-items:center; justify-content:center; cursor:pointer; }
+        .cue-arrow2 { width:22px; height:20px; flex-shrink:0; border-radius:4px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); color:inherit; display:flex; align-items:center; justify-content:center; cursor:pointer; }
         .cue-arrow2:hover { background:#E5A100; border-color:#E5A100; color:#000; }
         .cue-dot2 { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
-        .cue-label2 { font-family:'Barlow Condensed',sans-serif; font-style:italic; font-weight:800; font-size:10px; color:#E5A100; letter-spacing:.05em; }
+        .cue-label2 { font-family:'Barlow Condensed',sans-serif; font-style:italic; font-weight:800; font-size:10px; color:#E5A100; letter-spacing:.05em; flex-shrink:0; min-width:48px; }
         .cue-row2.empty .cue-label2 { color:#666; }
-        .cue-time2 { font-family:'Courier New',monospace; font-size:9px; color:#aaa; }
-        .cue-time2.editable { border-bottom:1px dashed rgba(255,255,255,.2); cursor:text; }
-        .cue-time2.editable:focus { outline:none; border-bottom-color:#E5A100; color:#E5A100; }
-        .cue-dur2 { font-family:'Courier New',monospace; font-size:8px; color:#666; }
-        .cue-title2 { background:transparent; border:none; color:inherit; font-size:10px; font-weight:600; outline:none; width:100%; }
-        .cue-title2:disabled { color:#555; }
+        .cue-time-field { display:flex; flex-direction:column; gap:1px; flex-shrink:0; }
+        .cue-field-label { font-size:7px; text-transform:uppercase; letter-spacing:.1em; color:#555; line-height:1; padding-left:2px; }
+        .cue-field-input { font-family:'Courier New',monospace; font-size:10px; width:52px; background:transparent; border:none; border-bottom:1px solid rgba(255,255,255,.12); color:#aaa; outline:none; text-align:center; padding:1px 2px; transition:border-color .12s,color .12s; }
+        .cue-field-input:hover:not(:disabled) { border-bottom-color:rgba(255,255,255,.3); }
+        .cue-field-input:focus { border-bottom-color:#E5A100; color:#E5A100; }
+        .cue-field-input:disabled { opacity:.3; cursor:default; }
+        .cue-field-input.cue-dur { color:#666; width:46px; }
+        .cue-field-sep { font-size:9px; color:#333; align-self:flex-end; padding-bottom:2px; flex-shrink:0; }
+        .cue-title2 { background:transparent; border:none; color:inherit; font-size:10px; font-weight:600; outline:none; min-width:0; flex:1; }
+        .cue-title2:disabled { color:#444; }
         .cue-title2:focus { color:#E5A100; }
-        .cue-del2 { width:20px; height:20px; border-radius:4px; border:none; background:#e74c3c; color:#fff; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:.8; }
+        .cue-del2 { width:20px; height:20px; flex-shrink:0; border-radius:4px; border:none; background:#e74c3c; color:#fff; font-size:11px; font-weight:800; cursor:pointer; display:flex; align-items:center; justify-content:center; opacity:.8; }
         .cue-del2:hover { opacity:1; }
         /* ── Aa widget ──────────────────────────────── */
         .aa-wrap { display:flex; align-items:center; gap:3px; }
@@ -935,9 +1219,11 @@
                         <span @click="applyUiScale(1)" style="font-size:10px;cursor:pointer;opacity:.5;min-width:28px;text-align:center" x-text="Math.round(uiScale*100)+'%'" title="Reset schaal"></span>
                         <button @click="increaseUiScale()" class="aa-btn2" title="Larger">A+</button>
                     </div>
-                    <button @click="toggleDarkMode()" title="Toggle day/night" x-text="darkMode ? '☀' : '🌙'"
-                            class="p-2 rounded-lg transition-all duration-200 shadow-sm border"
-                            :class="darkMode ? 'bg-slate-900 border-gray-800 text-slate-100 hover:bg-slate-800' : 'bg-white border-gray-200 text-slate-900 hover:bg-slate-50'">
+                    <button @click="toggleDarkMode()" title="Toggle day/night"
+                            class="rounded-lg transition-all duration-200 shadow-sm border flex items-center justify-center"
+                            style="width:36px;height:36px;font-size:16px;line-height:1;flex-shrink:0"
+                            :class="darkMode ? 'bg-slate-900 border-gray-800 text-slate-100 hover:bg-slate-800' : 'bg-white border-gray-200 text-slate-900 hover:bg-slate-50'"
+                            x-text="darkMode ? '☀' : '🌙'">
                     </button>
                     <button @click="showSettings = !showSettings" 
                             title="Configure Discogs and Output Folder" 
@@ -954,7 +1240,7 @@
             </div>
         </header>
 
-        <div class="max-w-7xl w-full min-w-[1140px] mx-auto grid grid-cols-[320px_minmax(0,1fr)] gap-8 p-8 flex-1">
+        <div class="max-w-7xl w-full mx-auto flex flex-col gap-6 p-8 flex-1">
             <!-- Processing Overlay -->
             <div x-show="isProcessing" x-cloak class="processing-overlay">
                 <div class="processing-panel">
@@ -993,29 +1279,36 @@
 
                         <div class="processing-summary">
                             <div class="progress-compact">
-                                <div class="progress-top">
-                                    <div class="progress-title" x-text="formatStage(processingStage)"></div>
-                                    <div class="progress-pct" x-text="Math.round((processingProgress || 0) * 100) + '%'"></div>
-                                </div>
-                                <div class="progress-bar">
-                                    <div class="progress-bar-fill" :style="'width:' + Math.round((processingProgress || 0) * 100) + '%'"></div>
-                                </div>
-                                <div class="progress-meta">
-                                    <div class="progress-meta-item">
-                                        <div class="progress-meta-label">Elapsed</div>
-                                        <div class="progress-meta-val" x-text="processingStartTime ? formatDuration((processingTick - processingStartTime) / 1000) : '--'"></div>
+                                <div class="progress-split">
+                                    <!-- Left: progress + active track -->
+                                    <div class="progress-split-left">
+                                        <div class="progress-top">
+                                            <div class="progress-title" x-text="processingCurrentFormatLabel ? (processingCurrentFormatLabel + (processingJob.format_index && processingJob.format_total ? ' — pass ' + processingJob.format_index + '/' + processingJob.format_total : '')) : formatStage(processingStage)"></div>
+                                            <div class="progress-pct" x-text="Math.round((processingProgress || 0) * 100) + '%'"></div>
+                                        </div>
+                                        <div class="progress-bar">
+                                            <div class="progress-bar-fill" :style="'width:' + Math.round((processingProgress || 0) * 100) + '%'"></div>
+                                        </div>
+                                        <div class="progress-active-line" x-show="processingCurrentTrackVinyl || processingCurrentTrackTitle">
+                                            <span class="progress-active-track" x-text="(processingCurrentTrackVinyl ? processingCurrentTrackVinyl + ' — ' : '') + (processingCurrentTrackTitle || '')"></span>
+                                            <span class="progress-active-sep" x-show="processingJob.track_index && processingJob.track_total">·</span>
+                                            <span class="progress-active-idx" x-show="processingJob.track_index && processingJob.track_total" x-text="'track ' + (processingJob.track_index || 0) + '/' + (processingJob.track_total || 0)"></span>
+                                        </div>
                                     </div>
-                                    <div class="progress-meta-item">
-                                        <div class="progress-meta-label">Stage</div>
-                                        <div class="progress-meta-val" x-text="formatStage(processingStage)"></div>
-                                    </div>
-                                    <div class="progress-meta-item">
-                                        <div class="progress-meta-label">Tracks</div>
-                                        <div class="progress-meta-val" x-text="processingTracks.length ? (processedTrackCount + '/' + processingTracks.length) : (processingJob.tracks || '--')"></div>
-                                    </div>
-                                    <div class="progress-meta-item">
-                                        <div class="progress-meta-label">ETA</div>
-                                        <div class="progress-meta-val" x-text="processingEtaSec ? formatDuration(processingEtaSec) : '--'"></div>
+                                    <!-- Right: stats grid -->
+                                    <div class="progress-split-right">
+                                        <div class="progress-stat">
+                                            <div class="progress-stat-label">Elapsed</div>
+                                            <div class="progress-stat-val" x-text="processingStartTime ? formatDuration((processingTick - processingStartTime) / 1000) : '--'"></div>
+                                        </div>
+                                        <div class="progress-stat">
+                                            <div class="progress-stat-label">Tracks</div>
+                                            <div class="progress-stat-val" x-text="processingTracks.length ? (startedTrackCount + '/' + processingTracks.length) : (processingJob.tracks || '--')"></div>
+                                        </div>
+                                        <div class="progress-stat">
+                                            <div class="progress-stat-label">ETA</div>
+                                            <div class="progress-stat-val eta" x-text="processingEtaSec ? formatDuration(processingEtaSec) : '--'"></div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -1042,6 +1335,14 @@
                                     <div class="metric-bar"><div class="metric-bar-fill" :class="ffmpegStatus.ok ? '' : 'crit'" :style="'width:' + (ffmpegStatus.ok ? '100' : '40') + '%'"></div></div>
                                 </div>
                             </div>
+
+                            <!-- FFmpeg status bar -->
+                            <div class="ffmpeg-status-bar">
+                                <span class="ffmpeg-status-tag">FFmpeg</span>
+                                <span class="ffmpeg-status-ver" x-text="ffmpegStatus.version || 'not found'"></span>
+                                <span class="ffmpeg-status-sep">·</span>
+                                <span class="ffmpeg-status-line" x-text="ffmpegLines.length ? ffmpegLines[ffmpegLines.length - 1] : (ffmpegStatus.ok ? 'Engine ready' : 'FFmpeg not available')"></span>
+                            </div>
                         </div>
                     </div>
 
@@ -1066,15 +1367,6 @@
                             </div>
                         </div>
 
-                        <div class="ffmpeg-card">
-                            <div class="ffmpeg-tag">FFMPEG STATUS</div>
-                            <div class="ff-line" x-text="ffmpegStatus.version || 'ffmpeg not found'"></div>
-                            <div class="ff-line active" x-text="ffmpegStatus.last_error || (ffmpegStatus.ok ? 'Engine ready' : 'Engine error')"></div>
-                            <template x-for="(line, li) in (ffmpegLines.length ? ffmpegLines : ['Engine ready'])" :key="li">
-                                <div class="ff-line" :class="li === ffmpegLines.length-1 ? 'hi' : 'active'" x-text="line"></div>
-                            </template>
-                        </div>
-
                         <div x-show="processingTracks.length > 0" class="track-groups">
                             <!-- Left column: Processing + Queued -->
                             <div class="track-col">
@@ -1090,11 +1382,12 @@
                                                     <div class="track-row-dot" :class="trackStatus(track)"></div>
                                                     <div class="track-row-left">
                                                         <div class="track-row-title" x-text="(track.vinyl_number || ('#' + track.number)) + (track.title ? ' — ' + track.title : '')"></div>
-                                                        <div class="track-row-bar">
-                                                            <div class="track-row-bar-fill" :class="trackStatus(track)" :style="'width:' + trackPercent(track) + '%'"></div>
+                                                        <div class="track-row-fmt-chips">
+                                                            <template x-for="fmt in outputFormats" :key="fmt">
+                                                                <span class="fmt-chip sm" :class="processingTrackState[track.number]?.formats?.[fmt] || 'queued'" x-text="processingFormatLabels[fmt] || fmt"></span>
+                                                            </template>
                                                         </div>
                                                     </div>
-                                                    <div class="track-row-pct" :class="trackStatus(track)" x-text="trackPercent(track) + '%'"></div>
                                                 </div>
                                             </template>
                                         </div>
@@ -1178,62 +1471,50 @@
                 </div>
             </div>
 
-            <!-- Queue -->
-            <aside class="space-y-6">
-                <div @drop.prevent="handleDrop($event)" @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false" @click="$refs.fileInput.click()" 
-                     title="Drop audio files here to start"
-                     class="rounded-2xl p-6 text-center cursor-pointer border-2 border-dashed border-gray-600 hover:border-brand transition shadow-lg transition-colors duration-300"
-                     :class="[dragging ? 'border-brand bg-brand/5' : '', darkMode ? 'bg-slate-900 text-white' : 'bg-white text-black']">
-                    <p class="text-[12px] font-black uppercase tracking-widest text-brand mb-1">Drop Rips Here</p>
-                    <p class="text-[11px] opacity-60">WAV, AIFF, FLAC, MP3</p>
+            <!-- Drop / Add bar -->
+            <div class="queue-topbar app-card"
+                 @drop.prevent="handleDrop($event)" @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false"
+                 :class="dragging ? 'dragging' : ''"
+                 title="Drop audio files anywhere here">
+                <div @click="$refs.fileInput.click()" class="queue-drop-compact" :class="dragging ? 'dragging' : ''">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <span>Add files</span>
                     <input type="file" x-ref="fileInput" @change="handleFileSelect($event)" multiple class="hidden">
                 </div>
+                <span class="queue-chips-empty" x-show="uploadedFiles.length === 0">Drop audio files here or click Add files — WAV, AIFF, FLAC, MP3</span>
+            </div>
 
-                <div class="rounded-2xl p-6 shadow-xl flex-1 flex flex-col min-h-[520px] transition-colors duration-300 app-card"
-                     :class="darkMode ? 'text-white' : 'text-black'">
-                    <div class="flex justify-between items-center mb-6">
-                        <h2 class="text-[13px] font-black uppercase tracking-widest text-brand">Queue (<span x-text="uploadedFiles.length"></span>)</h2>
-                        <div class="flex gap-2">
-                            <button @click="selectAllFiles()" title="Select all files for MERGE or batch processing" class="px-3 py-1.5 rounded-lg bg-brand text-black text-[11px] font-black uppercase shadow-lg hover:bg-brand-dark transition">ALL</button>
-                            <button @click="deselectAllFiles()" title="Clear selection" class="px-3 py-1.5 rounded-lg bg-slate-800 text-brand text-[11px] font-black uppercase border border-brand/40 shadow-lg hover:bg-slate-700 transition">NONE</button>
-                        </div>
+            <!-- Queue panel -->
+            <div class="queue-panel app-card" x-show="uploadedFiles.length > 0" x-cloak>
+                <div class="queue-panel-header">
+                    <span class="queue-topbar-count">Queue&nbsp;(<span x-text="uploadedFiles.length"></span>)</span>
+                    <div class="queue-topbar-meta">
+                        <button @click="selectAllFiles()" title="Select all files for MERGE or batch processing" class="queue-topbar-btn">ALL</button>
+                        <button @click="deselectAllFiles()" title="Clear selection" class="queue-topbar-btn dim">NONE</button>
                     </div>
-                    
-                    <p class="text-[11px] opacity-60 mb-4 italic" x-show="uploadedFiles.length > 0">Selection is used for MERGE or batch processing.</p>
-                    
-                    <!-- Merge Button -->
-                    <div x-show="showMergeButton" x-transition class="mb-4">
-                        <button @click="mergeFiles()" title="Merge selected files into one and analyze" class="w-full bg-brand text-black py-3 rounded-xl font-black text-[12px] uppercase shadow-lg transform active:scale-95 transition flex items-center justify-center gap-2">
-                            <span>MERGE & ANALYZE</span>
-                            <span class="bg-black/10 px-2 py-0.5 rounded text-[8px]" x-text="selectedFileIds.length"></span>
+                    <div x-show="showMergeButton" x-transition>
+                        <button @click="mergeFiles()" title="Merge selected files into one and analyze" class="queue-merge-btn">
+                            MERGE & ANALYZE
+                            <span class="queue-merge-count" x-text="selectedFileIds.length"></span>
                         </button>
                     </div>
-
-                    <div class="space-y-2 overflow-y-auto pr-2 flex-1" style="max-height: 72vh;">
-                        <template x-for="file in uploadedFiles" :key="file.id">
-                            <div @click="toggleFileSelection(file.id)" :title="file.filename" 
-                                 class="queue-item p-3 rounded-xl cursor-pointer transition-all border-2 flex justify-between items-center group relative overflow-hidden" 
-                                 :class="[selectedFileIds.includes(file.id) ? 'border-brand shadow-lg bg-brand/5' : (currentFileId === file.id ? 'border-gray-400' : 'border-transparent'), currentFileId === file.id ? 'ring-1 ring-brand/50' : '']">
-                                <div class="min-w-0 flex items-center gap-3">
-                                    <div class="w-4 h-4 rounded border-2 flex items-center justify-center transition-colors"
-                                         :class="selectedFileIds.includes(file.id) ? 'bg-brand border-brand' : 'border-gray-500'">
-                                        <span x-show="selectedFileIds.includes(file.id)" class="text-black text-[12px] font-black">X</span>
-                                    </div>
-                                    <div class="min-w-0">
-                                        <div class="flex items-center gap-2">
-                                            <p class="queue-filename" x-text="file.filename"></p>
-                                            <span x-show="currentFileId === file.id" class="text-[10px] bg-brand text-black px-1 rounded-sm font-black animate-pulse">CURRENT</span>
-                                        </div>
-                                        <p class="queue-meta opacity-70" x-text="formatSize(file.size) + ' | ' + formatDuration(file.duration)"></p>
-                                        <p class="queue-status uppercase mt-1" :class="statusClass(file.status)" x-text="file.status"></p>
-                                    </div>
-                                </div>
-                                <button @click.stop="removeFile(file.id)" class="text-red-500 hover:text-red-400 p-1 text-[12px] opacity-0 group-hover:opacity-100 transition">X</button>
-                            </div>
-                        </template>
-                    </div>
                 </div>
-            </aside>
+                <div class="queue-chips-scroll">
+                    <template x-for="file in uploadedFiles" :key="file.id">
+                        <div @click="toggleFileSelection(file.id)" :title="file.filename + '\n' + formatSize(file.size) + ' | ' + formatDuration(file.duration)"
+                             class="queue-chip group"
+                             :class="[selectedFileIds.includes(file.id) ? 'selected' : '', currentFileId === file.id ? 'current' : '']">
+                            <div class="queue-chip-dot" :class="statusClass(file.status)" style="background: currentColor"></div>
+                            <div class="queue-chip-body">
+                                <span class="queue-chip-name" x-text="file.filename"></span>
+                                <span class="queue-chip-meta" x-text="formatSize(file.size) + ' · ' + formatDuration(file.duration)"></span>
+                            </div>
+                            <span x-show="currentFileId === file.id" class="queue-chip-cur">CURRENT</span>
+                            <button @click.stop="removeFile(file.id)" class="queue-chip-remove" title="Remove from queue">×</button>
+                        </div>
+                    </template>
+                </div>
+            </div>
 
             <!-- Main Editor -->
             <main class="space-y-8">
@@ -1281,29 +1562,33 @@
                                         </button>
                                         <span class="cue-dot2" :style="'background:' + getTrackColor(slot.idx).replace('0.35','1')"></span>
                                         <span class="cue-label2" x-text="'Track ' + slot.slotNumber"></span>
-                                        <span class="cue-time2 editable"
-                                              x-text="slot.cue ? formatDuration(slot.cue.start) : '--:--'"
-                                              :contenteditable="!!slot.cue"
-                                              title="Edit cue start (mm:ss)"
-                                              @blur="slot.cue && setCueTime(slot.cue,'start',$event.target.innerText)"
-                                              @keydown.enter.prevent="$event.target.blur()"></span>
-                                        <span class="cue-time2 editable"
-                                              x-text="slot.cue ? formatDuration(slot.cue.end) : '--:--'"
-                                              :contenteditable="!!slot.cue"
-                                              title="Edit cue end (mm:ss)"
-                                              @blur="slot.cue && setCueTime(slot.cue,'end',$event.target.innerText)"
-                                              @keydown.enter.prevent="$event.target.blur()"></span>
-                                        <span class="cue-time2 cue-dur2 editable"
-                                              x-text="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
-                                              :contenteditable="!!slot.cue"
-                                              title="Edit cue length (mm:ss)"
-                                              @blur="slot.cue && setCueTime(slot.cue,'duration',$event.target.innerText)"
-                                              @keydown.enter.prevent="$event.target.blur()"></span>
+                                        <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
+                                        <div class="cue-time-field" x-show="slot.cue">
+                                            <span class="cue-field-label">start</span>
+                                            <input class="cue-field-input" type="text" :value="slot.cue ? formatDuration(slot.cue.start) : ''"
+                                                   @change="slot.cue && setCueTime(slot.cue,'start',$event.target.value)"
+                                                   @keydown="slot.cue && handleCueKey($event, slot.cue, 'start')"
+                                                   title="Start (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
+                                        </div>
+                                        <span class="cue-field-sep" x-show="slot.cue">›</span>
+                                        <div class="cue-time-field" x-show="slot.cue">
+                                            <span class="cue-field-label">end</span>
+                                            <input class="cue-field-input" type="text" :value="slot.cue ? formatDuration(slot.cue.end) : ''"
+                                                   @change="slot.cue && setCueTime(slot.cue,'end',$event.target.value)"
+                                                   @keydown="slot.cue && handleCueKey($event, slot.cue, 'end')"
+                                                   title="End (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
+                                        </div>
+                                        <div class="cue-time-field" x-show="slot.cue">
+                                            <span class="cue-field-label">dur</span>
+                                            <input class="cue-field-input cue-dur" type="text" :value="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
+                                                   @change="slot.cue && setCueTime(slot.cue,'duration',$event.target.value)"
+                                                   @keydown="slot.cue && handleCueKey($event, slot.cue, 'duration')"
+                                                   title="Duration (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
+                                        </div>
                                         <input class="cue-title2" :disabled="!slot.cue"
                                                :value="slot.cue ? (slot.cue.title || '') : ''"
-                                               :placeholder="slot.cue ? '' : '—'"
+                                               :placeholder="slot.cue ? 'title…' : '—'"
                                                @input="slot.cue && (slot.cue.title=$event.target.value)">
-                                        <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
                                     </div>
                                 </template>
                             </div>
@@ -1319,34 +1604,38 @@
                                         </button>
                                         <span class="cue-dot2" :style="'background:' + getTrackColor(slot.idx).replace('0.35','1')"></span>
                                         <span class="cue-label2" x-text="'Track ' + slot.slotNumber"></span>
-                                        <span class="cue-time2 editable"
-                                              x-text="slot.cue ? formatDuration(slot.cue.start) : '--:--'"
-                                              :contenteditable="!!slot.cue"
-                                              title="Edit cue start (mm:ss)"
-                                              @blur="slot.cue && setCueTime(slot.cue,'start',$event.target.innerText)"
-                                              @keydown.enter.prevent="$event.target.blur()"></span>
-                                        <span class="cue-time2 editable"
-                                              x-text="slot.cue ? formatDuration(slot.cue.end) : '--:--'"
-                                              :contenteditable="!!slot.cue"
-                                              title="Edit cue end (mm:ss)"
-                                              @blur="slot.cue && setCueTime(slot.cue,'end',$event.target.innerText)"
-                                              @keydown.enter.prevent="$event.target.blur()"></span>
-                                        <span class="cue-time2 cue-dur2 editable"
-                                              x-text="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
-                                              :contenteditable="!!slot.cue"
-                                              title="Edit cue length (mm:ss)"
-                                              @blur="slot.cue && setCueTime(slot.cue,'duration',$event.target.innerText)"
-                                              @keydown.enter.prevent="$event.target.blur()"></span>
+                                        <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
+                                        <div class="cue-time-field" x-show="slot.cue">
+                                            <span class="cue-field-label">start</span>
+                                            <input class="cue-field-input" type="text" :value="slot.cue ? formatDuration(slot.cue.start) : ''"
+                                                   @change="slot.cue && setCueTime(slot.cue,'start',$event.target.value)"
+                                                   @keydown="slot.cue && handleCueKey($event, slot.cue, 'start')"
+                                                   title="Start (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
+                                        </div>
+                                        <span class="cue-field-sep" x-show="slot.cue">›</span>
+                                        <div class="cue-time-field" x-show="slot.cue">
+                                            <span class="cue-field-label">end</span>
+                                            <input class="cue-field-input" type="text" :value="slot.cue ? formatDuration(slot.cue.end) : ''"
+                                                   @change="slot.cue && setCueTime(slot.cue,'end',$event.target.value)"
+                                                   @keydown="slot.cue && handleCueKey($event, slot.cue, 'end')"
+                                                   title="End (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
+                                        </div>
+                                        <div class="cue-time-field" x-show="slot.cue">
+                                            <span class="cue-field-label">dur</span>
+                                            <input class="cue-field-input cue-dur" type="text" :value="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
+                                                   @change="slot.cue && setCueTime(slot.cue,'duration',$event.target.value)"
+                                                   @keydown="slot.cue && handleCueKey($event, slot.cue, 'duration')"
+                                                   title="Duration (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
+                                        </div>
                                         <input class="cue-title2" :disabled="!slot.cue"
                                                :value="slot.cue ? (slot.cue.title || '') : ''"
-                                               :placeholder="slot.cue ? '' : '—'"
+                                               :placeholder="slot.cue ? 'title…' : '—'"
                                                @input="slot.cue && (slot.cue.title=$event.target.value)">
-                                        <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
                                     </div>
                                 </template>
                             </div>
                             <!-- Bank C: T17-T24 -->
-                            <div>
+                            <div x-show="cueSlotsC.some(s => s.cue)">
                                 <div class="cue-bank-header">C</div>
                                 <template x-for="slot in cueSlotsC" :key="slot.slotNumber">
                                     <div class="cue-row2"
@@ -1357,34 +1646,38 @@
                                         </button>
                                         <span class="cue-dot2" :style="'background:' + getTrackColor(slot.idx).replace('0.35','1')"></span>
                                         <span class="cue-label2" x-text="'Track ' + slot.slotNumber"></span>
-                                        <span class="cue-time2 editable"
-                                              x-text="slot.cue ? formatDuration(slot.cue.start) : '--:--'"
-                                              :contenteditable="!!slot.cue"
-                                              title="Edit cue start (mm:ss)"
-                                              @blur="slot.cue && setCueTime(slot.cue,'start',$event.target.innerText)"
-                                              @keydown.enter.prevent="$event.target.blur()"></span>
-                                        <span class="cue-time2 editable"
-                                              x-text="slot.cue ? formatDuration(slot.cue.end) : '--:--'"
-                                              :contenteditable="!!slot.cue"
-                                              title="Edit cue end (mm:ss)"
-                                              @blur="slot.cue && setCueTime(slot.cue,'end',$event.target.innerText)"
-                                              @keydown.enter.prevent="$event.target.blur()"></span>
-                                        <span class="cue-time2 cue-dur2 editable"
-                                              x-text="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
-                                              :contenteditable="!!slot.cue"
-                                              title="Edit cue length (mm:ss)"
-                                              @blur="slot.cue && setCueTime(slot.cue,'duration',$event.target.innerText)"
-                                              @keydown.enter.prevent="$event.target.blur()"></span>
+                                        <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
+                                        <div class="cue-time-field" x-show="slot.cue">
+                                            <span class="cue-field-label">start</span>
+                                            <input class="cue-field-input" type="text" :value="slot.cue ? formatDuration(slot.cue.start) : ''"
+                                                   @change="slot.cue && setCueTime(slot.cue,'start',$event.target.value)"
+                                                   @keydown="slot.cue && handleCueKey($event, slot.cue, 'start')"
+                                                   title="Start (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
+                                        </div>
+                                        <span class="cue-field-sep" x-show="slot.cue">›</span>
+                                        <div class="cue-time-field" x-show="slot.cue">
+                                            <span class="cue-field-label">end</span>
+                                            <input class="cue-field-input" type="text" :value="slot.cue ? formatDuration(slot.cue.end) : ''"
+                                                   @change="slot.cue && setCueTime(slot.cue,'end',$event.target.value)"
+                                                   @keydown="slot.cue && handleCueKey($event, slot.cue, 'end')"
+                                                   title="End (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
+                                        </div>
+                                        <div class="cue-time-field" x-show="slot.cue">
+                                            <span class="cue-field-label">dur</span>
+                                            <input class="cue-field-input cue-dur" type="text" :value="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
+                                                   @change="slot.cue && setCueTime(slot.cue,'duration',$event.target.value)"
+                                                   @keydown="slot.cue && handleCueKey($event, slot.cue, 'duration')"
+                                                   title="Duration (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
+                                        </div>
                                         <input class="cue-title2" :disabled="!slot.cue"
                                                :value="slot.cue ? (slot.cue.title || '') : ''"
-                                               :placeholder="slot.cue ? '' : 'ƒ?"'"
+                                               :placeholder="slot.cue ? 'title…' : '—'"
                                                @input="slot.cue && (slot.cue.title=$event.target.value)">
-                                        <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
                                     </div>
                                 </template>
                             </div>
                             <!-- Bank D: T25-T32 -->
-                            <div>
+                            <div x-show="cueSlotsD.some(s => s.cue)">
                                 <div class="cue-bank-header">D</div>
                                 <template x-for="slot in cueSlotsD" :key="slot.slotNumber">
                                     <div class="cue-row2"
@@ -1395,29 +1688,33 @@
                                         </button>
                                         <span class="cue-dot2" :style="'background:' + getTrackColor(slot.idx).replace('0.35','1')"></span>
                                         <span class="cue-label2" x-text="'Track ' + slot.slotNumber"></span>
-                                        <span class="cue-time2 editable"
-                                              x-text="slot.cue ? formatDuration(slot.cue.start) : '--:--'"
-                                              :contenteditable="!!slot.cue"
-                                              title="Edit cue start (mm:ss)"
-                                              @blur="slot.cue && setCueTime(slot.cue,'start',$event.target.innerText)"
-                                              @keydown.enter.prevent="$event.target.blur()"></span>
-                                        <span class="cue-time2 editable"
-                                              x-text="slot.cue ? formatDuration(slot.cue.end) : '--:--'"
-                                              :contenteditable="!!slot.cue"
-                                              title="Edit cue end (mm:ss)"
-                                              @blur="slot.cue && setCueTime(slot.cue,'end',$event.target.innerText)"
-                                              @keydown.enter.prevent="$event.target.blur()"></span>
-                                        <span class="cue-time2 cue-dur2 editable"
-                                              x-text="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
-                                              :contenteditable="!!slot.cue"
-                                              title="Edit cue length (mm:ss)"
-                                              @blur="slot.cue && setCueTime(slot.cue,'duration',$event.target.innerText)"
-                                              @keydown.enter.prevent="$event.target.blur()"></span>
+                                        <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
+                                        <div class="cue-time-field" x-show="slot.cue">
+                                            <span class="cue-field-label">start</span>
+                                            <input class="cue-field-input" type="text" :value="slot.cue ? formatDuration(slot.cue.start) : ''"
+                                                   @change="slot.cue && setCueTime(slot.cue,'start',$event.target.value)"
+                                                   @keydown="slot.cue && handleCueKey($event, slot.cue, 'start')"
+                                                   title="Start (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
+                                        </div>
+                                        <span class="cue-field-sep" x-show="slot.cue">›</span>
+                                        <div class="cue-time-field" x-show="slot.cue">
+                                            <span class="cue-field-label">end</span>
+                                            <input class="cue-field-input" type="text" :value="slot.cue ? formatDuration(slot.cue.end) : ''"
+                                                   @change="slot.cue && setCueTime(slot.cue,'end',$event.target.value)"
+                                                   @keydown="slot.cue && handleCueKey($event, slot.cue, 'end')"
+                                                   title="End (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
+                                        </div>
+                                        <div class="cue-time-field" x-show="slot.cue">
+                                            <span class="cue-field-label">dur</span>
+                                            <input class="cue-field-input cue-dur" type="text" :value="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
+                                                   @change="slot.cue && setCueTime(slot.cue,'duration',$event.target.value)"
+                                                   @keydown="slot.cue && handleCueKey($event, slot.cue, 'duration')"
+                                                   title="Duration (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
+                                        </div>
                                         <input class="cue-title2" :disabled="!slot.cue"
                                                :value="slot.cue ? (slot.cue.title || '') : ''"
-                                               :placeholder="slot.cue ? '' : 'ƒ?"'"
+                                               :placeholder="slot.cue ? 'title…' : '—'"
                                                @input="slot.cue && (slot.cue.title=$event.target.value)">
-                                        <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
                                     </div>
                                 </template>
                             </div>
@@ -1668,14 +1965,14 @@
 
         <div x-show="showSettings" x-cloak class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
             <div @click.away="showSettings = false" 
-                 class="rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden border transition-colors duration-300"
+                 class="rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden border transition-colors duration-300 flex flex-col max-h-[90vh]"
                  :class="darkMode ? 'bg-slate-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-slate-900'">
-                <div class="p-8 border-b flex justify-between items-center transition-colors duration-300"
+                <div class="p-8 border-b flex justify-between items-center transition-colors duration-300 flex-shrink-0"
                      :class="darkMode ? 'bg-black/60 border-gray-800' : 'bg-slate-50 border-gray-200'">
                     <h2 class="text-2xl font-black uppercase tracking-tighter italic" :class="darkMode ? 'text-white' : 'text-slate-900'">Settings</h2>
                     <button @click="showSettings = false" class="w-10 h-10 flex items-center justify-center rounded-full bg-brand text-black text-xl font-black hover:scale-110 shadow-xl transition-transform">X</button>
                 </div>
-                <div class="p-8 grid grid-cols-1 md:grid-cols-2 gap-10">
+                <div class="p-8 grid grid-cols-1 md:grid-cols-2 gap-10 overflow-y-auto">
                     <div class="space-y-8">
                         <div class="space-y-4">
                             <h3 class="text-[13px] font-black text-brand uppercase tracking-widest">Discogs</h3>
@@ -1684,36 +1981,30 @@
                                 <a href="https://www.discogs.com/settings/developers" target="_blank" class="underline underline-offset-2 hover:text-brand transition"
                                    title="Discogs developer settings. Generate a personal API token and paste it here.">discogs.com/settings/developers</a>
                             </p>
-                            <div>
+                            <div x-data="{ showToken: false }">
                                 <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">User Token</label>
-                                <input type="password" x-model="config.discogs_user_token" placeholder="Paste Discogs user token" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-[12px]">
+                                <div class="relative">
+                                    <input :type="showToken ? 'text' : 'password'" x-model="config.discogs_user_token" placeholder="Paste Discogs user token" class="settings-input w-full p-4 pr-12 rounded-xl font-black border-2 outline-none text-[12px]" title="Your personal Discogs API token. Required for album search and metadata. Get a free token at discogs.com/settings/developers.">
+                                    <button type="button" @click="showToken = !showToken" class="absolute right-3 top-1/2 -translate-y-1/2 opacity-40 hover:opacity-80 transition-opacity" :title="showToken ? 'Hide token' : 'Show token'">
+                                        <svg x-show="!showToken" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                                        <svg x-show="showToken" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+                                    </button>
+                                </div>
                             </div>
                             <div>
                                 <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">User Agent</label>
-                                <input type="text" x-model="config.discogs_user_agent" placeholder="VINYLflowplus/1.0" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-[12px]">
+                                <input type="text" x-model="config.discogs_user_agent" placeholder="VINYLflowplus/1.0" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-[12px]" title="Identifies your app to the Discogs API. Format: AppName/Version — e.g. VINYLflowplus/1.0. Leave as default unless Discogs asks you to change it.">
                             </div>
                         </div>
                         <h3 class="text-[13px] font-black text-brand uppercase tracking-widest">Audio Analysis</h3>
                         <div class="space-y-6">
                             <div>
                                 <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">Silence Threshold (dB)</label>
-                                <input type="number" x-model="config.silence_threshold" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg">
+                                <input type="number" x-model="config.silence_threshold" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg" title="How quiet a gap must be (in dB) to be detected as silence between tracks. Default: -40 dB. Try -35 dB if tracks are merging together; -45 dB if you're getting too many false splits.">
                             </div>
                             <div>
                                 <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">Min Silence Duration (s)</label>
-                                <input type="number" step="0.1" x-model="config.min_silence_duration" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg">
-                            </div>
-                        </div>
-                        <h3 class="text-[13px] font-black text-brand uppercase tracking-widest">Declick (Restore &amp; Normalize)</h3>
-                        <p class="text-[11px] opacity-50 -mt-4">Higher values = less aggressive. Default: threshold 6, burst 4.</p>
-                        <div class="space-y-6">
-                            <div>
-                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">Threshold (2–30)</label>
-                                <input type="number" min="2" max="30" x-model="config.declick_threshold" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg">
-                            </div>
-                            <div>
-                                <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">Burst (1–10)</label>
-                                <input type="number" min="1" max="10" x-model="config.declick_burst" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg">
+                                <input type="number" step="0.1" x-model="config.min_silence_duration" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg" title="Minimum length of a silent gap (in seconds) before it counts as a track boundary. Default: 1.5s. Decrease to 1.0s for records with very short gaps; increase if noise in the groove is causing false splits.">
                             </div>
                         </div>
                     </div>
@@ -1723,7 +2014,7 @@
                             <div>
                                 <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">Output Folder</label>
                                 <div class="flex gap-2 items-center">
-                                    <input type="text" x-model="config.output_dir" class="settings-input flex-1 min-w-0 p-4 rounded-xl font-black border-2 outline-none text-[12px]">
+                                    <input type="text" x-model="config.output_dir" class="settings-input flex-1 min-w-0 p-4 rounded-xl font-black border-2 outline-none text-[12px]" title="Folder where finished tracks are saved. A subfolder is created per album: Artist - Album/A1-TrackName.flac. Leave blank to use the default output folder next to the app.">
                                     <button @click="chooseOutputFolder()" class="settings-btn-secondary shrink-0 px-6 py-4 rounded-xl text-[12px] font-black uppercase shadow-md transition active:scale-95">Browse</button>
                                 </div>
                             </div>
@@ -1756,6 +2047,21 @@
                                         <p class="text-[8px] text-red-300 font-mono break-all leading-tight" x-text="systemStatus.ffmpeg_last_error"></p>
                                     </div>
                                     <p x-show="!systemStatus.ffmpeg_ok" class="text-[8px] text-red-400 mt-2 italic">Warning: Audio processing is disabled because FFmpeg could not be initialized.</p>
+                                </div>
+                            </div>
+                            <!-- Declick -->
+                            <div>
+                                <h3 class="text-[13px] font-black text-brand uppercase tracking-widest mb-1">Declick (Restore &amp; Normalize)</h3>
+                                <p class="text-[11px] opacity-50 mb-4">Higher = less aggressive. Default: threshold 6, burst 4.</p>
+                                <div class="flex gap-4">
+                                    <div class="flex-1">
+                                        <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">Threshold (2–30)</label>
+                                        <input type="number" min="2" max="30" x-model="config.declick_threshold" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg" title="Click detection sensitivity. Higher = less aggressive — fewer samples flagged as clicks. Raise to 10–15 if music sounds distorted or over-processed. Default: 6.">
+                                    </div>
+                                    <div class="flex-1">
+                                        <label class="block text-[11px] font-black opacity-60 mb-3 uppercase" :class="darkMode ? 'text-slate-400' : 'text-slate-600'">Burst (1–10)</label>
+                                        <input type="number" min="1" max="10" x-model="config.declick_burst" class="settings-input w-full p-4 rounded-xl font-black border-2 outline-none text-lg" title="Max consecutive audio samples to replace when a click is detected. Higher removes bigger pops but risks audible artifacts. Keep at 2–4 for clean vinyl; raise to 6–8 only for very crackly records. Default: 4.">
+                                    </div>
                                 </div>
                             </div>
                             <div class="flex gap-3 justify-end mt-4">

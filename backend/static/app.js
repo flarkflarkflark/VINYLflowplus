@@ -99,6 +99,8 @@ function vinylApp() {
             this.processingCurrentFormatLabel = '';
             this.processingStepBase = null;
             this.processingStepSpan = null;
+            this.processingTracks = [];
+            this.processingTrackState = {};
             if (!this.processingTicker) {
                 this.processingTicker = setInterval(() => {
                     this.processingTick = Date.now();
@@ -180,6 +182,7 @@ function vinylApp() {
             this.detectedTracks = this.currentFile?.detected_tracks ? JSON.parse(JSON.stringify(this.currentFile.detected_tracks)) : [];
             this.searchResults = []; this.selectedRelease = null; this.successMessage = '';
             this.searchError = '';
+            this.processingTracks = []; this.processingTrackState = {};
             this.processingProgress = 0; this.processingMessage = ''; this.destroyWaveform();
             this.cueBank = 0;
             if (this.currentFile) { this.searchQuery = this.cleanFilename(this.currentFile.filename); if (this.detectedTracks.length > 0) this.initWaveform(); }
@@ -187,7 +190,18 @@ function vinylApp() {
 
         async removeFile(id) {
             if (!confirm('Remove file?')) return;
-            try { await fetch(`/api/queue/${id}`, { method: 'DELETE' }); await this.fetchQueue(); } catch (e) {}
+            try {
+                await fetch(`/api/queue/${id}`, { method: 'DELETE' });
+                if (this.currentFileId === id) {
+                    this.currentFileId = null;
+                    this.currentFile = null;
+                    this.detectedTracks = [];
+                    this.searchResults = [];
+                    this.selectedRelease = null;
+                    this.destroyWaveform();
+                }
+                await this.fetchQueue();
+            } catch (e) {}
         },
 
         async uploadFiles(files) {
@@ -224,7 +238,7 @@ function vinylApp() {
             if (updateCurrent) {
                 if (!this.isProcessing) this.startProcessingStage('analyzing');
                 this.processingMessage = 'Analyzing...';
-                this.processingProgress = 0.1;
+                this.processingProgress = 0.05;
                 this.processingJob = {
                     id: 'ANALYZE',
                     filename: this.currentFile?.filename || '',
@@ -232,6 +246,18 @@ function vinylApp() {
                     tracks: 0,
                     formats: this.outputFormats.length,
                 };
+                // Interpolate progress during analysis based on file duration
+                const analyzeStart = Date.now();
+                const analyzeDuration = (this.currentFile?.duration || 120) * 1000;
+                // ffmpeg silence detection runs roughly at 8-12x realtime; use 10x as estimate
+                const estimatedMs = analyzeDuration / 10;
+                if (this._analyzeTicker) clearInterval(this._analyzeTicker);
+                this._analyzeTicker = setInterval(() => {
+                    const elapsed = Date.now() - analyzeStart;
+                    // Asymptotic curve: approaches 0.92 but never reaches it
+                    const fraction = 1 - Math.exp(-3 * elapsed / estimatedMs);
+                    this.processingProgress = 0.05 + fraction * 0.87;
+                }, 200);
             }
             try {
                 const r = await fetch('/api/analyze', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({file_id: id}) });
@@ -253,6 +279,7 @@ function vinylApp() {
                 if (updateCurrent) alert('Analysis failed. Please check the terminal logs for details.');
             } finally {
                 if (updateCurrent) {
+                    if (this._analyzeTicker) { clearInterval(this._analyzeTicker); this._analyzeTicker = null; }
                     this.waveformLoading = false;
                     this.processingProgress = 1;
                     this.processingMessage = '';
@@ -532,11 +559,13 @@ function vinylApp() {
             if (d.stage) {
                 this.processingStage = d.stage;
             }
-            if (d.track_total !== undefined || d.track_index !== undefined) {
+            if (d.track_total !== undefined || d.track_index !== undefined || d.format_index !== undefined) {
                 this.processingJob = {
                     ...this.processingJob,
                     track_index: d.track_index ?? this.processingJob.track_index ?? 0,
                     track_total: d.track_total ?? this.processingJob.track_total ?? 0,
+                    format_index: d.format_index ?? this.processingJob.format_index ?? 0,
+                    format_total: d.format_total ?? this.processingJob.format_total ?? 0,
                 };
             }
             if (d.track) {
@@ -669,12 +698,12 @@ function vinylApp() {
                     cursorWidth: 2,
                     height: 180, 
                     minPxPerSec: this.currentZoom,
-                    normalize: true, 
-                    interact: true,
+                    normalize: true,
+                    interact: false,
                     hideScrollbar: false,
                     dragToSeek: false,
-                    autoCenter: true,
-                    autoScroll: true,
+                    autoCenter: false,
+                    autoScroll: false,
                     splitChannels: this.waveformMode === 'stereo'
                 });
                 if (token !== this._waveInitToken) { ws.destroy(); return; }
@@ -716,12 +745,14 @@ function vinylApp() {
                 }, { passive: false });
 
                 // Left: klik = seek, drag = scrub (niet op regio-handles)
-                let _scrubActive = false, _scrubStartX = 0;
+                let _scrubActive = false, _scrubStartX = 0, _scrollAtDown = 0;
                 wfContainer.addEventListener('mousedown', (e) => {
                     if (e.button !== 0) return;
                     if (e.target.closest('.wavesurfer-handle')) return; // regio handles: niet onderscheppen
                     _scrubStartX = e.clientX;
+                    _scrollAtDown = wfContainer.scrollLeft; // freeze scroll reference at click time
                     _scrubActive = false;
+                    this._seekInProgress = true; // pause timeupdate centering
                     const onMove = (ev) => {
                         if (Math.abs(ev.clientX - _scrubStartX) > 5) {
                             _scrubActive = true;
@@ -734,10 +765,11 @@ function vinylApp() {
                     const onUp = (ev) => {
                         window.removeEventListener('mousemove', onMove);
                         window.removeEventListener('mouseup', onUp);
+                        this._seekInProgress = false;
                         if (!_scrubActive) {
-                            // Gewone klik: seek + deselect regio
+                            // Gewone klik: seek using scroll position captured at mousedown
                             const dur = this.waveform.getDuration();
-                            const absX = ev.clientX - wfContainer.getBoundingClientRect().left + wfContainer.scrollLeft;
+                            const absX = ev.clientX - wfContainer.getBoundingClientRect().left + _scrollAtDown;
                             const t = (absX / wfContainer.scrollWidth) * dur;
                             this.waveform.setTime(Math.max(0, Math.min(t, dur)));
                             if (!ev.target.closest('.wavesurfer-region')) {
@@ -762,6 +794,14 @@ function vinylApp() {
                     await new Promise(r => requestAnimationFrame(r));
                     this.resetWaveScroll();
                     this.waveform.seekTo(0);
+                    // Auto-fit zoom when tracks are present and user hasn't manually zoomed
+                    if (this.detectedTracks.length > 0 && !this.userZoomed) {
+                        const container = document.getElementById('waveform');
+                        const dur = ws.getDuration();
+                        if (container && dur) {
+                            this.currentZoom = Math.max(5, Math.floor(container.clientWidth / dur));
+                        }
+                    }
                     this.addTrackRegions();
                     this.waveformLoading = false;
                     this.waveform.zoom(this.currentZoom);
@@ -771,6 +811,16 @@ function vinylApp() {
                 ws.on('play',   () => { this.playing = true; });
                 ws.on('pause',  () => { this.playing = false; });
                 ws.on('finish', () => { this.playing = false; });
+
+                // Keep playhead centered during playback
+                ws.on('timeupdate', (currentTime) => {
+                    if (!this.playing || this._seekInProgress) return;
+                    const dur = ws.getDuration();
+                    if (!dur) return;
+                    const sw = wfContainer.scrollWidth;
+                    const cw = wfContainer.clientWidth;
+                    wfContainer.scrollLeft = (currentTime / dur) * sw - cw / 2;
+                });
 
                 this.waveformRegions.on('region-clicked', (region, e) => {
                     this.selectedRegionId = region.id;
@@ -881,7 +931,10 @@ function vinylApp() {
             }
             const num = this.detectedTracks.length + 1;
             const duration = this.waveform.getDuration();
-            const endTime = Math.min(startTime + 30, duration);
+            // Snap end to the start of the next existing cue, or file end
+            const sorted = [...this.detectedTracks].sort((a, b) => a.start - b.start);
+            const nextCue = sorted.find(t => t.start > startTime + 0.5);
+            const endTime = nextCue ? nextCue.start : duration;
             const newTrack = { number: num, start: startTime, end: endTime, duration: endTime - startTime };
             this.detectedTracks.push(newTrack);
             this.detectedTracks.sort((a,b) => a.start - b.start).forEach((t, i) => t.number = i + 1);
@@ -1013,19 +1066,28 @@ function vinylApp() {
         },
 
         addTrackRegions() {
-            if(!this.waveformRegions) return; 
+            if(!this.waveformRegions) return;
             this.waveformRegions.clearRegions();
-            this.detectedTracks.forEach((t, i) => { 
+            this.detectedTracks.forEach((t, i) => {
                 const isSelected = this.selectedRegionId === `track-${t.number}`;
-                const reg = this.waveformRegions.addRegion({ 
-                    start: t.start, 
-                    end: t.end, 
-                    color: isSelected ? 'rgba(229, 161, 0, 0.7)' : (t.ignored ? 'rgba(100, 100, 100, 0.3)' : this.getTrackColor(i)), 
-                    drag: true, 
-                    resize: true, 
+                const baseColor = t.ignored ? 'rgba(100, 100, 100, 0.3)' : this.getTrackColor(i);
+                // Selected: keep track color but more opaque + amber outline via element style
+                const color = isSelected ? baseColor.replace(/[\d.]+\)$/, '0.7)') : baseColor;
+                const reg = this.waveformRegions.addRegion({
+                    start: t.start,
+                    end: t.end,
+                    color,
+                    drag: false,
+                    resize: true,
                     id: `track-${t.number}`
-                }); 
-                if (reg.element) reg.element.setAttribute('data-region-label', `T${t.number}${isSelected ? ' (SEL)' : ''}`);
+                });
+                if (reg.element) {
+                    reg.element.setAttribute('data-region-label', `T${t.number}`);
+                    if (isSelected) {
+                        reg.element.style.boxShadow = 'inset 0 0 0 3px rgba(229, 161, 0, 1)';
+                        reg.element.style.zIndex = '3';
+                    }
+                }
             });
         },
 
@@ -1091,6 +1153,34 @@ function vinylApp() {
             if (!cue) return '';
             if (cue.title) return cue.title;
             return '';
+        },
+
+        handleCueKey(e, cue, field) {
+            if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.key !== 'Enter' && e.key !== 'Escape') return;
+            if (e.key === 'Enter') { e.target.blur(); return; }
+            if (e.key === 'Escape') { e.target.blur(); return; }
+            e.preventDefault();
+            const step = e.shiftKey ? 1 : 0.1;
+            const delta = e.key === 'ArrowUp' ? step : -step;
+            const dur = this.waveform ? this.waveform.getDuration() : 9999;
+            const minLen = 0.5;
+            if (field === 'start') {
+                // Shift entire cue, keep duration
+                const len = cue.end - cue.start;
+                cue.start = Math.max(0, Math.min(cue.start + delta, cue.end - minLen));
+                cue.end = Math.min(dur, cue.start + len);
+            } else if (field === 'end') {
+                cue.end = Math.min(dur, Math.max(cue.end + delta, cue.start + minLen));
+            } else if (field === 'duration') {
+                cue.end = Math.min(dur, Math.max(cue.start + (cue.end - cue.start) + delta, cue.start + minLen));
+            }
+            cue.duration = cue.end - cue.start;
+            // Update the input value directly so it reflects without blur
+            e.target.value = this.formatDuration(
+                field === 'start' ? cue.start : field === 'end' ? cue.end : cue.duration
+            );
+            this.addTrackRegions();
+            if (field === 'start' && this.waveform) this.waveform.setTime(cue.start);
         },
 
         setCueTime(cue, field, value) {
@@ -1318,6 +1408,15 @@ function vinylApp() {
         get processedTrackCount() {
             return this.processingTracks.filter(t => ['done', 'error', 'failed', 'cancelled'].includes(this.trackStatus(t))).length;
         },
+        get startedTrackCount() {
+            // Count unique tracks that have had at least one format started or completed
+            return this.processingTracks.filter(t => {
+                const state = this.processingTrackState[t.number];
+                if (!state) return false;
+                if (['active', 'done', 'error', 'failed', 'cancelled'].includes(state.status)) return true;
+                return state.formats && Object.values(state.formats).some(v => v === 'done' || v === 'active');
+            }).length;
+        },
         get activeProcessingTracks() {
             return this.processingTracks.filter(t => this.trackStatus(t) === 'active');
         },
@@ -1334,6 +1433,10 @@ function vinylApp() {
             return this.processingTracks.filter(t => this.trackStatus(t) === 'cancelled');
         },
         get activeProcessingTrack() {
+            if (this.processingCurrentTrackNumber != null) {
+                const t = this.processingTracks.find(t => t.number === this.processingCurrentTrackNumber);
+                if (t) return t;
+            }
             return this.activeProcessingTracks[0] || null;
         },
 
