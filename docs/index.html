@@ -117,22 +117,6 @@
             <p class="text-xl text-slate-400">Professional vinyl track splitting with accurate metadata and modern cue editing.</p>
         </header>
 
-        <section class="mb-16">
-            <div class="card border-brand/30 bg-brand/5">
-                <h2 class="text-2xl font-bold mb-4">Current highlights</h2>
-                <ul class="space-y-3 text-slate-300">
-                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Multi-artist filenames now correct — <em>Zero Tolerance &amp; Black Barrel</em> style</span></li>
-                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Sub-track / medley support — A1.a / A1.b / A1.c collapsed into one vinyl segment</span></li>
-                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Two-column processing view with human-readable track labels</span></li>
-                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Transport buttons (Play, Stop, Prev, Next) per track in the mapping view</span></li>
-                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Declick aggressiveness configurable in Settings</span></li>
-                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Interactive cue / hotcue editor with up to 32 slots</span></li>
-                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Realtime processing updates with smoother progress feedback</span></li>
-                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Bundled FFmpeg in desktop builds</span></li>
-                </ul>
-            </div>
-        </section>
-
         <!-- Quick Jump -->
         <div class="flex flex-wrap justify-center gap-4 mb-16">
             <a href="#desktop" class="px-4 py-2 bg-brand text-black font-bold rounded-full text-sm border border-brand shadow-[0_0_20px_rgba(229,161,0,0.2)] hover:scale-105 transition-transform">Click & Run (Recommended)</a>
@@ -313,6 +297,7 @@ pip install -r requirements.txt</code></pre>
         <section class="mb-20">
             <div class="card border-brand/30 bg-brand/5">
                 <h2 class="text-2xl font-bold mb-4">Discogs API Setup</h2>
+
                 <p class="text-slate-400 mb-6">To fetch metadata and cover art, VINYLflowplus needs a free Discogs Personal Access Token.</p>
                 <ol class="space-y-4 text-slate-300">
                     <li class="flex items-start gap-4">
@@ -328,6 +313,23 @@ pip install -r requirements.txt</code></pre>
                         <span>Paste the token into the VINYLflowplus setup screen in your browser.</span>
                     </li>
                 </ol>
+            </div>
+        </section>
+
+        <!-- Current highlights -->
+        <section class="mb-20">
+            <div class="card border-brand/30 bg-brand/5">
+                <h2 class="text-2xl font-bold mb-4">Current highlights</h2>
+                <ul class="space-y-3 text-slate-300">
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Multi-artist filenames and tags now correct — proper &amp; separator with spacing</span></li>
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Sub-track / medley support — Discogs sub-positions collapsed into one vinyl segment with joined title</span></li>
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Two-column processing view with human-readable track labels</span></li>
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Transport buttons (Play, Stop, Prev, Next) per track in the mapping view</span></li>
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Declick aggressiveness configurable in Settings</span></li>
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Interactive cue / hotcue editor with up to 32 slots</span></li>
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Realtime processing updates with smoother progress feedback</span></li>
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Bundled FFmpeg in desktop builds</span></li>
+                </ul>
             </div>
         </section>
 
