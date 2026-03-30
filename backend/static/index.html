@@ -820,6 +820,130 @@
             text-overflow: ellipsis;
             min-width: 0;
         }
+        /* Success card */
+        .success-card {
+            border-radius: var(--radius);
+            border: 2px solid rgba(46, 204, 113, 0.4);
+            background: rgba(46, 204, 113, 0.05);
+            overflow: hidden;
+        }
+        .success-card.cancelled {
+            border-color: rgba(245, 166, 35, 0.4);
+            background: rgba(245, 166, 35, 0.05);
+        }
+        .success-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px 24px;
+        }
+        .success-icon {
+            width: 52px; height: 52px;
+            border-radius: 50%;
+            background: rgba(46, 204, 113, 0.15);
+            border: 2px solid rgba(46, 204, 113, 0.5);
+            display: flex; align-items: center; justify-content: center;
+            color: #2ecc71;
+            flex-shrink: 0;
+        }
+        .success-icon.cancelled {
+            background: rgba(245, 166, 35, 0.15);
+            border-color: rgba(245, 166, 35, 0.5);
+            color: var(--amber);
+        }
+        .success-title {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-style: italic;
+            font-weight: 800;
+            font-size: 28px;
+            color: #2ecc71;
+            line-height: 1;
+            text-transform: uppercase;
+        }
+        .success-card.cancelled .success-title { color: var(--amber); }
+        .success-subtitle {
+            font-size: 12px;
+            color: var(--text-light);
+            margin-top: 3px;
+        }
+        .success-actions {
+            margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .success-btn-folder {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 16px;
+            border-radius: var(--radius-sm);
+            border: 1.5px solid var(--border-hi);
+            background: transparent;
+            color: var(--text-dim);
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        .success-btn-folder:hover { border-color: var(--amber); color: var(--amber); }
+        .success-btn-ok {
+            padding: 9px 24px;
+            border-radius: var(--radius-sm);
+            background: #2ecc71;
+            color: #000;
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border: none;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+        .success-btn-ok:hover { opacity: 0.85; }
+        .success-card.cancelled .success-btn-ok { background: var(--amber); }
+        .success-next {
+            padding: 8px 24px;
+            font-size: 12px;
+            color: var(--text-light);
+            border-top: 1px solid var(--border);
+        }
+        .success-next-label {
+            font-weight: 700;
+            color: var(--text-dim);
+            margin-right: 4px;
+        }
+        .success-filelist {
+            border-top: 1px solid var(--border);
+            padding: 10px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            max-height: 260px;
+            overflow-y: auto;
+        }
+        .success-file {
+            display: flex;
+            align-items: baseline;
+            gap: 8px;
+            padding: 3px 0;
+        }
+        .success-file-fmt {
+            font-family: 'Barlow Condensed', sans-serif;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            color: var(--amber);
+            background: rgba(245,166,35,0.1);
+            border: 1px solid rgba(245,166,35,0.25);
+            border-radius: 3px;
+            padding: 1px 5px;
+            flex-shrink: 0;
+        }
+        .success-file-name {
+            font-size: 12px;
+            color: var(--text-dim);
+        }
         .section-title {
             font-family: 'Barlow Condensed', sans-serif;
             font-style: italic;
@@ -1919,28 +2043,49 @@
                     </style>
                 </div>
 
-                <div x-show="successMessage" x-cloak
-                     class="border-4 rounded-3xl p-8 text-center shadow-2xl"
-                     :class="successType === 'cancelled' ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-500' : 'bg-green-100 dark:bg-green-900/30 border-green-500'">
-                    <h2 class="text-3xl font-black mb-3 italic tracking-tighter"
-                        :class="successType === 'cancelled' ? 'text-amber-900 dark:text-amber-300' : 'text-green-900 dark:text-green-400'"
-                        x-text="successType === 'cancelled' ? 'CANCELLED' : 'SUCCESS'"></h2>
-                    <p class="text-[14px] font-black mb-4"
-                       :class="successType === 'cancelled' ? 'text-amber-900 dark:text-amber-200' : 'text-green-900 dark:text-green-200'"
-                       x-text="successMessage"></p>
-                    <p class="text-[12px] font-bold text-green-800 dark:text-green-300" x-show="nextFileName" x-text="'Next file: ' + nextFileName"></p>
-                    <div x-show="processingStats" class="mt-3 p-3 rounded-xl font-mono text-[10px] leading-relaxed bg-black/20">
-                        <span style="color:#E5A100" x-text="processingStats?.tracks"></span> tracks &bull;
-                        <span style="color:#E5A100" x-text="processingStats?.formats"></span> formats &bull;
-                        <span style="color:#E5A100" x-text="processingStats ? Math.floor(processingStats.elapsed/60)+'m '+(processingStats.elapsed%60)+'s' : '--'"></span>
-                        <div class="mt-1 opacity-50">
-                            <template x-for="f in (processingStats?.files||[])" :key="f">
-                                <div class="truncate text-[9px]" x-text="f"></div>
+                <div x-show="successMessage" x-cloak class="success-card" :class="successType === 'cancelled' ? 'cancelled' : 'done'">
+                    <!-- Header -->
+                    <div class="success-header">
+                        <div class="success-icon" :class="successType === 'cancelled' ? 'cancelled' : ''">
+                            <template x-if="successType !== 'cancelled'">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                            </template>
+                            <template x-if="successType === 'cancelled'">
+                                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                             </template>
                         </div>
+                        <div>
+                            <div class="success-title" x-text="successType === 'cancelled' ? 'Cancelled' : 'Done'"></div>
+                            <div class="success-subtitle" x-show="processingStats">
+                                <span x-text="processingStats?.tracks"></span> tracks &bull;
+                                <span x-text="processingStats?.formats"></span> formats &bull;
+                                <span x-text="processingStats ? Math.floor(processingStats.elapsed/60)+'m '+(processingStats.elapsed%60)+'s' : ''"></span>
+                            </div>
+                        </div>
+                        <div class="success-actions">
+                            <button x-show="processingStats?.output_folder" @click="openOutputFolder()" class="success-btn-folder" title="Open output folder in file manager">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+                                Open folder
+                            </button>
+                            <button @click="resetForNextFile()" class="success-btn-ok" x-text="nextFileName ? 'Process next' : 'OK'"></button>
+                        </div>
                     </div>
-                    <button @click="resetForNextFile()" class="mt-4 bg-green-600 text-white px-8 py-2 rounded-xl font-black text-[12px] hover:bg-green-500 shadow-lg transition uppercase"
-                            x-text="nextFileName ? 'PROCESS NEXT' : 'OK'"></button>
+
+                    <!-- Next file hint -->
+                    <div class="success-next" x-show="nextFileName">
+                        <span class="success-next-label">Next:</span>
+                        <span x-text="nextFileName"></span>
+                    </div>
+
+                    <!-- File list -->
+                    <div x-show="processingStats?.files?.length" class="success-filelist">
+                        <template x-for="(f, i) in (processingStats?.files || [])" :key="i">
+                            <div class="success-file">
+                                <span class="success-file-fmt" x-text="f.match(/^\[([^\]]+)\]/)?.[1] || ''"></span>
+                                <span class="success-file-name" x-text="f.replace(/^\[[^\]]+\]\s*/, '')"></span>
+                            </div>
+                        </template>
+                    </div>
                 </div>
             </main>
         </div>

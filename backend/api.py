@@ -525,10 +525,10 @@ async def process_file_background(request: ProcessRequest, job_id: str):
                 })
 
         _update_job_progress(job_id, status="complete", progress=1.0, tracks=all_outs, message="Complete")
-        if request.file_id in uploaded_files: 
+        if request.file_id in uploaded_files:
             uploaded_files[request.file_id]["status"] = "completed"
             save_queue_state()
-        await broadcast_message({"type": "complete", "file_id": request.file_id, "tracks": all_outs})
+        await broadcast_message({"type": "complete", "file_id": request.file_id, "tracks": all_outs, "output_folder": str(output_base)})
     except ProcessingCancelled:
         if current_temp and current_temp.exists():
             try:
@@ -702,7 +702,7 @@ async def multi_process_background(request: MultiProcessRequest, job_id: str):
         for fid in set(m.source_file_id for m in request.track_mapping):
             if fid in uploaded_files: uploaded_files[fid]["status"] = "completed"
         save_queue_state()
-        await broadcast_message({"type": "complete", "file_id": "multi", "tracks": all_outs})
+        await broadcast_message({"type": "complete", "file_id": "multi", "tracks": all_outs, "output_folder": str(output_base)})
     except ProcessingCancelled:
         if current_temp and current_temp.exists():
             try:
@@ -788,8 +788,27 @@ async def select_folder_api():
         return {"path": res.stdout.strip() or None}
     except: return {"path": None}
 
+@app.post("/api/utils/open-folder")
+async def open_folder_api(body: dict):
+    folder = body.get("folder", "")
+    if not folder:
+        return {"ok": False}
+    path = Path(folder).expanduser()
+    if not path.exists():
+        return {"ok": False}
+    try:
+        if sys.platform == "win32":
+            subprocess.Popen(["explorer", str(path)], creationflags=CREATE_NO_WINDOW)
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", str(path)])
+        else:
+            subprocess.Popen(["xdg-open", str(path)])
+        return {"ok": True}
+    except Exception:
+        return {"ok": False}
+
 @app.get("/api/status")
-async def get_status(): 
+async def get_status():
     resolution = resolve_ffmpeg()
     ffmpeg_ok = bool(resolution.get("ok"))
     ffmpeg_ver = resolution.get("version") or ("Error running ffmpeg" if not ffmpeg_ok else "Unknown version")

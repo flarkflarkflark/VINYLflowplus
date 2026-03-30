@@ -538,7 +538,7 @@ function vinylApp() {
                         this.processingJobStatus = 'complete';
                         this.stopProcessPolling();
                         const elapsed = this.processingStartTime ? Math.round((Date.now() - this.processingStartTime) / 1000) : 0;
-                        this.processingStats = { tracks: j.tracks ? j.tracks.length : 0, files: j.tracks || [], elapsed, formats: this.outputFormats.length };
+                        this.processingStats = { tracks: j.tracks ? j.tracks.length : 0, files: j.tracks || [], elapsed, formats: this.outputFormats.length, output_folder: j.output_folder || '' };
                         this.stopProcessingStage();
                         this.successType = 'success';
                         this.successMessage = 'done';
@@ -1307,6 +1307,12 @@ function vinylApp() {
                 alert('Processing settings saved as default!');
             } catch(e) { alert('Failed to save defaults.'); }
         },
+        async openOutputFolder() {
+            const folder = this.processingStats?.output_folder;
+            if (!folder) return;
+            try { await fetch('/api/utils/open-folder', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ folder }) }); } catch (e) {}
+        },
+
         async chooseOutputFolder() {
             try {
                 if (window.pywebview && window.pywebview.api && window.pywebview.api.select_output_folder) {
@@ -1527,7 +1533,7 @@ function vinylApp() {
                         }
                     } else if (d.type === 'complete' && (d.file_id === this.currentFileId || d.file_id === 'multi')) {
                         const elapsed = this.processingStartTime ? Math.round((Date.now() - this.processingStartTime) / 1000) : 0;
-                        this.processingStats = { tracks: d.tracks ? d.tracks.length : 0, files: d.tracks || [], elapsed, formats: this.outputFormats.length };
+                        this.processingStats = { tracks: d.tracks ? d.tracks.length : 0, files: d.tracks || [], elapsed, formats: this.outputFormats.length, output_folder: d.output_folder || '' };
                         this.stopProcessingStage();
                         this.successMessage = 'done';
                     }
