@@ -8,8 +8,9 @@ function vinylApp() {
         ws: null, dragging: false, showSettings: false, uploadProgress: 0, searchLoading: false,
         trackCountMismatch: false, uploadedFiles: [], currentFileId: null, currentFile: null,
         selectedFileIds: [], detectedTracks: [], currentPlayingTrack: null, waveform: null,
-        waveformLoading: false, waveformRegions: null, waveformMinimap: null, currentZoom: 50, userZoomed: false, waveformMode: 'mono', searchQuery: '',
-        playing: false, uiScale: parseFloat(localStorage.getItem('uiScale') || '1'),
+        waveformLoading: false, waveformRegions: null, waveformMinimap: null, currentZoom: 1, userZoomed: false, waveformMode: 'mono', searchQuery: '',
+        playing: false, waveCurrentTime: 0, waveCurrentTrackName: '', waveCurrentTrackColor: '', vuLevel: 0, waveVolume: 1, _vuRaf: null, _vuAnalyser: null, _vuCtx: null,
+        uiScale: parseFloat(localStorage.getItem('uiScale') || '1'),
         ffmpegLines: [], processingStats: null,
         searchResults: [], selectedRelease: null, customMapping: [], searchAbortController: null,
         isProcessing: false, processingProgress: 0, processingMessage: '', successMessage: '',
@@ -38,6 +39,7 @@ function vinylApp() {
         _waveInitToken: 0,
         selectedRegionId: null,
         searchError: '',
+        undoStack: [],
 
         async init() {
             this.updateDarkMode();
@@ -340,16 +342,44 @@ function vinylApp() {
             } catch (e) {} finally { if (!this.searchAbortController.signal.aborted) this.searchLoading = false; }
         },
 
-        selectRelease(r) { 
-            this.selectedRelease = r; 
+        selectRelease(r) {
+            this.saveUndo();
+            this.selectedRelease = r;
             const tMap = this.allDetectedTracks.filter(t => !t.ignored);
             this.customMapping = Array.from({ length: tMap.length }, (_, i) => i);
+            // Auto-fill titles, artists, and vinyl positions from Discogs release
+            tMap.forEach((t, i) => {
+                const dt = r.tracks[this.customMapping[i]];
+                if (!dt) return;
+                // Write back onto the live detectedTracks entry (same object reference)
+                const live = this.detectedTracks.find(x => x.number === t.number);
+                if (live) {
+                    live.title = dt.title || '';
+                    live.artist = dt.artist || '';
+                    live.vinyl_number = dt.position || '';
+                }
+            });
             if (this.waveform) this.addTrackRegions();
         },
 
+        saveUndo() {
+            this.undoStack.push(JSON.stringify(this.detectedTracks));
+            if (this.undoStack.length > 40) this.undoStack.shift();
+        },
+
+        undo() {
+            if (!this.undoStack.length) return;
+            this.detectedTracks = JSON.parse(this.undoStack.pop());
+            this.addTrackRegions();
+        },
+
         handleKeydown(e) {
-            if (e.target.closest('input, textarea')) return;
             const key = e.key.toLowerCase();
+            if ((e.ctrlKey || e.metaKey) && key === 'z' && !e.shiftKey && !e.target.closest('input, textarea')) {
+                e.preventDefault();
+                return this.undo();
+            }
+            if (e.target.closest('input, textarea')) return;
             if (key === '+' || (e.key === '=' && e.shiftKey)) {
                 e.preventDefault();
                 return this.zoomIn();
@@ -695,18 +725,18 @@ function vinylApp() {
                     const cueZoom = this.computeCueZoom();
                     if (cueZoom) this.currentZoom = cueZoom;
                 }
-                const ws = WaveSurfer.create({ 
-                    container: '#waveform', 
-                    waveColor: document.body.classList.contains('dark') ? '#2a3a50' : '#475569', 
-                    progressColor: '#E5A100', 
-                    cursorColor: '#FFFFFF', 
+                const ws = WaveSurfer.create({
+                    container: '#waveform',
+                    waveColor: document.body.classList.contains('dark') ? '#2a3a50' : '#475569',
+                    progressColor: '#E5A100',
+                    cursorColor: '#ffffff',
                     cursorWidth: 2,
-                    height: 180, 
-                    minPxPerSec: this.currentZoom,
+                    height: 180,
+                    minPxPerSec: 1,   // always start minimal — set correct zoom in 'ready'
                     normalize: true,
-                    interact: false,
+                    interact: true,
                     hideScrollbar: false,
-                    dragToSeek: false,
+                    dragToSeek: true,
                     autoCenter: false,
                     autoScroll: false,
                     splitChannels: this.waveformMode === 'stereo'
@@ -719,76 +749,20 @@ function vinylApp() {
                     this.waveformMinimap = ws.registerPlugin(
                         WaveSurfer.Minimap.create({
                             container: '#waveform-mini',
-                            height: 50,
-                            waveColor: 'rgba(148, 163, 184, 0.6)',
-                            progressColor: 'rgba(229, 161, 0, 0.7)',
-                            cursorColor: 'rgba(255, 255, 255, 0.9)',
+                            height: 120,
+                            waveColor: 'rgba(148, 163, 184, 0.5)',
+                            progressColor: 'rgba(229, 161, 0, 0.6)',
+                            cursorColor: '#ffffff',
+                            cursorWidth: 4,
+                            overlayColor: 'rgba(255, 255, 255, 0.15)',
                         })
                     );
                 }
-                
-                // Wheel Zoom
+
                 const wfContainer = document.getElementById('waveform');
-                if (wfContainer) wfContainer.scrollLeft = 0;
-                wfContainer.style.cursor = 'crosshair';
-                wfContainer.addEventListener('wheel', (e) => {
-                    e.preventDefault();
-                    if (e.shiftKey) {
-                        wfContainer.scrollLeft += e.deltaY * 3;
-                        return;
-                    }
-                    this.userZoomed = true;
-                    const rect = wfContainer.getBoundingClientRect();
-                    const mouseRel = (e.clientX - rect.left + wfContainer.scrollLeft) / (wfContainer.scrollWidth || 1);
-                    const oldZoom = this.currentZoom;
-                    if (e.deltaY < 0) this.currentZoom = Math.min(this.currentZoom * 1.25, 500);
-                    else this.currentZoom = Math.max(5, this.currentZoom / 1.25);
-                    this.waveform.zoom(this.currentZoom);
-                    requestAnimationFrame(() => {
-                        wfContainer.scrollLeft = mouseRel * wfContainer.scrollWidth - (e.clientX - rect.left);
-                    });
-                }, { passive: false });
-
-                // Left: klik = seek, drag = scrub (niet op regio-handles)
-                let _scrubActive = false, _scrubStartX = 0, _scrollAtDown = 0;
-                wfContainer.addEventListener('mousedown', (e) => {
-                    if (e.button !== 0) return;
-                    if (e.target.closest('.wavesurfer-handle')) return; // regio handles: niet onderscheppen
-                    _scrubStartX = e.clientX;
-                    _scrollAtDown = wfContainer.scrollLeft; // freeze scroll reference at click time
-                    _scrubActive = false;
-                    this._seekInProgress = true; // pause timeupdate centering
-                    const onMove = (ev) => {
-                        if (Math.abs(ev.clientX - _scrubStartX) > 5) {
-                            _scrubActive = true;
-                            const dur = this.waveform.getDuration();
-                            const absX = ev.clientX - wfContainer.getBoundingClientRect().left + wfContainer.scrollLeft;
-                            const t = (absX / wfContainer.scrollWidth) * dur;
-                            this.waveform.setTime(Math.max(0, Math.min(t, dur)));
-                        }
-                    };
-                    const onUp = (ev) => {
-                        window.removeEventListener('mousemove', onMove);
-                        window.removeEventListener('mouseup', onUp);
-                        this._seekInProgress = false;
-                        if (!_scrubActive) {
-                            // Gewone klik: seek using scroll position captured at mousedown
-                            const dur = this.waveform.getDuration();
-                            const absX = ev.clientX - wfContainer.getBoundingClientRect().left + _scrollAtDown;
-                            const t = (absX / wfContainer.scrollWidth) * dur;
-                            this.waveform.setTime(Math.max(0, Math.min(t, dur)));
-                            if (!ev.target.closest('.wavesurfer-region')) {
-                                this.selectedRegionId = null;
-                                this.addTrackRegions();
-                            }
-                        }
-                    };
-                    window.addEventListener('mousemove', onMove);
-                    window.addEventListener('mouseup', onUp);
-                });
-
-                // No context menu
-                wfContainer.oncontextmenu = (e) => e.preventDefault();
+                if (wfContainer) {
+                    wfContainer.oncontextmenu = (e) => e.preventDefault();
+                }
 
                 const p = await (await fetch(`/api/waveform-peaks/${this.currentFileId}`)).json();
                 if (token !== this._waveInitToken) { ws.destroy(); return; }
@@ -796,44 +770,105 @@ function vinylApp() {
                 
                 ws.once('ready', async () => {
                     await this.$nextTick();
-                    await new Promise(r => requestAnimationFrame(r));
-                    this.resetWaveScroll();
+                    const dur = ws.getDuration();
+                    const cw = wfContainer?.clientWidth || 800;
+                    this.currentZoom = Math.max(1, Math.floor(cw / dur));
+                    this.userZoomed = false;
+                    ws.zoom(this.currentZoom);
                     this.waveform.seekTo(0);
-                    // Auto-fit zoom when tracks are present and user hasn't manually zoomed
-                    if (this.detectedTracks.length > 0 && !this.userZoomed) {
-                        const container = document.getElementById('waveform');
-                        const dur = ws.getDuration();
-                        if (container && dur) {
-                            this.currentZoom = Math.max(5, Math.floor(container.clientWidth / dur));
-                        }
-                    }
                     this.addTrackRegions();
                     this.waveformLoading = false;
-                    this.waveform.zoom(this.currentZoom);
-                    if (typeof this.drawTimeRuler === 'function') this.drawTimeRuler();
-                    this.startRulerSync();
+                    this.drawMinimapMarkers();
+                    // Inject scrollbar style into WaveSurfer shadow DOM
+                    const wrapperEl = ws.getWrapper?.();
+                    const shadowRoot = wrapperEl?.getRootNode?.();
+                    if (shadowRoot instanceof ShadowRoot) {
+                        const sb = document.createElement('style');
+                        sb.textContent = `
+                            :host { overflow-x: scroll !important; }
+                            ::-webkit-scrollbar { height: 8px; display: block; }
+                            ::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); border-radius: 4px; }
+                            ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.35); border-radius: 4px; }
+                            ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.6); }
+                        `;
+                        shadowRoot.appendChild(sb);
+                    }
+                    // Style minimap cursor for visibility
+                    const miniWrap = document.querySelector('#waveform-mini div');
+                    if (miniWrap) {
+                        const cursor = [...miniWrap.children].find(el => el.style.position === 'absolute' && el.style.zIndex);
+                        if (cursor) cursor.style.boxShadow = '0 0 0 1px rgba(0,0,0,0.7), 0 0 8px rgba(255,255,255,1)';
+                    }
                 });
-                ws.on('play',   () => { this.playing = true; });
-                ws.on('pause',  () => { this.playing = false; });
-                ws.on('finish', () => { this.playing = false; });
+                ws.on('play', () => {
+                    this.playing = true;
+                    this._startVU(ws);
+                });
+                ws.on('pause', () => {
+                    this.playing = false;
+                    this._stopVU();
+                });
+                ws.on('finish', () => {
+                    this.playing = false;
+                    this._stopVU();
+                });
 
-                // Keep playhead centered during playback
+                const _centerOn = (t) => this.centerWaveOn(t, true); // seek/click = always force to center
+
+                const _updateTrackName = (currentTime) => {
+                    this.waveCurrentTime = currentTime;
+                    const sorted = [...this.detectedTracks].sort((a, b) => a.start - b.start);
+                    const active = [...sorted].reverse().find(t => t.start <= currentTime && !t.ignored);
+                    const newName = active ? (active.vinyl_number || `#${active.number}`) : '';
+                    if (newName !== this.waveCurrentTrackName) {
+                        this.waveCurrentTrackName = newName;
+                        // Find the index in original detectedTracks for consistent coloring
+                        const idx = active ? this.detectedTracks.indexOf(active) : -1;
+                        const solidColors = ['#f5a623','#50aaff','#2ecc71','#9b59b6','#e74c3c','#f1c40f','#1abc9c','#ff7eb3'];
+                        this.waveCurrentTrackColor = idx >= 0 ? solidColors[idx % solidColors.length] : '';
+                        this.drawMinimapMarkers();
+                    }
+                };
+
+                ws.on('seeking', (currentTime) => {
+                    _updateTrackName(currentTime);
+                    const hit = [...this.detectedTracks].find(t => !t.ignored && currentTime >= t.start && currentTime <= t.end);
+                    if (hit && this.selectedRegionId !== `track-${hit.number}`) {
+                        this.selectedRegionId = `track-${hit.number}`;
+                        this.addTrackRegions(); // clearRegions() may reset scrollLeft
+                        this.$nextTick(() => {
+                            _centerOn(currentTime); // re-center after redraw
+                            const el = document.querySelector(`[data-cue-id="track-${hit.number}"]`);
+                            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        });
+                    } else {
+                        _centerOn(currentTime);
+                    }
+                    // Defer to override any scroll reset by WaveSurfer internals (e.g. minimap click)
+                    setTimeout(() => _centerOn(currentTime), 0);
+                });
+
                 ws.on('timeupdate', (currentTime) => {
-                    if (!this.playing || this._seekInProgress) return;
-                    const dur = ws.getDuration();
-                    if (!dur) return;
-                    const sw = wfContainer.scrollWidth;
-                    const cw = wfContainer.clientWidth;
-                    wfContainer.scrollLeft = (currentTime / dur) * sw - cw / 2;
+                    _updateTrackName(currentTime);
+                    this.centerWaveOn(currentTime); // autoscroll: only when playhead near edge
                 });
 
                 this.waveformRegions.on('region-clicked', (region, e) => {
                     this.selectedRegionId = region.id;
                     this.addTrackRegions();
-                    // Let the waveform 'click' event handle the playhead positioning
+                    // Scroll the matching cue row into view
+                    this.$nextTick(() => {
+                        const el = document.querySelector(`[data-cue-id="${region.id}"]`);
+                        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    });
                 });
 
+                let _regionDragSaved = false;
+                this.waveformRegions.on('region-update', () => {
+                    if (!_regionDragSaved) { this.saveUndo(); _regionDragSaved = true; }
+                });
                 this.waveformRegions.on('region-updated', (region) => {
+                    _regionDragSaved = false; // reset for next drag
                     const trackNum = parseInt(region.id.replace('track-', ''));
                     const track = this.detectedTracks.find(t => t.number === trackNum);
                     if (track) {
@@ -929,7 +964,7 @@ function vinylApp() {
         },
 
         addManualTrack(startTime) {
-            // startTime is provided by waveform.getCurrentTime()
+            this.saveUndo();
             if (this.detectedTracks.length >= this.maxCues) {
                 alert(`Max ${this.maxCues} hotcues reached.`);
                 return;
@@ -954,6 +989,7 @@ function vinylApp() {
         },
 
         setCueAtPlayhead(slotNumber) {
+            this.saveUndo();
             if (!this.waveform) return;
             const currentTime = this.waveform.getCurrentTime();
             const duration = this.waveform.getDuration();
@@ -972,6 +1008,7 @@ function vinylApp() {
         },
 
         removeCueByNumber(slotNumber) {
+            this.saveUndo();
             const idx = this.detectedTracks.findIndex(t => t.number === slotNumber);
             if (idx === -1) return;
             this.detectedTracks.splice(idx, 1);
@@ -1001,25 +1038,48 @@ function vinylApp() {
             document.body.style.zoom = this.uiScale;
         },
 
+        centerWaveOn(t, force = false) {
+            if (!this.waveform) return;
+            const dur = this.waveform.getDuration();
+            if (!dur) return;
+            const wrapper = this.waveform.getWrapper?.();
+            if (!wrapper) return;
+            const totalPx = wrapper.scrollWidth;
+            const cw = wrapper.clientWidth || 800;
+            if (totalPx <= cw + 2) return; // nothing to scroll
+            const playheadPx = (t / dur) * totalPx;
+            const scrollLeft = wrapper.scrollLeft;
+            const margin = cw * 0.15; // scroll when within 15% of edge
+            if (force || playheadPx < scrollLeft + margin || playheadPx > scrollLeft + cw - margin) {
+                wrapper.scrollLeft = Math.max(0, playheadPx - cw / 2);
+            }
+        },
+
         zoomIn() {
             if (!this.waveform) return;
+            const t = this.waveform.getCurrentTime();
             this.userZoomed = true;
             this.currentZoom = Math.min(this.currentZoom * 1.25, 500);
             this.waveform.zoom(this.currentZoom);
+            this.centerWaveOn(t);
         },
 
         zoomOut() {
             if (!this.waveform) return;
+            const t = this.waveform.getCurrentTime();
             this.userZoomed = true;
             this.currentZoom = Math.max(1, this.currentZoom / 1.25);
             this.waveform.zoom(this.currentZoom);
+            this.centerWaveOn(t);
         },
 
         resetZoom() {
             if (!this.waveform) return;
+            const t = this.waveform.getCurrentTime();
             this.userZoomed = false;
-            this.currentZoom = this.computeCueZoom() || 50;
+            this.currentZoom = this.computeCueZoom() || 1;
             this.waveform.zoom(this.currentZoom);
+            this.centerWaveOn(t);
         },
 
         computeCueZoom() {
@@ -1042,7 +1102,8 @@ function vinylApp() {
         },
 
         removeSelectedTrack() {
-            if (!this.selectedRegionId) { 
+            this.saveUndo();
+            if (!this.selectedRegionId) {
                 alert('Please select a track on the waveform first.'); 
                 return; 
             }
@@ -1054,6 +1115,76 @@ function vinylApp() {
                 this.selectedRegionId = null;
                 this.addTrackRegions();
             }
+        },
+
+        _startVU(ws) {
+            this._stopVU();
+            // Simulate VU via periodic random-ish animation driven by waveform volume
+            // (Web Audio createMediaElementSource breaks WaveSurfer — avoid it)
+            let smooth = 0;
+            const tick = () => {
+                this._vuRaf = requestAnimationFrame(tick);
+                const vol = ws.getVolume ? ws.getVolume() : 1;
+                // Rough simulation: random peak weighted by volume
+                const raw = (0.4 + Math.random() * 0.6) * vol;
+                smooth = smooth * 0.6 + raw * 0.4;
+                this.vuLevel = Math.round(smooth * 100);
+            };
+            tick();
+        },
+        _stopVU() {
+            if (this._vuRaf) { cancelAnimationFrame(this._vuRaf); this._vuRaf = null; }
+            this.vuLevel = 0;
+        },
+        setWaveVolume(v) {
+            this.waveVolume = Math.max(0, Math.min(1, v));
+            if (this.waveform) this.waveform.setVolume(this.waveVolume);
+        },
+
+        drawMinimapMarkers() {
+            const miniEl = document.getElementById('waveform-mini');
+            if (!miniEl || !this.waveform) return;
+            const duration = this.waveform.getDuration();
+            if (!duration) return;
+            // Remove old marker canvas if present
+            const old = miniEl.querySelector('.minimap-markers');
+            if (old) old.remove();
+            const canvas = document.createElement('canvas');
+            canvas.className = 'minimap-markers';
+            canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:4;';
+            miniEl.style.position = 'relative';
+            miniEl.appendChild(canvas);
+            const w = miniEl.clientWidth;
+            const h = miniEl.clientHeight;
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            const solidColors = [
+                'rgba(245,166,35,0.55)', 'rgba(80,170,255,0.55)', 'rgba(46,204,113,0.55)',
+                'rgba(155,89,182,0.55)', 'rgba(231,76,60,0.55)', 'rgba(241,196,15,0.55)',
+                'rgba(26,188,156,0.55)', 'rgba(255,126,179,0.55)',
+            ];
+            const sorted = [...this.detectedTracks].sort((a, b) => a.start - b.start);
+            const activeTrack = [...sorted].reverse().find(t => t.start <= this.waveCurrentTime && !t.ignored);
+            this.detectedTracks.forEach((t, i) => {
+                if (t.ignored) return;
+                const x1 = (t.start / duration) * w;
+                const x2 = (t.end / duration) * w;
+                const isActive = activeTrack && t.number === activeTrack.number;
+                ctx.fillStyle = isActive
+                    ? solidColors[i % solidColors.length].replace(/[\d.]+\)$/, '0.8)')
+                    : solidColors[i % solidColors.length];
+                ctx.fillRect(x1, 0, Math.max(1, x2 - x1), h);
+                // left border line
+                ctx.fillStyle = solidColors[i % solidColors.length].replace(/[\d.]+\)$/, '1)');
+                ctx.fillRect(x1, 0, 2, h);
+                // white outline for active track
+                if (isActive) {
+                    ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(x1 + 1, 1, Math.max(1, x2 - x1) - 2, h - 2);
+                }
+            });
         },
 
         getTrackColor(i) {
@@ -1073,6 +1204,7 @@ function vinylApp() {
         addTrackRegions() {
             if(!this.waveformRegions) return;
             this.waveformRegions.clearRegions();
+            this.drawMinimapMarkers();
             this.detectedTracks.forEach((t, i) => {
                 const isSelected = this.selectedRegionId === `track-${t.number}`;
                 const baseColor = t.ignored ? 'rgba(100, 100, 100, 0.3)' : this.getTrackColor(i);
@@ -1096,14 +1228,22 @@ function vinylApp() {
             });
         },
 
-        jumpToTrack(t) { 
+        jumpToTrack(t) {
             if (!t) return;
             this.selectedRegionId = `track-${t.number}`;
             this.addTrackRegions();
-            if (this.waveform) { 
-                this.waveform.setTime(t.start); 
-                this.waveform.play(); 
-            } 
+            if (this.waveform) {
+                const container = document.getElementById('waveform');
+                const trackDur = (t.end - t.start) || 1;
+                if (container && trackDur) {
+                    const targetZoom = Math.min(200, Math.max(1, Math.floor((container.clientWidth * 0.8) / trackDur)));
+                    this.currentZoom = targetZoom;
+                    this.waveform.zoom(this.currentZoom);
+                }
+                this.waveform.setTime(t.start);
+                this.waveform.play();
+                this.centerWaveOn(t.start);
+            }
         },
 
         getSortedCues() {
@@ -1550,6 +1690,17 @@ function vinylApp() {
                         this.processingStats = { tracks: d.tracks ? d.tracks.length : 0, files: d.tracks || [], elapsed, formats: this.outputFormats.length, output_folder: d.output_folder || '' };
                         this.stopProcessingStage();
                         this.successMessage = 'done';
+                    } else if (d.type === 'cancelled') {
+                        this.processingJobStatus = 'cancelled';
+                        this.processingCancelled = true;
+                        this.processingCancelRequested = false;
+                        this.markTracksCancelled();
+                        this.stopProcessPolling();
+                        this.stopMetricsPolling();
+                        this.successType = 'cancelled';
+                        this.successMessage = 'Cancelled';
+                        this.stopProcessingStage();
+                        this.fetchQueue();
                     }
                 } catch (err) {}
             };

@@ -92,6 +92,12 @@
         
         /* Waveform responsive backgrounds */
         #waveform { transition: background-color 0.3s; }
+
+        /* Minimap zoom overlay — bright border */
+        #waveform-mini ::part(overlay) {
+            border: 2px solid rgba(255, 255, 255, 0.85) !important;
+            box-sizing: border-box;
+        }
         
         /* Hotcues visibility */
         .hotcue-btn {
@@ -453,9 +459,20 @@
         }
         .wave-mini-wrap {
             position: relative;
-            padding: 8px 12px;
+            padding: 10px 12px 12px;
             border-bottom: 1px solid var(--border);
             background: var(--card2);
+            cursor: pointer;
+        }
+        .mini-playhead {
+            position: absolute;
+            top: 10px; bottom: 12px;
+            width: 3px;
+            background: #fff;
+            transform: translateX(-1.5px);
+            pointer-events: none;
+            z-index: 100;
+            box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 0 10px rgba(255,255,255,0.9);
         }
         .cue-overview {
             position: absolute;
@@ -475,6 +492,8 @@
         .wave-main-wrap {
             position: relative;
         }
+        /* WaveSurfer cursor glow */
+        #waveform ::part(cursor) { box-shadow: 0 0 6px 1px rgba(255,255,255,0.8); }
         .playhead-line {
             position: absolute;
             top: 0;
@@ -1299,10 +1318,11 @@
         .dj-btn { width:36px; height:34px; border-radius:6px; border:1px solid var(--border,rgba(255,255,255,.1)); background:rgba(255,255,255,.05); color:inherit; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background .12s,transform .08s; flex-shrink:0; }
         .dj-btn:hover { background:rgba(255,255,255,.12); }
         .dj-btn:active { transform:scale(.92); }
-        .dj-btn-play { width:42px; background:#2ecc71; border-color:#2ecc71; color:#000; }
-        .dj-btn-play:hover { background:#27b960; }
-        .dj-btn-stop { background:#e74c3c; border-color:#e74c3c; color:#fff; }
-        .dj-btn-stop:hover { background:#c0392b; }
+        .dj-btn-play { width:42px; }
+        .dj-btn-play.active { background:#2ecc71; border-color:#2ecc71; color:#000; }
+        .dj-btn-play.active:hover { background:#27b960; }
+        .dj-btn-stop.active { background:#e74c3c; border-color:#e74c3c; color:#fff; }
+        .dj-btn-stop.active:hover { background:#c0392b; }
         /* ── Time Ruler ─────────────────────────────── */
         .time-ruler-wrap { height:24px; overflow:hidden; background:rgba(0,0,0,.12); border-bottom:1px solid rgba(255,255,255,.07); }
         .time-ruler-canvas { display:block; width:100%; height:24px; }
@@ -1319,12 +1339,12 @@
         .cue-label2 { font-family:'Barlow Condensed',sans-serif; font-style:italic; font-weight:800; font-size:10px; color:#E5A100; letter-spacing:.05em; flex-shrink:0; min-width:48px; }
         .cue-row2.empty .cue-label2 { color:#666; }
         .cue-time-field { display:flex; flex-direction:column; gap:1px; flex-shrink:0; }
-        .cue-field-label { font-size:7px; text-transform:uppercase; letter-spacing:.1em; color:#555; line-height:1; padding-left:2px; }
-        .cue-field-input { font-family:'Courier New',monospace; font-size:10px; width:52px; background:transparent; border:none; border-bottom:1px solid rgba(255,255,255,.12); color:#aaa; outline:none; text-align:center; padding:1px 2px; transition:border-color .12s,color .12s; }
+        .cue-field-label { font-size:7px; text-transform:uppercase; letter-spacing:.1em; color:#777; line-height:1; padding-left:2px; }
+        .cue-field-input { font-family:'Courier New',monospace; font-size:10px; width:52px; background:transparent; border:none; border-bottom:1px solid rgba(255,255,255,.12); color:#c0c0c0; outline:none; text-align:center; padding:1px 2px; transition:border-color .12s,color .12s; }
         .cue-field-input:hover:not(:disabled) { border-bottom-color:rgba(255,255,255,.3); }
         .cue-field-input:focus { border-bottom-color:#E5A100; color:#E5A100; }
         .cue-field-input:disabled { opacity:.3; cursor:default; }
-        .cue-field-input.cue-dur { color:#666; width:46px; }
+        .cue-field-input.cue-dur { width:46px; font-weight:700; }
         .cue-field-sep { font-size:9px; color:#333; align-self:flex-end; padding-bottom:2px; flex-shrink:0; }
         .cue-title2 { background:transparent; border:none; color:inherit; font-size:10px; font-weight:600; outline:none; min-width:0; flex:1; }
         .cue-title2:disabled { color:#444; }
@@ -1337,6 +1357,18 @@
         .aa-btn2:hover { background:#E5A100; color:#000; border-color:#E5A100; }
         /* ── Wave toolbar ───────────────────────────── */
         .wave-tb { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 12px; background:rgba(0,0,0,.15); border-bottom:1px solid rgba(255,255,255,.07); }
+        .wave-info-bar { display:flex; align-items:center; gap:8px; flex:1; justify-content:center; }
+        .wave-time { font-family:'Barlow Condensed',sans-serif; font-weight:700; font-size:14px; color:var(--text); letter-spacing:0.05em; min-width:36px; }
+        .wave-time-sep { color:var(--text-light); font-size:12px; }
+        .wave-time-total { color:var(--text-dim); }
+        .wave-time-rem { color:var(--amber); }
+        .wave-track-tag { font-size:9px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; background:var(--amber); color:#000; border-radius:4px; padding:2px 6px; transition:background 0.15s; }
+        .vu-wrap { width:120px; height:12px; background:#111; border-radius:3px; overflow:hidden; border:1px solid rgba(255,255,255,0.12); position:relative; flex-shrink:0; }
+        .vu-wrap::after { content:''; position:absolute; inset:0; background:repeating-linear-gradient(90deg, transparent 0px, transparent 7px, #0b0d14 7px, #0b0d14 9px); pointer-events:none; z-index:2; border-radius:3px; }
+        .vol-slider { -webkit-appearance:none; appearance:none; width:72px; height:4px; border-radius:4px; background:rgba(255,255,255,.15); outline:none; cursor:pointer; }
+        .vol-slider::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:var(--text); border:2px solid var(--amber); cursor:pointer; }
+        .vol-slider::-moz-range-thumb { width:12px; height:12px; border-radius:50%; background:var(--text); border:2px solid var(--amber); cursor:pointer; }
+        .vu-bar { position:absolute; top:0; left:0; height:100%; width:100%; background:linear-gradient(90deg, #2ecc71 0% 60%, #f97316 60% 82%, #e74c3c 82% 100%); transition:clip-path 0.04s linear; }
         .wave-zoom2 { width:32px; height:28px; border-radius:5px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); color:inherit; font-weight:800; font-size:12px; cursor:pointer; }
         .wave-zoom2:hover { background:rgba(255,255,255,.1); }
     </style>
@@ -1705,13 +1737,14 @@
                                 <div class="cue-bank-header">A</div>
                                 <template x-for="slot in cueSlotsA" :key="slot.slotNumber">
                                     <div class="cue-row2"
+                                         :data-cue-id="'track-' + slot.slotNumber"
                                          :class="{'has-cue': slot.cue, 'empty': !slot.cue, 'selected': slot.cue && selectedRegionId === 'track-' + slot.slotNumber}">
                                         <button @click="cueRowAction(slot.slotNumber)" class="cue-arrow2"
                                                 :title="slot.cue ? 'Jump & play cue' : 'Set cue at playhead'">
                                             <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                         </button>
                                         <span class="cue-dot2" :style="'background:' + getTrackColor(slot.idx).replace('0.35','1')"></span>
-                                        <span class="cue-label2" x-text="'Track ' + slot.slotNumber"></span>
+                                        <span class="cue-label2" x-text="slot.cue?.vinyl_number || ('Track ' + slot.slotNumber)"></span>
                                         <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
                                         <div class="cue-time-field" x-show="slot.cue">
                                             <span class="cue-field-label">start</span>
@@ -1730,7 +1763,7 @@
                                         </div>
                                         <div class="cue-time-field" x-show="slot.cue">
                                             <span class="cue-field-label">dur</span>
-                                            <input class="cue-field-input cue-dur" type="text" :value="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
+                                            <input class="cue-field-input cue-dur" type="text" :value="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''" :style="slot.cue ? 'color:' + getTrackColor(slot.idx).replace('0.35','1') : ''"
                                                    @change="slot.cue && setCueTime(slot.cue,'duration',$event.target.value)"
                                                    @keydown="slot.cue && handleCueKey($event, slot.cue, 'duration')"
                                                    title="Duration (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
@@ -1747,13 +1780,14 @@
                                 <div class="cue-bank-header">B</div>
                                 <template x-for="slot in cueSlotsB" :key="slot.slotNumber">
                                     <div class="cue-row2"
+                                         :data-cue-id="'track-' + slot.slotNumber"
                                          :class="{'has-cue': slot.cue, 'empty': !slot.cue, 'selected': slot.cue && selectedRegionId === 'track-' + slot.slotNumber}">
                                         <button @click="cueRowAction(slot.slotNumber)" class="cue-arrow2"
                                                 :title="slot.cue ? 'Jump & play cue' : 'Set cue at playhead'">
                                             <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                         </button>
                                         <span class="cue-dot2" :style="'background:' + getTrackColor(slot.idx).replace('0.35','1')"></span>
-                                        <span class="cue-label2" x-text="'Track ' + slot.slotNumber"></span>
+                                        <span class="cue-label2" x-text="slot.cue?.vinyl_number || ('Track ' + slot.slotNumber)"></span>
                                         <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
                                         <div class="cue-time-field" x-show="slot.cue">
                                             <span class="cue-field-label">start</span>
@@ -1772,7 +1806,7 @@
                                         </div>
                                         <div class="cue-time-field" x-show="slot.cue">
                                             <span class="cue-field-label">dur</span>
-                                            <input class="cue-field-input cue-dur" type="text" :value="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
+                                            <input class="cue-field-input cue-dur" type="text" :value="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''" :style="slot.cue ? 'color:' + getTrackColor(slot.idx).replace('0.35','1') : ''"
                                                    @change="slot.cue && setCueTime(slot.cue,'duration',$event.target.value)"
                                                    @keydown="slot.cue && handleCueKey($event, slot.cue, 'duration')"
                                                    title="Duration (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
@@ -1789,13 +1823,14 @@
                                 <div class="cue-bank-header">C</div>
                                 <template x-for="slot in cueSlotsC" :key="slot.slotNumber">
                                     <div class="cue-row2"
+                                         :data-cue-id="'track-' + slot.slotNumber"
                                          :class="{'has-cue': slot.cue, 'empty': !slot.cue, 'selected': slot.cue && selectedRegionId === 'track-' + slot.slotNumber}">
                                         <button @click="cueRowAction(slot.slotNumber)" class="cue-arrow2"
                                                 :title="slot.cue ? 'Jump & play cue' : 'Set cue at playhead'">
                                             <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                         </button>
                                         <span class="cue-dot2" :style="'background:' + getTrackColor(slot.idx).replace('0.35','1')"></span>
-                                        <span class="cue-label2" x-text="'Track ' + slot.slotNumber"></span>
+                                        <span class="cue-label2" x-text="slot.cue?.vinyl_number || ('Track ' + slot.slotNumber)"></span>
                                         <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
                                         <div class="cue-time-field" x-show="slot.cue">
                                             <span class="cue-field-label">start</span>
@@ -1814,7 +1849,7 @@
                                         </div>
                                         <div class="cue-time-field" x-show="slot.cue">
                                             <span class="cue-field-label">dur</span>
-                                            <input class="cue-field-input cue-dur" type="text" :value="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
+                                            <input class="cue-field-input cue-dur" type="text" :value="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''" :style="slot.cue ? 'color:' + getTrackColor(slot.idx).replace('0.35','1') : ''"
                                                    @change="slot.cue && setCueTime(slot.cue,'duration',$event.target.value)"
                                                    @keydown="slot.cue && handleCueKey($event, slot.cue, 'duration')"
                                                    title="Duration (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
@@ -1831,13 +1866,14 @@
                                 <div class="cue-bank-header">D</div>
                                 <template x-for="slot in cueSlotsD" :key="slot.slotNumber">
                                     <div class="cue-row2"
+                                         :data-cue-id="'track-' + slot.slotNumber"
                                          :class="{'has-cue': slot.cue, 'empty': !slot.cue, 'selected': slot.cue && selectedRegionId === 'track-' + slot.slotNumber}">
                                         <button @click="cueRowAction(slot.slotNumber)" class="cue-arrow2"
                                                 :title="slot.cue ? 'Jump & play cue' : 'Set cue at playhead'">
                                             <svg viewBox="0 0 24 24" width="9" height="9" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                         </button>
                                         <span class="cue-dot2" :style="'background:' + getTrackColor(slot.idx).replace('0.35','1')"></span>
-                                        <span class="cue-label2" x-text="'Track ' + slot.slotNumber"></span>
+                                        <span class="cue-label2" x-text="slot.cue?.vinyl_number || ('Track ' + slot.slotNumber)"></span>
                                         <button x-show="slot.cue" @click.stop="removeCueByNumber(slot.slotNumber)" class="cue-del2" title="Remove cue">×</button>
                                         <div class="cue-time-field" x-show="slot.cue">
                                             <span class="cue-field-label">start</span>
@@ -1856,7 +1892,7 @@
                                         </div>
                                         <div class="cue-time-field" x-show="slot.cue">
                                             <span class="cue-field-label">dur</span>
-                                            <input class="cue-field-input cue-dur" type="text" :value="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''"
+                                            <input class="cue-field-input cue-dur" type="text" :value="slot.cue ? formatDuration(slot.cue.end-slot.cue.start) : ''" :style="slot.cue ? 'color:' + getTrackColor(slot.idx).replace('0.35','1') : ''"
                                                    @change="slot.cue && setCueTime(slot.cue,'duration',$event.target.value)"
                                                    @keydown="slot.cue && handleCueKey($event, slot.cue, 'duration')"
                                                    title="Duration (mm:ss) — ↑↓ nudge 0.1s, Shift=1s">
@@ -1873,16 +1909,11 @@
 
                         <div class="wave-mini-wrap">
                             <div id="waveform-mini"></div>
-                            <div class="cue-overview" x-show="cueOverviewMarkers.length">
+<div class="cue-overview" x-show="cueOverviewMarkers.length">
                                 <template x-for="m in cueOverviewMarkers" :key="m.number">
                                     <div class="cue-overview-marker" :style="'left:' + m.left + '%'" x-text="'T' + m.number"></div>
                                 </template>
                             </div>
-                        </div>
-
-                        <!-- Time Ruler -->
-                        <div class="time-ruler-wrap">
-                            <canvas id="time-ruler" class="time-ruler-canvas"></canvas>
                         </div>
 
                         <!-- DJ Transport -->
@@ -1895,11 +1926,11 @@
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6 8.5 6V6l-8.5 6z"/></svg>
                                 </button>
                                 <button @click="skipBy(-5)" class="dj-btn text-[10px] font-black" title="Back 5s">-5s</button>
-                                <button @click="playing ? pauseWaveform() : playWaveform()" class="dj-btn dj-btn-play" :title="playing ? 'Pause' : 'Play'">
+                                <button @click="playing ? pauseWaveform() : playWaveform()" class="dj-btn dj-btn-play" :class="playing ? 'active' : ''" :title="playing ? 'Pause' : 'Play'">
                                     <svg x-show="!playing" viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                     <svg x-show="playing"  viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
                                 </button>
-                                <button @click="stopWaveform()" class="dj-btn dj-btn-stop" title="Stop & reset">
+                                <button @click="stopWaveform()" class="dj-btn dj-btn-stop" :class="playing ? 'active' : ''" title="Stop & reset">
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><rect x="6" y="6" width="12" height="12"/></svg>
                                 </button>
                                 <button @click="skipBy(5)" class="dj-btn text-[10px] font-black" title="Forward 5s">+5s</button>
@@ -1910,18 +1941,40 @@
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M16 6h2v12h-2zm-1.5 6-8.5 6V6z"/></svg>
                                 </button>
                             </div>
-                            <div style="display:flex;align-items:center;gap:5px">
-                                <button @click="zoomOut()" class="wave-zoom2">−</button>
-                                <button @click="resetZoom()" class="wave-zoom2" title="Reset zoom to fit">
+                            <!-- Time / track info / VU -->
+                            <div class="wave-info-bar">
+                                <span class="wave-time" x-text="formatDuration(waveCurrentTime)">0:00</span>
+                                <span class="wave-time-sep">/</span>
+                                <span class="wave-time wave-time-total" x-text="currentFile ? formatDuration(currentFile.duration) : '0:00'">0:00</span>
+                                <span class="wave-track-tag" x-show="waveCurrentTrackName" x-text="waveCurrentTrackName" :style="waveCurrentTrackColor ? 'background:' + waveCurrentTrackColor + ';color:#000' : ''"></span>
+                                <!-- VU meter + volume -->
+                                <div class="vu-wrap" title="Level">
+                                    <div class="vu-bar" :style="'clip-path:inset(0 ' + (100 - vuLevel) + '% 0 0)'"></div>
+                                </div>
+                                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" style="color:var(--text-dim);flex-shrink:0"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>
+                                <input type="range" min="0" max="100" step="1"
+                                    :value="Math.round(waveVolume * 100)"
+                                    @input="setWaveVolume($event.target.value / 100)"
+                                    class="vol-slider" title="Volume">
+                                <span class="wave-time" style="min-width:28px" x-text="Math.round(waveVolume * 100) + '%'"></span>
+                                <span class="wave-time wave-time-rem" x-show="currentFile" x-text="'-' + formatDuration(Math.max(0, (currentFile?.duration || 0) - waveCurrentTime))"></span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:5px;flex-shrink:0">
+                                <button @click="undo()" :disabled="undoStack.length === 0"
+                                    class="wave-zoom2" style="font-size:14px;opacity:1"
+                                    :style="undoStack.length === 0 ? 'opacity:0.3;cursor:not-allowed' : ''"
+                                    :title="'Undo (' + undoStack.length + ' steps) — Ctrl+Z'">↩</button>
+                                <button @click="zoomOut()" class="wave-zoom2" title="Zoom out">−</button>
+                                <button @click="resetZoom()" class="wave-zoom2" title="Reset zoom">
                                     <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M15 3l2.3 2.3-2.89 2.87 1.42 1.42L18.7 6.7 21 9V3h-6zM3 9l2.3-2.3 2.87 2.89 1.42-1.42L6.7 5.3 9 3H3v6zm6 12-2.3-2.3 2.89-2.87-1.42-1.42L5.3 17.3 3 15v6h6zm12-6-2.3 2.3-2.87-2.89-1.42 1.42 2.89 2.87L15 21h6v-6z"/></svg>
                                 </button>
-                                <button @click="zoomIn()" class="wave-zoom2">+</button>
+                                <button @click="zoomIn()" class="wave-zoom2" title="Zoom in">+</button>
                             </div>
                         </div>
 
-                        <!-- Waveform -->
+                        <!-- Zoomable waveform -->
                         <div class="wave-main-wrap relative">
-                            <div id="waveform" class="w-full transition-colors duration-300" :class="darkMode ? 'bg-black' : 'bg-slate-50'"></div>
+                            <div id="waveform" class="w-full" :class="darkMode ? 'bg-black' : 'bg-slate-50'"></div>
                         </div>
                     </div>
                     </div>
@@ -1961,11 +2014,18 @@
                      :class="darkMode ? 'text-white' : 'text-black'">
                     <div class="flex justify-between items-center mb-8">
                         <h3 class="text-lg font-black uppercase tracking-widest italic" :class="darkMode ? 'text-white' : 'text-slate-900'">Step 3: Track Mapping</h3>
-                        <button @click="selectedRelease = null" 
-                                class="px-4 py-2 rounded-lg text-[12px] font-black uppercase transition-all border shadow-md"
-                                :class="darkMode ? 'bg-slate-800 border-gray-700 text-brand hover:bg-slate-700' : 'bg-slate-100 border-gray-200 text-slate-600 hover:bg-slate-200'">
-                            Back to Search
-                        </button>
+                        <div class="flex gap-2">
+                            <button @click="showSettings = true"
+                                    class="px-4 py-2 rounded-lg text-[12px] font-black uppercase transition-all border shadow-md"
+                                    :class="darkMode ? 'bg-slate-800 border-gray-700 text-brand hover:bg-slate-700' : 'bg-slate-100 border-gray-200 text-slate-600 hover:bg-slate-200'">
+                                ⚙ Settings
+                            </button>
+                            <button @click="selectedRelease = null"
+                                    class="px-4 py-2 rounded-lg text-[12px] font-black uppercase transition-all border shadow-md"
+                                    :class="darkMode ? 'bg-slate-800 border-gray-700 text-brand hover:bg-slate-700' : 'bg-slate-100 border-gray-200 text-slate-600 hover:bg-slate-200'">
+                                Back to Search
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Output Options Grid -->

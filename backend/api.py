@@ -409,10 +409,8 @@ async def process_file_background(request: ProcessRequest, job_id: str):
 
         output_base = Path(config.default_output_dir).expanduser()
         all_outs = []
-        total = len(request.output_formats) * len(det_tracks)
-        count = 0
+        max_parallel = min(4, os.cpu_count() or 4)
 
-        current_temp = None
         for fmt_idx, fmt in enumerate(request.output_formats, start=1):
             _check_cancel()
             album_folder = output_base / metadata_handler.create_album_folder_name(release, fmt)
@@ -422,112 +420,71 @@ async def process_file_background(request: ProcessRequest, job_id: str):
                 cp = album_folder / "folder.jpg"
                 if metadata_handler.download_cover_art(release.cover_url, cp): cover_data = metadata_handler.prepare_cover_for_embedding(cp)
 
-            for track_idx, track in enumerate(det_tracks, start=1):
-                _check_cancel()
-                count += 1
-                prog_start = 0.1 + ((count - 1) / total) * 0.8
-                msg = "Processing..."
-                _update_job_progress(
-                    job_id,
-                    progress=prog_start,
-                    message=msg,
-                    stage="track_start",
-                    track={
-                        "number": track.number,
-                        "vinyl_number": track.vinyl_number,
-                        "title": track.title,
-                        "artist": getattr(track, "artist", ""),
-                    },
-                    track_index=track_idx,
-                    track_total=len(det_tracks),
-                    format=fmt,
-                    format_label=OUTPUT_FORMATS[fmt]["label"],
-                    format_index=fmt_idx,
-                    format_total=len(request.output_formats),
-                )
-                await broadcast_message({
-                    "type": "progress",
-                    "stage": "track_start",
-                    "file_id": request.file_id,
-                    "progress": prog_start,
-                    "message": msg,
-                    "track": {
-                        "number": track.number,
-                        "vinyl_number": track.vinyl_number,
-                        "title": track.title,
-                    },
-                    "track_index": track_idx,
-                    "track_total": len(det_tracks),
-                    "format": fmt,
-                    "format_label": OUTPUT_FORMATS[fmt]["label"],
-                    "format_index": fmt_idx,
-                    "format_total": len(request.output_formats),
-                })
-                
-                vinyl_number = metadata_handler.sanitize_filename(track.vinyl_number or f"T{track.number}")
-                if not vinyl_number:
-                    vinyl_number = f"T{track.number}"
-                temp = album_folder / f"temp_{vinyl_number}{OUTPUT_FORMATS[fmt]['extension']}"
-                current_temp = temp
-                await asyncio.to_thread(
-                    audio_processor.extract_track,
-                    Path(file_info["path"]),
-                    track,
-                    temp,
-                    fmt,
-                    False,
-                    request.restoration_level,
-                    request.hum_freq,
-                    cancel_event=cancel_event,
-                )
-                _check_cancel()
-                metadata_handler.tag_file(temp, track, release, cover_data, fmt)
-                _check_cancel()
-                final_name = metadata_handler.create_track_filename(track, release, fmt)
-                final_path = album_folder / final_name
-                if final_path.exists(): final_path.unlink()
-                temp.rename(final_path)
-                current_temp = None
-                # Final safety check: force track tag from final filename
-                metadata_handler.fix_track_tags_from_filename(final_path, fmt)
-                all_outs.append(f"[{fmt.upper()}] {final_name}")
-                prog_done = 0.1 + (count / total) * 0.8
-                _update_job_progress(
-                    job_id,
-                    progress=prog_done,
-                    message=msg,
-                    stage="track_done",
-                    track={
-                        "number": track.number,
-                        "vinyl_number": track.vinyl_number,
-                        "title": track.title,
-                        "artist": getattr(track, "artist", ""),
-                    },
-                    track_index=track_idx,
-                    track_total=len(det_tracks),
-                    format=fmt,
-                    format_label=OUTPUT_FORMATS[fmt]["label"],
-                    format_index=fmt_idx,
-                    format_total=len(request.output_formats),
-                )
-                await broadcast_message({
-                    "type": "progress",
-                    "stage": "track_done",
-                    "file_id": request.file_id,
-                    "progress": prog_done,
-                    "message": msg,
-                    "track": {
-                        "number": track.number,
-                        "vinyl_number": track.vinyl_number,
-                        "title": track.title,
-                    },
-                    "track_index": track_idx,
-                    "track_total": len(det_tracks),
-                    "format": fmt,
-                    "format_label": OUTPUT_FORMATS[fmt]["label"],
-                    "format_index": fmt_idx,
-                    "format_total": len(request.output_formats),
-                })
+            sem = asyncio.Semaphore(max_parallel)
+            fmt_outs = []
+            fmt_lock = asyncio.Lock()
+            done_count = 0
+
+            async def _process_track(track_idx=0, track=None, _fmt=fmt, _fmt_idx=fmt_idx, _album_folder=album_folder, _cover_data=cover_data):
+                nonlocal done_count
+                async with sem:
+                    if cancel_event and cancel_event.is_set():
+                        return
+                    prog_start = 0.1 + ((_fmt_idx - 1) / len(request.output_formats) + (track_idx - 1) / (len(det_tracks) * len(request.output_formats))) * 0.8
+                    _update_job_progress(
+                        job_id, progress=prog_start, message="Processing...", stage="track_start",
+                        track={"number": track.number, "vinyl_number": track.vinyl_number, "title": track.title, "artist": getattr(track, "artist", "")},
+                        track_index=track_idx, track_total=len(det_tracks),
+                        format=_fmt, format_label=OUTPUT_FORMATS[_fmt]["label"], format_index=_fmt_idx, format_total=len(request.output_formats),
+                    )
+                    await broadcast_message({
+                        "type": "progress", "stage": "track_start", "file_id": request.file_id, "progress": prog_start, "message": "Processing...",
+                        "track": {"number": track.number, "vinyl_number": track.vinyl_number, "title": track.title, "artist": getattr(track, "artist", "")},
+                        "track_index": track_idx, "track_total": len(det_tracks),
+                        "format": _fmt, "format_label": OUTPUT_FORMATS[_fmt]["label"], "format_index": _fmt_idx, "format_total": len(request.output_formats),
+                    })
+                    vinyl_number = metadata_handler.sanitize_filename(track.vinyl_number or f"T{track.number}") or f"T{track.number}"
+                    temp = _album_folder / f"temp_{vinyl_number}{OUTPUT_FORMATS[_fmt]['extension']}"
+                    await asyncio.to_thread(
+                        audio_processor.extract_track,
+                        Path(file_info["path"]), track, temp, _fmt, False,
+                        request.restoration_level, request.hum_freq, cancel_event=cancel_event,
+                    )
+                    if cancel_event and cancel_event.is_set():
+                        return
+                    metadata_handler.tag_file(temp, track, release, _cover_data, _fmt)
+                    final_name = metadata_handler.create_track_filename(track, release, _fmt)
+                    final_path = _album_folder / final_name
+                    if final_path.exists(): final_path.unlink()
+                    temp.rename(final_path)
+                    metadata_handler.fix_track_tags_from_filename(final_path, _fmt)
+                    async with fmt_lock:
+                        fmt_outs.append(f"[{_fmt.upper()}] {final_name}")
+                        done_count += 1
+                        prog_done = 0.1 + ((_fmt_idx - 1) / len(request.output_formats) + done_count / (len(det_tracks) * len(request.output_formats))) * 0.8
+                    _update_job_progress(
+                        job_id, progress=prog_done, message="Processing...", stage="track_done",
+                        track={"number": track.number, "vinyl_number": track.vinyl_number, "title": track.title, "artist": getattr(track, "artist", "")},
+                        track_index=track_idx, track_total=len(det_tracks),
+                        format=_fmt, format_label=OUTPUT_FORMATS[_fmt]["label"], format_index=_fmt_idx, format_total=len(request.output_formats),
+                    )
+                    await broadcast_message({
+                        "type": "progress", "stage": "track_done", "file_id": request.file_id, "progress": prog_done, "message": "Processing...",
+                        "track": {"number": track.number, "vinyl_number": track.vinyl_number, "title": track.title, "artist": getattr(track, "artist", "")},
+                        "track_index": track_idx, "track_total": len(det_tracks),
+                        "format": _fmt, "format_label": OUTPUT_FORMATS[_fmt]["label"], "format_index": _fmt_idx, "format_total": len(request.output_formats),
+                    })
+
+            results = await asyncio.gather(
+                *[_process_track(track_idx=i, track=t) for i, t in enumerate(det_tracks, start=1)],
+                return_exceptions=True,
+            )
+            for r in results:
+                if isinstance(r, ProcessingCancelled):
+                    raise r
+                if isinstance(r, Exception):
+                    logger.warning("Track processing error: %s", r)
+            all_outs.extend(sorted(fmt_outs))
 
         _update_job_progress(job_id, status="complete", progress=1.0, tracks=all_outs, message="Complete")
         if request.file_id in uploaded_files:

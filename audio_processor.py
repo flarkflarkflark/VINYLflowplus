@@ -693,16 +693,6 @@ class AudioProcessor:
                 print(f"Error: Output file suspiciously small: {output_file}")
                 return False
 
-            # Verify duration is close to expected
-            actual_duration = self.get_audio_duration(output_file)
-            if actual_duration is None:
-                print(f"Warning: Could not verify duration of {output_file}")
-            elif abs(actual_duration - track.duration) > 2.0:
-                print(
-                    f"Warning: Duration mismatch for {output_file}: "
-                    f"expected {track.duration:.1f}s, got {actual_duration:.1f}s"
-                )
-
             return True
 
         except ProcessingCancelled:
