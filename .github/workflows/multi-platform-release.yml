@@ -156,6 +156,28 @@ jobs:
           fi
           $PREFIX pip install pyinstaller
 
+      - name: Inject version into app files
+        shell: python
+        run: |
+          import os, re
+          tag = os.environ['RELEASE_TAG']
+          ver = tag.lstrip('v')
+
+          with open('backend/static/index.html', 'r', encoding='utf-8') as f:
+              html = f.read()
+          html = re.sub(r'v\d+\.\d+\.\d+\s*STABLE', f'v{ver}', html)
+          html = re.sub(r'(?<=<title>VINYLflowplus )v[\d.]+(?=</title>)', f'v{ver}', html)
+          with open('backend/static/index.html', 'w', encoding='utf-8') as f:
+              f.write(html)
+
+          with open('backend/static/app.js', 'r', encoding='utf-8') as f:
+              js = f.read()
+          js = re.sub(r'v\d+\.\d+\.\d+', f'v{ver}', js, count=1)
+          with open('backend/static/app.js', 'w', encoding='utf-8') as f:
+              f.write(js)
+
+          print(f'Injected version v{ver} into app files')
+
       - name: Build Application (One-File, Windows)
         if: runner.os == 'Windows'
         shell: powershell
@@ -212,10 +234,18 @@ jobs:
           ./appimagetool --appimage-extract
           ./squashfs-root/AppRun AppDir ${{ matrix.asset_name }}
 
+      - name: Version asset filename
+        shell: bash
+        run: |
+          VERSIONED="${{ matrix.asset_name }}"
+          VERSIONED="${VERSIONED/VINYLflowplus-/VINYLflowplus-${RELEASE_TAG}-}"
+          mv "${{ matrix.asset_name }}" "$VERSIONED"
+          echo "FINAL_ASSET=$VERSIONED" >> "$GITHUB_ENV"
+
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ matrix.asset_name }}
+          files: ${{ env.FINAL_ASSET }}
           tag_name: ${{ env.RELEASE_TAG }}
           name: VINYLflowplus ${{ env.RELEASE_TAG }}
           body: |
@@ -224,17 +254,17 @@ jobs:
             Official release artifacts for `${{ env.RELEASE_TAG }}`.
 
             ---
-            
+
             ### Download for your Platform:
-            
+
             | Platform | File | Architecture |
             | :--- | :--- | :--- |
-            | **Windows** | `VINYLflowplus-Windows.exe` | Portable x64 |
-            | **macOS (Modern)** | `VINYLflowplus-macOS-Universal.zip` | ARM64 (M1/M2/M3) |
-            | **macOS (Legacy)** | `VINYLflowplus-macOS-Intel.zip` | Intel (Catalina/OpenCore) |
-            | **Linux** | `VINYLflowplus-Linux.AppImage` | Standard Desktop (x64) |
-            | **Linux Lite** | `VINYLflowplus-Linux-Lite.AppImage` | Browser Edition (x64) |
-            
+            | **Windows** | `VINYLflowplus-${{ env.RELEASE_TAG }}-Windows.exe` | Portable x64 |
+            | **macOS (Modern)** | `VINYLflowplus-${{ env.RELEASE_TAG }}-macOS-Universal.zip` | ARM64 (M1/M2/M3) |
+            | **macOS (Legacy)** | `VINYLflowplus-${{ env.RELEASE_TAG }}-macOS-Intel.zip` | Intel (Catalina/OpenCore) |
+            | **Linux** | `VINYLflowplus-${{ env.RELEASE_TAG }}-Linux.AppImage` | Standard Desktop (x64) |
+            | **Linux Lite** | `VINYLflowplus-${{ env.RELEASE_TAG }}-Linux-Lite.AppImage` | Browser Edition (x64) |
+
             ---
             *Note: FFmpeg is bundled in all versions. No manual installation required.*
             *Data is stored in `~/.vinylflowplus` for maximum reliability.*

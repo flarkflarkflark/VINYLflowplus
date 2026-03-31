@@ -1,0 +1,44 @@
+name: Update Docs Version
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  update-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version from tag
+        run: |
+          TAG="${{ github.ref_name }}"
+          echo "RELEASE_TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Update README.md
+        run: |
+          sed -i "s/## Current highlights (v[0-9][0-9.]*)/## Current highlights (${{ env.RELEASE_TAG }})/" README.md
+
+      - name: Update docs/index.html
+        run: |
+          sed -i "s/Install VINYLflowplus v[0-9][0-9.]*/Install VINYLflowplus ${{ env.RELEASE_TAG }}/" docs/index.html
+          sed -i "s/Current in v[0-9][0-9.]*/Current in ${{ env.RELEASE_TAG }}/" docs/index.html
+          sed -i "s/Current highlights (v[0-9][0-9.]*)/Current highlights (${{ env.RELEASE_TAG }})/" docs/index.html
+
+      - name: Commit and push if changed
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git diff --quiet && echo "No version changes to commit." && exit 0
+          git add README.md docs/index.html
+          git commit -m "Bump version references to ${{ env.RELEASE_TAG }}"
+          git push origin main
