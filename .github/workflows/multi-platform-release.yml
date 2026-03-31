@@ -45,12 +45,21 @@ jobs:
             skip_gui: "False"
             arch: x64
             is_intel: "False"
+            appimage_arch: x86_64
           - os: ubuntu-22.04
             name: Linux Lite (Browser Edition)
             asset_name: VINYLflowplus-Linux-Lite.AppImage
             skip_gui: "True"
             arch: x64
             is_intel: "False"
+            appimage_arch: x86_64
+          - os: ubuntu-22.04-arm
+            name: Linux Lite (Browser Edition, ARM64)
+            asset_name: VINYLflowplus-Linux-Lite-aarch64.AppImage
+            skip_gui: "True"
+            arch: arm64
+            is_intel: "False"
+            appimage_arch: aarch64
 
     runs-on: ${{ matrix.os }}
 
@@ -229,10 +238,10 @@ jobs:
           Categories=Audio;AudioVideo;
           EOF
           cp assets/VFplus.png AppDir/VINYLflowplus.png
-          wget -c "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" -O appimagetool
+          wget -c "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-${{ matrix.appimage_arch }}.AppImage" -O appimagetool
           chmod +x appimagetool
           ./appimagetool --appimage-extract
-          ./squashfs-root/AppRun AppDir ${{ matrix.asset_name }}
+          ARCH="${{ matrix.appimage_arch }}" ./squashfs-root/AppRun AppDir ${{ matrix.asset_name }}
 
       - name: Version asset filename
         shell: bash
@@ -264,6 +273,7 @@ jobs:
             | **macOS (Legacy)** | `VINYLflowplus-${{ env.RELEASE_TAG }}-macOS-Intel.zip` | Intel (Catalina/OpenCore) |
             | **Linux** | `VINYLflowplus-${{ env.RELEASE_TAG }}-Linux.AppImage` | Standard Desktop (x64) |
             | **Linux Lite** | `VINYLflowplus-${{ env.RELEASE_TAG }}-Linux-Lite.AppImage` | Browser Edition (x64) |
+            | **Linux Lite (ARM64)** | `VINYLflowplus-${{ env.RELEASE_TAG }}-Linux-Lite-aarch64.AppImage` | Browser Edition (aarch64) |
 
             ---
             *Note: FFmpeg is bundled in all versions. No manual installation required.*

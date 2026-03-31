@@ -1,0 +1,88 @@
+name: ARM64 Lite Probe
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: Build Linux Lite ARM64 Probe
+    runs-on: ubuntu-22.04-arm
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Show runner details
+        shell: bash
+        run: |
+          set -euo pipefail
+          uname -a
+          arch
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          architecture: arm64
+
+      - name: Install system dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements-lite.txt
+          pip install pyinstaller
+
+      - name: Build Lite binary with PyInstaller
+        shell: bash
+        env:
+          PYINSTALLER_ONEFILE: "True"
+          SKIP_GUI: "True"
+        run: |
+          set -euo pipefail
+          pyinstaller --clean -y VINYLflowplus.spec
+          test -f dist/VINYLflowplus
+
+      - name: Package ARM64 AppImage probe
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p AppDir/usr/bin
+          cp dist/VINYLflowplus AppDir/usr/bin/
+          cat << 'EOF' > AppDir/AppRun
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          exec "${HERE}/usr/bin/VINYLflowplus" "$@"
+          EOF
+          chmod +x AppDir/AppRun
+          cat << 'EOF' > AppDir/VINYLflowplus.desktop
+          [Desktop Entry]
+          Type=Application
+          Name=VINYLflowplus
+          Exec=VINYLflowplus
+          Icon=VINYLflowplus
+          Categories=Audio;AudioVideo;
+          EOF
+          cp assets/VFplus.png AppDir/VINYLflowplus.png
+          wget -c "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-aarch64.AppImage" -O appimagetool
+          chmod +x appimagetool
+          ./appimagetool --appimage-extract
+          ARCH="aarch64" ./squashfs-root/AppRun AppDir VINYLflowplus-Linux-Lite-aarch64-probe.AppImage
+          test -f VINYLflowplus-Linux-Lite-aarch64-probe.AppImage
+
+      - name: Upload probe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: VINYLflowplus-Linux-Lite-aarch64-probe
+          path: VINYLflowplus-Linux-Lite-aarch64-probe.AppImage
+          if-no-files-found: error
