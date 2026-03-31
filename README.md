@@ -29,9 +29,16 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ## Current highlights (v1.0.7)
 
+- **Undo stack in waveform editor** — undo/redo track boundary edits
+- **Minimap overlay** — waveform overview panel for fast navigation across long recordings
+- **Autoscroll** — waveform follows playback cursor automatically
+- **Settings in step 3** — format and output settings accessible directly in the processing step
+- **Full track names with per-track artists** — complete track info shown throughout the processing view
+- **Success screen redesign** — new completion screen with one-click open-folder shortcut
+- **Top queue bar** — upload queue visible from the top bar throughout the workflow
 - **Multi-artist filenames fixed** — now correct in filenames and tags
 - **Sub-track / medley support** — Discogs sub-positions (A1.a, A1.b, A1.c) collapsed into one vinyl segment with joined title
-- **Two-column processing view** — Queued/Processing left, Done right; track labels show position and title instead of T-numbers
+- **Two-column processing view** — Queued/Processing left, Done right; track labels show position and title
 - **Track mapping transport buttons** — Play, Stop, Previous, Next per track in the mapping view
 - **Declick settings in UI** — configure adeclick threshold and burst in Settings modal
 - **Progress bar improvement** — overall progress now more up to date
