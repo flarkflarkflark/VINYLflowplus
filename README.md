@@ -27,7 +27,7 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ---
 
-## Current highlights (v1.0.7)
+## Current highlights (v1.0.8)
 
 - **Undo stack in waveform editor** — undo/redo track boundary edits
 - **Minimap overlay** — waveform overview panel for fast navigation across long recordings
