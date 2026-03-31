@@ -9,6 +9,17 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ![VINYLflowplus Demo](docs/demo.gif)
 
+## What Makes VINYLflowplus Different?
+
+VINYLflowplus keeps the original VINYLflow idea intact: upload a recording, detect tracks, fetch Discogs metadata, and export properly tagged files.
+
+What it adds on top is a more complete desktop-oriented workflow:
+
+- **Portable desktop releases** - Windows, macOS, Linux AppImage, and Linux Lite browser edition
+- **Workflow polish** - undo, minimap, autoscroll, better queueing, and improved completion flow
+- **Better metadata handling** - stronger naming, per-track artists, and sub-track / medley support
+- **Distribution focus** - multi-platform release automation for real-world local setups, including lightweight Linux paths
+
 ---
 
 ## Use VINYLflowplus
