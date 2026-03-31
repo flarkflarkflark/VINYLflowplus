@@ -29,12 +29,12 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ## Current highlights (v1.0.6)
 
-- **Multi-artist filenames fixed** — `Zero Tolerance & Black Barrel` now correct in filenames and tags
+- **Multi-artist filenames fixed** — now correct in filenames and tags
 - **Sub-track / medley support** — Discogs sub-positions (A1.a, A1.b, A1.c) collapsed into one vinyl segment with joined title
 - **Two-column processing view** — Queued/Processing left, Done right; track labels show position and title instead of T-numbers
 - **Track mapping transport buttons** — Play, Stop, Previous, Next per track in the mapping view
 - **Declick settings in UI** — configure adeclick threshold and burst in Settings modal
-- **Progress bar no longer schommels** — overall progress strictly non-decreasing
+- **Progress bar improvement** — overall progress now more up to date
 - **Waveform scrub icons** — fast-rewind / fast-forward style; RST replaced by fit-zoom icon
 - **Professional vinyl workflow** - track splitting, Discogs metadata, and vinyl-side numbering
 - **Interactive cue / hotcue editor** - edit cue start, length, and end with up to 32 slots
