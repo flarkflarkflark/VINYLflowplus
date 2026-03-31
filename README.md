@@ -27,7 +27,7 @@ Turn your vinyl recordings into perfectly tagged, organized digital files in min
 
 ---
 
-## Current highlights (v1.0.6)
+## Current highlights (v1.0.7)
 
 - **Multi-artist filenames fixed** — now correct in filenames and tags
 - **Sub-track / medley support** — Discogs sub-positions (A1.a, A1.b, A1.c) collapsed into one vinyl segment with joined title
