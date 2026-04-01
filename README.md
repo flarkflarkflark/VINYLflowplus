@@ -38,7 +38,7 @@ What it adds on top is a more complete desktop-oriented workflow:
 
 ---
 
-## Current highlights (v1.0.9)
+## Current highlights (v1.1.0)
 
 - **Undo stack in waveform editor** — undo/redo track boundary edits
 - **Minimap overlay** — waveform overview panel for fast navigation across long recordings
