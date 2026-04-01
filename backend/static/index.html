@@ -1355,6 +1355,51 @@
         .aa-wrap { display:flex; align-items:center; gap:3px; }
         .aa-btn2 { width:28px; height:28px; border-radius:6px; border:1px solid rgba(255,255,255,.12); background:rgba(255,255,255,.05); color:inherit; cursor:pointer; display:flex; align-items:center; justify-content:center; font-family:'Barlow Condensed',sans-serif; font-weight:900; transition:background .12s; user-select:none; }
         .aa-btn2:hover { background:#E5A100; color:#000; border-color:#E5A100; }
+        .quick-controls {
+            position: fixed;
+            right: 18px;
+            top: 18px;
+            z-index: 120;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(10, 15, 24, 0.85);
+            box-shadow: 0 14px 34px rgba(0,0,0,0.35);
+            backdrop-filter: blur(8px);
+        }
+        body:not(.dark) .quick-controls {
+            background: rgba(255,255,255,0.92);
+            border-color: rgba(15, 23, 42, 0.12);
+            box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12);
+        }
+        .quick-controls .scale-readout {
+            font-size: 10px;
+            font-weight: 900;
+            letter-spacing: 0.14em;
+            text-transform: uppercase;
+            color: var(--text-dim);
+            min-width: 38px;
+            text-align: center;
+            cursor: pointer;
+        }
+        .quick-controls .mode-btn {
+            width: 30px;
+            height: 30px;
+            border-radius: 7px;
+            border: 1px solid rgba(255,255,255,0.12);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            line-height: 1;
+            transition: background 0.12s, border-color 0.12s;
+        }
+        .quick-controls .mode-btn:hover { background: rgba(229, 161, 0, 0.16); border-color: rgba(229, 161, 0, 0.5); }
+        .quick-controls .mode-btn.quick-settings:hover { background: rgba(34, 197, 94, 0.18); border-color: rgba(34, 197, 94, 0.6); }
+        .quick-controls .mode-btn.quick-quit:hover { background: rgba(239, 68, 68, 0.18); border-color: rgba(239, 68, 68, 0.6); }
         /* ── Wave toolbar ───────────────────────────── */
         .wave-tb { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 12px; background:rgba(0,0,0,.15); border-bottom:1px solid rgba(255,255,255,.07); }
         .wave-info-bar { display:flex; align-items:center; gap:8px; flex:1; justify-content:center; }
@@ -1389,32 +1434,23 @@
                     </div>
                     <h1 class="sr-only">VINYLflowplus</h1>
                 </div>
-                <div class="flex items-center gap-4">
-                    <div class="aa-wrap">
-                        <button @click="decreaseUiScale()" class="aa-btn2" title="Smaller">A-</button>
-                        <span @click="applyUiScale(1)" style="font-size:10px;cursor:pointer;opacity:.5;min-width:28px;text-align:center" x-text="Math.round(uiScale*100)+'%'" title="Reset schaal"></span>
-                        <button @click="increaseUiScale()" class="aa-btn2" title="Larger">A+</button>
-                    </div>
-                    <button @click="toggleDarkMode()" title="Toggle day/night"
-                            class="rounded-lg transition-all duration-200 shadow-sm border flex items-center justify-center"
-                            style="width:36px;height:36px;font-size:16px;line-height:1;flex-shrink:0"
-                            :class="darkMode ? 'bg-slate-900 border-gray-800 text-slate-100 hover:bg-slate-800' : 'bg-white border-gray-200 text-slate-900 hover:bg-slate-50'"
-                            x-text="darkMode ? '☀' : '🌙'">
-                    </button>
-                    <button @click="showSettings = !showSettings" 
-                            title="Configure Discogs and Output Folder" 
-                            class="px-4 py-2 rounded-lg text-[13px] font-black transition-all duration-200 shadow-sm border uppercase tracking-widest"
-                            :class="darkMode ? 'bg-slate-900 border-gray-800 text-slate-100 hover:bg-slate-800' : 'bg-white border-gray-200 text-slate-900 hover:bg-slate-50'">
-                        Settings
-                    </button>
-                    <button @click="if(uploadedFiles.length > 0) { showQuitModal = true } else { if(confirm('Quit VINYLflowplus?')) quitApp() }" 
-                            title="Shut down server and close app" 
-                            class="px-4 py-2 bg-red-600/90 hover:bg-red-600 text-white rounded-lg text-[13px] font-black transition-all duration-200 shadow-lg uppercase tracking-widest border border-red-500/20">
-                        Quit
-                    </button>
-                </div>
+                <div class="flex items-center gap-4"></div>
             </div>
         </header>
+
+        <div class="quick-controls">
+            <button @click="decreaseUiScale()" class="aa-btn2" title="Smaller">A-</button>
+            <span @click="applyUiScale(1)" class="scale-readout" x-text="Math.round(uiScale*100)+'%'" title="Reset scale"></span>
+            <button @click="increaseUiScale()" class="aa-btn2" title="Larger">A+</button>
+            <button @click="toggleDarkMode()" title="Toggle day/night" class="mode-btn"
+                    :class="darkMode ? 'bg-slate-900 border-gray-800 text-slate-100' : 'bg-white border-gray-200 text-slate-900'"
+                    x-text="darkMode ? '☀' : '🌙'"></button>
+            <button @click="showSettings = !showSettings" title="Settings" class="mode-btn quick-settings"
+                    :class="darkMode ? 'bg-slate-900 border-gray-800 text-slate-100' : 'bg-white border-gray-200 text-slate-900'">⚙</button>
+            <button @click="if(uploadedFiles.length > 0) { showQuitModal = true } else { if(confirm('Quit VINYLflowplus?')) quitApp() }"
+                    title="Quit" class="mode-btn quick-quit"
+                    :class="darkMode ? 'bg-slate-900 border-gray-800 text-slate-100' : 'bg-white border-gray-200 text-slate-900'">⏻</button>
+        </div>
 
         <div class="max-w-7xl w-full mx-auto flex flex-col gap-6 p-8 flex-1">
             <!-- Processing Overlay -->
