@@ -31,3 +31,6 @@ TODO.md
 config/queue_state.json
 backend/__pycache__/
 test_24bit.flac
+.snapshots/
+LOCAL_TODO.md
+VINYLflow.code-workspace
