@@ -35,6 +35,7 @@ What it adds on top is a more complete desktop-oriented workflow:
 - **macOS Intel legacy:** `VINYLflowplus-macOS-Intel.zip` (x86_64, 10.15+)
 - **Linux:** `VINYLflowplus-Linux.AppImage`
 - **Linux Lite:** `VINYLflowplus-Linux-Lite.AppImage` (browser edition)
+- **Linux Lite (ARM64):** `VINYLflowplus-Linux-Lite-aarch64.AppImage` (browser edition)
 
 ---
 
