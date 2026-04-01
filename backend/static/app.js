@@ -9,7 +9,7 @@ function vinylApp() {
         trackCountMismatch: false, uploadedFiles: [], currentFileId: null, currentFile: null,
         selectedFileIds: [], detectedTracks: [], currentPlayingTrack: null, waveform: null,
         waveformLoading: false, waveformRegions: null, waveformMinimap: null, currentZoom: 1, userZoomed: false, waveformMode: 'mono', searchQuery: '',
-        playing: false, waveCurrentTime: 0, waveCurrentTrackName: '', waveCurrentTrackColor: '', vuLevel: 0, waveVolume: 1, _vuRaf: null, _vuAnalyser: null, _vuCtx: null,
+        playing: false, waveCurrentTime: 0, waveCurrentTrackName: '', waveCurrentTrackColor: '', vuLevel: 0, waveVolume: 1, timeDisplayMode: 0, _vuRaf: null, _vuAnalyser: null, _vuCtx: null,
         uiScale: parseFloat(localStorage.getItem('uiScale') || '1'),
         ffmpegLines: [], processingStats: null,
         searchResults: [], selectedRelease: null, customMapping: [], searchAbortController: null,
@@ -764,9 +764,11 @@ function vinylApp() {
                             height: 120,
                             waveColor: 'rgba(148, 163, 184, 0.5)',
                             progressColor: 'rgba(229, 161, 0, 0.6)',
-                            cursorColor: '#E5A100',
-                            cursorWidth: 6,
-                            overlayColor: 'rgba(255, 255, 255, 0.15)',
+                            cursorColor: '#ffffff',
+                            cursorWidth: 4,
+                            overlayColor: 'rgba(0, 0, 0, 0)',
+                            dragToSeek: false,
+                            interact: true,
                         })
                     );
                 }
@@ -774,11 +776,30 @@ function vinylApp() {
                 const wfContainer = document.getElementById('waveform');
                 if (wfContainer) {
                     wfContainer.oncontextmenu = (e) => e.preventDefault();
-                    wfContainer.title = 'Click or drag to seek';
+                    wfContainer.title = 'Scroll to zoom in/out';
+                    if (this._waveWheelHandler) {
+                        wfContainer.removeEventListener('wheel', this._waveWheelHandler);
+                    }
+                    this._waveWheelHandler = (e) => this.handleWaveWheel(e);
+                    wfContainer.addEventListener('wheel', this._waveWheelHandler, { passive: false });
                 }
                 const miniEl = document.getElementById('waveform-mini');
                 if (miniEl) {
-                    miniEl.title = 'Drag to navigate waveform';
+                    miniEl.title = 'Click to move playhead';
+                    miniEl.querySelectorAll('[title]').forEach((el) => {
+                        if (el !== miniEl) el.removeAttribute('title');
+                    });
+                    if (this._miniClickHandler) {
+                        miniEl.removeEventListener('click', this._miniClickHandler);
+                    }
+                    this._miniClickHandler = (e) => {
+                        if (!this.waveform) return;
+                        const rect = miniEl.getBoundingClientRect();
+                        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                        this.waveform.seekTo(ratio);
+                        this.centerWaveOn(this.waveform.getDuration() * ratio, true);
+                    };
+                    miniEl.addEventListener('click', this._miniClickHandler);
                 }
 
                 const p = await (await fetch(`/api/waveform-peaks/${this.currentFileId}`)).json();
@@ -810,16 +831,18 @@ function vinylApp() {
                         `;
                         shadowRoot.appendChild(sb);
                     }
-                    // Style minimap cursor for visibility
-                    const miniWrap = document.querySelector('#waveform-mini div');
+                    // Style minimap overlay + cursor for visibility
+                    const miniWrap = document.querySelector('#waveform-mini [part=\"minimap\"]');
                     if (miniWrap) {
-                        const cursor = [...miniWrap.children].find(el => el.style.position === 'absolute' && el.style.zIndex);
-                        if (cursor) {
-                            cursor.style.background = '#E5A100';
-                            cursor.style.width = '6px';
-                            cursor.style.opacity = '1';
-                            cursor.style.boxShadow = '0 0 0 2px rgba(0,0,0,0.8), 0 0 10px rgba(229,161,0,0.9)';
-                            cursor.style.borderRadius = '2px';
+                        const overlay = miniWrap.querySelector('[part=\"minimap-overlay\"]');
+                        if (overlay) {
+                            overlay.style.opacity = '0';
+                            overlay.style.pointerEvents = 'none';
+                        }
+                        const wsHost = [...miniWrap.children].find(el => el !== overlay);
+                        if (wsHost) {
+                            wsHost.style.position = 'relative';
+                            wsHost.style.zIndex = '1';
                         }
                     }
                 });
@@ -869,11 +892,13 @@ function vinylApp() {
                     }
                     // Defer to override any scroll reset by WaveSurfer internals (e.g. minimap click)
                     setTimeout(() => _centerOn(currentTime), 0);
+                    this.queueMinimapRedraw();
                 });
 
                 ws.on('timeupdate', (currentTime) => {
                     _updateTrackName(currentTime);
                     this.centerWaveOn(currentTime); // autoscroll: only when playhead near edge
+                    this.queueMinimapRedraw();
                 });
 
                 this.waveformRegions.on('region-clicked', (region, e) => {
@@ -1067,15 +1092,55 @@ function vinylApp() {
             if (!dur) return;
             const wrapper = this.waveform.getWrapper?.();
             if (!wrapper) return;
-            const totalPx = wrapper.scrollWidth;
-            const cw = wrapper.clientWidth || 800;
+            const scroller = wrapper.parentElement || wrapper;
+            const totalPx = scroller.scrollWidth;
+            const cw = scroller.clientWidth || 800;
             if (totalPx <= cw + 2) return; // nothing to scroll
             const playheadPx = (t / dur) * totalPx;
-            const scrollLeft = wrapper.scrollLeft;
+            const scrollLeft = scroller.scrollLeft;
             const margin = cw * 0.15; // scroll when within 15% of edge
             if (force || playheadPx < scrollLeft + margin || playheadPx > scrollLeft + cw - margin) {
-                wrapper.scrollLeft = Math.max(0, playheadPx - cw / 2);
+                scroller.scrollLeft = Math.max(0, playheadPx - cw / 2);
+                this.queueMinimapRedraw();
             }
+        },
+        getActiveTrackAt(time) {
+            const sorted = [...this.detectedTracks].filter(t => !t.ignored).sort((a, b) => a.start - b.start);
+            return [...sorted].reverse().find(t => time >= t.start && time <= t.end);
+        },
+        cycleTimeDisplay() {
+            this.timeDisplayMode = (this.timeDisplayMode + 1) % 4;
+        },
+        getTimeDisplayLabel() {
+            switch (this.timeDisplayMode) {
+                case 0: return 'TRK';
+                case 1: return 'TRK REM';
+                case 2: return 'TOTAL';
+                case 3: return 'TOTAL REM';
+                default: return '';
+            }
+        },
+        getTimeDisplayValue() {
+            const total = this.currentFile?.duration || this.waveform?.getDuration() || 0;
+            const current = this.waveCurrentTime || 0;
+            const track = this.getActiveTrackAt(current);
+            const trackElapsed = track ? Math.max(0, current - track.start) : current;
+            const trackRemaining = track ? Math.max(0, track.end - current) : Math.max(0, total - current);
+            switch (this.timeDisplayMode) {
+                case 0:
+                    return this.formatDuration(trackElapsed);
+                case 1:
+                    return `-${this.formatDuration(trackRemaining)}`;
+                case 2:
+                    return this.formatDuration(total);
+                case 3:
+                    return `-${this.formatDuration(Math.max(0, total - current))}`;
+                default:
+                    return this.formatDuration(current);
+            }
+        },
+        getTimeDisplayTooltip() {
+            return 'Click to toggle: Track elapsed -> Track remaining -> Total elapsed -> Total remaining';
         },
 
         zoomIn() {
@@ -1085,15 +1150,18 @@ function vinylApp() {
             this.currentZoom = Math.min(this.currentZoom * 1.25, 500);
             this.waveform.zoom(this.currentZoom);
             this.centerWaveOn(t);
+            this.queueMinimapRedraw();
         },
 
         zoomOut() {
             if (!this.waveform) return;
             const t = this.waveform.getCurrentTime();
             this.userZoomed = true;
-            this.currentZoom = Math.max(1, this.currentZoom / 1.25);
+            const minZoom = this.getMinZoom();
+            this.currentZoom = Math.max(minZoom, this.currentZoom / 1.25);
             this.waveform.zoom(this.currentZoom);
             this.centerWaveOn(t);
+            this.queueMinimapRedraw();
         },
 
         resetZoom() {
@@ -1103,6 +1171,27 @@ function vinylApp() {
             this.currentZoom = this.computeCueZoom() || 1;
             this.waveform.zoom(this.currentZoom);
             this.centerWaveOn(t);
+            this.queueMinimapRedraw();
+        },
+        getMinZoom() {
+            const wfEl = document.getElementById('waveform');
+            const width = wfEl?.clientWidth || 0;
+            const duration = this.currentFile?.duration || this.waveform?.getDuration() || 0;
+            if (!width || !duration) return 1;
+            return Math.max(0.1, width / duration);
+        },
+        handleWaveWheel(e) {
+            if (!this.waveform) return;
+            e.preventDefault();
+            const t = this.waveform.getCurrentTime();
+            const minZoom = this.getMinZoom();
+            const maxZoom = 500;
+            const factor = e.deltaY > 0 ? 0.9 : 1.1;
+            this.userZoomed = true;
+            this.currentZoom = Math.min(maxZoom, Math.max(minZoom, this.currentZoom * factor));
+            this.waveform.zoom(this.currentZoom);
+            this.centerWaveOn(t, true);
+            this.queueMinimapRedraw();
         },
 
         computeCueZoom() {
@@ -1169,16 +1258,17 @@ function vinylApp() {
             if (!miniEl || !this.waveform) return;
             const duration = this.waveform.getDuration();
             if (!duration) return;
+            const miniWrap = miniEl.querySelector('[part="minimap"]') || miniEl;
             // Remove old marker canvas if present
-            const old = miniEl.querySelector('.minimap-markers');
+            const old = miniWrap.querySelector('.minimap-markers');
             if (old) old.remove();
             const canvas = document.createElement('canvas');
             canvas.className = 'minimap-markers';
-            canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:4;';
-            miniEl.style.position = 'relative';
-            miniEl.appendChild(canvas);
-            const w = miniEl.clientWidth;
-            const h = miniEl.clientHeight;
+            canvas.style.cssText = 'position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:5;';
+            miniWrap.style.position = 'relative';
+            miniWrap.appendChild(canvas);
+            const w = miniWrap.clientWidth;
+            const h = miniWrap.clientHeight;
             canvas.width = w;
             canvas.height = h;
             const ctx = canvas.getContext('2d');
@@ -1207,7 +1297,45 @@ function vinylApp() {
                     ctx.lineWidth = 2;
                     ctx.strokeRect(x1 + 1, 1, Math.max(1, x2 - x1) - 2, h - 2);
                 }
+                const label = this.getRegionLabel(t);
+                if (label && x2 - x1 > 90) {
+                    const display = label.length > 20 ? `${label.slice(0, 17)}...` : label;
+                    ctx.font = 'bold 12px "Barlow Condensed", sans-serif';
+                    ctx.textBaseline = 'top';
+                    const textWidth = ctx.measureText(display).width;
+                    const padX = 4;
+                    const boxW = Math.min(textWidth + padX * 2, (x2 - x1) - 8);
+                    ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                    ctx.fillRect(x1 + 4, 4, boxW, 18);
+                    ctx.fillStyle = '#fff';
+                    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+                    ctx.lineWidth = 2;
+                    ctx.strokeText(display, x1 + 4 + padX, 6);
+                    ctx.fillText(display, x1 + 4 + padX, 6);
+                }
             });
+            const wrapper = this.waveform.getWrapper?.();
+            const scroller = wrapper?.parentElement || wrapper;
+            if (scroller && scroller.scrollWidth) {
+                const totalPx = scroller.scrollWidth;
+                const viewPx = scroller.clientWidth || totalPx;
+                const scrollPx = scroller.scrollLeft || 0;
+                const x1 = (scrollPx / totalPx) * w;
+                const x2 = ((scrollPx + viewPx) / totalPx) * w;
+                ctx.strokeStyle = '#ff3b30';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x1 + 1, 1, Math.max(1, x2 - x1 - 2), h - 2);
+            }
+            const playheadX = (this.waveCurrentTime / duration) * w;
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.shadowColor = 'rgba(0,0,0,0.85)';
+            ctx.shadowBlur = 2;
+            ctx.beginPath();
+            ctx.moveTo(playheadX, 0);
+            ctx.lineTo(playheadX, h);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
         },
 
         getTrackColor(i) {
@@ -1222,6 +1350,121 @@ function vinylApp() {
                 'rgba(255, 126, 179, 0.35)',
             ];
             return colors[i % colors.length];
+        },
+        getRegionLabel(track) {
+            if (!track) return '';
+            let label = '';
+            let mappedVinyl = '';
+            let mappedTitle = '';
+            if (this.selectedRelease && Array.isArray(this.selectedRelease.tracks)) {
+                const idx = this.detectedTracks.findIndex(t => t.number === track.number);
+                const mapIdx = idx >= 0 ? this.customMapping[idx] : null;
+                const dt = mapIdx !== null ? this.selectedRelease.tracks[mapIdx] : null;
+                if (dt) {
+                    mappedVinyl = (dt.position || '').trim();
+                    mappedTitle = (dt.title || '').trim();
+                }
+            }
+            const vinyl = mappedVinyl || (track.vinyl_number || '').trim();
+            const vinylIsGeneric = /^track\s*\d+$/i.test(vinyl);
+            let title = (mappedTitle || track.title || '').trim();
+            if (title) {
+                title = title.replace(/^track\s*\d+\s*[-–—:]?\s*/i, '').trim();
+            }
+            if (vinyl && title) {
+                if (vinylIsGeneric || title.startsWith(vinyl)) {
+                    label = title;
+                } else {
+                    label = `${vinyl} - ${title}`;
+                }
+            } else if (title) {
+                label = title;
+            } else if (vinyl) {
+                label = vinyl;
+            } else {
+                label = `Track ${track.number}`;
+            }
+            label = label.replace(/^track\s*\d+\s*[-–—:]?\s*/i, '').trim();
+            if (label.length > 36) label = `${label.slice(0, 33)}...`;
+            return label;
+        },
+        queueMinimapRedraw() {
+            const now = Date.now();
+            if (this._minimapRedrawAt && now - this._minimapRedrawAt < 80) return;
+            this._minimapRedrawAt = now;
+            this.drawMinimapMarkers();
+        },
+        sanitizeFolderName(name) {
+            if (!name) return '';
+            let safe = String(name).replace(/\*/g, '');
+            safe = safe.replace(/[\/\\:?"<>|]/g, '-');
+            safe = safe.replace(/\s+/g, ' ');
+            safe = safe.replace(/-+/g, '-');
+            safe = safe.trim();
+            safe = safe.replace(/^[.\-_ ]+|[.\-_ ]+$/g, '');
+            return safe;
+        },
+        getFormatTag(fmtId) {
+            switch (fmtId) {
+                case 'flac24': return 'FLAC 24 VINYL';
+                case 'mp3_320': return 'MP3 320 VINYL';
+                case 'mp3_v0': return 'MP3 V0 VINYL';
+                case 'aiff': return 'AIFF VINYL';
+                default: return 'FLAC 16 VINYL';
+            }
+        },
+        buildAlbumFolderName(fmtId) {
+            const release = this.selectedRelease || {};
+            let artist = release.artist || '';
+            let title = release.title || '';
+            if (!title && this.currentFile?.filename) {
+                title = this.cleanFilename(this.currentFile.filename);
+            }
+            if (!artist) artist = 'Unknown Artist';
+            if (!title) title = 'Untitled';
+            let label = release.label || 'Unknown Label';
+            if (release.catno) label = `${label} - ${release.catno}`;
+            const year = release.year || 'Unknown Year';
+            const artistSafe = this.sanitizeFolderName(artist);
+            const titleSafe = this.sanitizeFolderName(title);
+            const labelSafe = this.sanitizeFolderName(label);
+            const yearSafe = this.sanitizeFolderName(year);
+            const fmtTag = this.getFormatTag(fmtId);
+            return `${artistSafe} - ${titleSafe} [${labelSafe}][${yearSafe}][${fmtTag}]`;
+        },
+        getSuccessRelativePath(fmtId) {
+            return this.buildAlbumFolderName(fmtId);
+        },
+        get successFormatGroups() {
+            const files = this.processingStats?.files || [];
+            if (!files.length) return [];
+            const groups = {};
+            files.forEach((f) => {
+                const match = String(f).match(/^\[([^\]]+)\]\s*(.+)$/);
+                if (!match) return;
+                const code = match[1].trim().toUpperCase();
+                const name = match[2].trim();
+                if (!groups[code]) groups[code] = [];
+                groups[code].push(name);
+            });
+            const labelByCode = {};
+            const idByCode = {};
+            (this.availableFormats || []).forEach((fmt) => {
+                const code = fmt.id.toUpperCase();
+                labelByCode[code] = fmt.label;
+                idByCode[code] = fmt.id;
+            });
+            const orderCodes = (this.outputFormats && this.outputFormats.length)
+                ? this.outputFormats.map((id) => id.toUpperCase())
+                : Object.keys(groups);
+            return orderCodes
+                .filter((code) => groups[code] && groups[code].length)
+                .map((code) => ({
+                    code,
+                    id: idByCode[code] || code.toLowerCase(),
+                    label: labelByCode[code] || code.replace(/_/g, ' '),
+                    files: groups[code],
+                }));
         },
 
         addTrackRegions() {
@@ -1242,8 +1485,36 @@ function vinylApp() {
                     id: `track-${t.number}`
                 });
                 if (reg.element) {
-                    reg.element.setAttribute('data-region-label', `T${t.number}`);
-                    reg.element.title = 'Click to select track';
+                    const regionLabel = this.getRegionLabel(t);
+                    reg.element.removeAttribute('data-region-label');
+                    let labelEl = reg.element.querySelector('.region-title');
+                    if (!labelEl) {
+                        labelEl = document.createElement('div');
+                        labelEl.className = 'region-title';
+                        reg.element.appendChild(labelEl);
+                    }
+                    labelEl.textContent = regionLabel;
+                    labelEl.style.cssText = [
+                        'position:absolute',
+                        'top:6px',
+                        'left:6px',
+                        'background:rgba(0,0,0,0.65)',
+                        'color:#fff',
+                        'font-size:12px',
+                        'font-weight:800',
+                        'font-family:"Barlow Condensed", sans-serif',
+                        'letter-spacing:.04em',
+                        'padding:2px 6px',
+                        'border-radius:4px',
+                        'white-space:nowrap',
+                        'max-width:calc(100% - 12px)',
+                        'overflow:hidden',
+                        'text-overflow:ellipsis',
+                        'pointer-events:none',
+                        'text-shadow:0 1px 2px rgba(0,0,0,0.8)',
+                        'z-index:12',
+                    ].join(';');
+                    reg.element.title = 'Click to select track / Move playhead. Scroll to zoom in/out.';
                     reg.element.querySelectorAll('[part~="region-handle"]').forEach((handle) => {
                         const part = (handle.getAttribute('part') || '').toLowerCase();
                         const dataHandle = (handle.getAttribute('data-handle') || handle.getAttribute('data-region-handle') || '').toLowerCase();
