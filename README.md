@@ -129,18 +129,18 @@ cd vinylflowplus
 
 ## 3. First-Run Setup
 
-When you open VINYLflowplus for the first time, you'll see a welcome screen that guides you through setup in seconds:
+VINYLflowplus no longer uses a first-run welcome modal. Set your Discogs token in **Settings** (recommended before searching):
 
 ![VINYLflowplus Setup Screen](docs/modal.png)
 
-1. **Get your free Discogs API token** - Click the link in the setup screen or visit [discogs.com/settings/developers](https://www.discogs.com/settings/developers)
+1. **Get your free Discogs API token** - Visit [discogs.com/settings/developers](https://www.discogs.com/settings/developers)
 2. **Generate a new token** - Click "Generate new token" on the Discogs settings page
-3. **Copy and paste** - Paste your token into VINYLflowplus's setup screen
-4. **Click Continue** - Done! VINYLflowplus validates the token and you're ready to digitize
+3. **Copy and paste** - Open **Settings → Discogs** and paste your token
+4. **Save** - Done! You can search Discogs immediately after saving
 
-**That's it.** No hidden files, no terminal commands, no restart needed. Your token is saved securely and persists across Docker restarts.
+**That's it.** No hidden files, no terminal commands, no restart needed. Your token is saved securely and persists across restarts.
 
-**Tip:** You can update your token anytime from the Settings menu in VINYLflowplus.
+**Tip:** If Discogs search is empty, check Settings → Discogs first.
 
 ---
 
