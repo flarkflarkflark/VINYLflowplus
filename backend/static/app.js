@@ -84,6 +84,18 @@ function vinylApp() {
             if (this.metricsTimer) clearInterval(this.metricsTimer);
             this.metricsTimer = null;
         },
+        get trackGrid() {
+            const all = (this.detectedTracks || []).map((track, index) => ({ track, index }));
+            const mid = Math.ceil(all.length / 2);
+            const left = all.slice(0, mid);
+            const right = all.slice(mid);
+            const ordered = [];
+            for (let i = 0; i < left.length; i++) {
+                ordered.push(left[i]);
+                if (right[i]) ordered.push(right[i]);
+            }
+            return ordered;
+        },
 
         startProcessingStage(stage, jobId = '') {
             this.isProcessing = true;
@@ -330,7 +342,6 @@ function vinylApp() {
             if (!this.searchQuery.trim()) return;
             if (!this.discogsConfigured) {
                 this.searchResults = [];
-                this.searchError = 'Discogs is not configured. Open Settings and add a user token.';
                 return;
             }
             if (this.searchAbortController) this.searchAbortController.abort();
@@ -753,8 +764,8 @@ function vinylApp() {
                             height: 120,
                             waveColor: 'rgba(148, 163, 184, 0.5)',
                             progressColor: 'rgba(229, 161, 0, 0.6)',
-                            cursorColor: '#ffffff',
-                            cursorWidth: 4,
+                            cursorColor: '#E5A100',
+                            cursorWidth: 6,
                             overlayColor: 'rgba(255, 255, 255, 0.15)',
                         })
                     );
@@ -763,6 +774,11 @@ function vinylApp() {
                 const wfContainer = document.getElementById('waveform');
                 if (wfContainer) {
                     wfContainer.oncontextmenu = (e) => e.preventDefault();
+                    wfContainer.title = 'Click or drag to seek';
+                }
+                const miniEl = document.getElementById('waveform-mini');
+                if (miniEl) {
+                    miniEl.title = 'Drag to navigate waveform';
                 }
 
                 const p = await (await fetch(`/api/waveform-peaks/${this.currentFileId}`)).json();
@@ -798,7 +814,13 @@ function vinylApp() {
                     const miniWrap = document.querySelector('#waveform-mini div');
                     if (miniWrap) {
                         const cursor = [...miniWrap.children].find(el => el.style.position === 'absolute' && el.style.zIndex);
-                        if (cursor) cursor.style.boxShadow = '0 0 0 1px rgba(0,0,0,0.7), 0 0 8px rgba(255,255,255,1)';
+                        if (cursor) {
+                            cursor.style.background = '#E5A100';
+                            cursor.style.width = '6px';
+                            cursor.style.opacity = '1';
+                            cursor.style.boxShadow = '0 0 0 2px rgba(0,0,0,0.8), 0 0 10px rgba(229,161,0,0.9)';
+                            cursor.style.borderRadius = '2px';
+                        }
                     }
                 });
                 ws.on('play', () => {
@@ -1221,6 +1243,19 @@ function vinylApp() {
                 });
                 if (reg.element) {
                     reg.element.setAttribute('data-region-label', `T${t.number}`);
+                    reg.element.title = 'Click to select track';
+                    reg.element.querySelectorAll('[part~="region-handle"]').forEach((handle) => {
+                        const part = (handle.getAttribute('part') || '').toLowerCase();
+                        const dataHandle = (handle.getAttribute('data-handle') || handle.getAttribute('data-region-handle') || '').toLowerCase();
+                        const handleType = `${part} ${dataHandle} ${handle.className || ''}`.toLowerCase();
+                        if (handleType.includes('start')) {
+                            handle.title = 'Drag to set start';
+                        } else if (handleType.includes('end')) {
+                            handle.title = 'Drag to set end';
+                        } else {
+                            handle.title = 'Drag to adjust boundary';
+                        }
+                    });
                     if (isSelected) {
                         reg.element.style.boxShadow = 'inset 0 0 0 3px rgba(229, 161, 0, 1)';
                         reg.element.style.zIndex = '3';

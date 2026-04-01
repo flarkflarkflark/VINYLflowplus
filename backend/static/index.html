@@ -1400,6 +1400,42 @@
         .quick-controls .mode-btn:hover { background: rgba(229, 161, 0, 0.16); border-color: rgba(229, 161, 0, 0.5); }
         .quick-controls .mode-btn.quick-settings:hover { background: rgba(34, 197, 94, 0.18); border-color: rgba(34, 197, 94, 0.6); }
         .quick-controls .mode-btn.quick-quit:hover { background: rgba(239, 68, 68, 0.18); border-color: rgba(239, 68, 68, 0.6); }
+        .brand-toggle {
+            position: fixed;
+            left: 18px;
+            top: 18px;
+            z-index: 120;
+            display: flex;
+            align-items: center;
+            padding: 4px 6px;
+            border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.12);
+            background: rgba(10, 15, 24, 0.85);
+            box-shadow: 0 8px 18px rgba(0,0,0,0.28);
+            backdrop-filter: blur(6px);
+            cursor: default;
+            user-select: none;
+            transition: background 0.12s, border-color 0.12s;
+        }
+        body:not(.dark) .brand-toggle {
+            background: rgba(255,255,255,0.92);
+            border-color: rgba(15, 23, 42, 0.12);
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
+        }
+        .brand-logo {
+            display: flex;
+            align-items: center;
+        }
+        .brand-logo .logo-img { height: 34px; display:block; }
+        .brand-logo { width: 230px; }
+        .main-body { padding-top: 110px; }
+        .drop-center {
+            min-height: calc(100vh - 220px);
+            display: flex;
+            align-items: center;
+        }
+        .queue-topbar.centered { justify-content: center; }
+        .header-clear { margin-top: 50px; }
         /* ── Wave toolbar ───────────────────────────── */
         .wave-tb { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 12px; background:rgba(0,0,0,.15); border-bottom:1px solid rgba(255,255,255,.07); }
         .wave-info-bar { display:flex; align-items:center; gap:8px; flex:1; justify-content:center; }
@@ -1419,24 +1455,19 @@
     </style>
 </head>
 <body :class="darkMode ? 'dark' : ''" class="transition-colors duration-300">
-    <div x-data="vinylApp()" x-init="init()" class="app-shell min-h-screen flex flex-col transition-colors duration-300">
-        <!-- Header -->
-        <header class="app-header shadow-2xl p-4 transition-colors duration-300">
-            <div class="max-w-7xl mx-auto flex justify-between items-center">
-                <div class="flex items-center gap-4">
-                    <div class="logo-wrap">
-                        <img
-                            src="/static/vinylflowplus-logo-dark.svg"
-                            :src="darkMode ? '/static/vinylflowplus-logo-light.svg' : '/static/vinylflowplus-logo-dark.svg'"
-                            alt="VINYLflowplus"
-                            class="logo-img"
-                        >
-                    </div>
-                    <h1 class="sr-only">VINYLflowplus</h1>
-                </div>
-                <div class="flex items-center gap-4"></div>
+    <div x-data="vinylApp()" x-init="init()"
+         @drop.prevent="handleDrop($event)" @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false"
+         class="app-shell min-h-screen flex flex-col transition-colors duration-300">
+        <div class="brand-toggle" title="VINYLflowplus">
+            <div class="brand-logo">
+                <img
+                    src="/static/vinylflowplus-logo-dark.svg"
+                    :src="darkMode ? '/static/vinylflowplus-logo-light.svg' : '/static/vinylflowplus-logo-dark.svg'"
+                    alt="VINYLflowplus"
+                    class="logo-img"
+                >
             </div>
-        </header>
+        </div>
 
         <div class="quick-controls">
             <button @click="decreaseUiScale()" class="aa-btn2" title="Smaller">A-</button>
@@ -1452,7 +1483,7 @@
                     :class="darkMode ? 'bg-slate-900 border-gray-800 text-slate-100' : 'bg-white border-gray-200 text-slate-900'">⏻</button>
         </div>
 
-        <div class="max-w-7xl w-full mx-auto flex flex-col gap-6 p-8 flex-1">
+        <div class="main-body max-w-7xl w-full mx-auto flex flex-col gap-6 p-8 flex-1">
             <!-- Processing Overlay -->
             <div x-show="isProcessing" x-cloak class="processing-overlay">
                 <div class="processing-panel">
@@ -1689,17 +1720,33 @@
                 </div>
             </div>
 
-            <!-- Drop / Add bar -->
-            <div class="queue-topbar app-card"
-                 @drop.prevent="handleDrop($event)" @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false"
-                 :class="dragging ? 'dragging' : ''"
-                 title="Drop audio files anywhere here">
-                <div @click="$refs.fileInput.click()" class="queue-drop-compact" :class="dragging ? 'dragging' : ''">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    <span>Add files</span>
-                    <input type="file" x-ref="fileInput" @change="handleFileSelect($event)" multiple class="hidden">
+            <!-- Drop / Add bar (centered when empty) -->
+            <div x-show="uploadedFiles.length === 0" x-cloak class="drop-center">
+                <div class="queue-topbar app-card w-full centered"
+                     @drop.prevent="handleDrop($event)" @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false"
+                     :class="dragging ? 'dragging' : ''"
+                     title="Drop audio files anywhere here">
+                    <div @click="$refs.fileInput.click()" class="queue-drop-compact" :class="dragging ? 'dragging' : ''">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <span>Add files</span>
+                        <input type="file" x-ref="fileInput" @change="handleFileSelect($event)" multiple class="hidden">
+                    </div>
+                    <span class="queue-chips-empty">Drop audio files here or click Add files – WAV, AIFF, FLAC, MP3</span>
                 </div>
-                <span class="queue-chips-empty" x-show="uploadedFiles.length === 0">Drop audio files here or click Add files — WAV, AIFF, FLAC, MP3</span>
+            </div>
+
+            <div x-show="uploadedFiles.length > 0" x-cloak class="header-clear">
+                <div class="queue-topbar app-card"
+                     @drop.prevent="handleDrop($event)" @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false"
+                     :class="dragging ? 'dragging' : ''"
+                     title="Drop audio files anywhere here">
+                    <div @click="$refs.fileInput.click()" class="queue-drop-compact" :class="dragging ? 'dragging' : ''">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        <span>Add files</span>
+                        <input type="file" x-ref="fileInput" @change="handleFileSelect($event)" multiple class="hidden">
+                    </div>
+                    <span class="queue-chips-empty">Drop audio files here or click Add files – WAV, AIFF, FLAC, MP3</span>
+                </div>
             </div>
 
             <!-- Queue panel -->
@@ -2028,7 +2075,11 @@
                         </button>
                     </div>
                     <p x-show="searchError" class="mt-3 text-[11px] font-bold text-red-500" x-text="searchError"></p>
-                    <p x-show="!discogsConfigured" class="mt-3 text-[11px] font-bold text-amber-500">Discogs token missing. Open Settings to configure Discogs.</p>
+                    <p x-show="!discogsConfigured" class="mt-3 text-[11px] font-bold text-amber-500">
+                        Discogs is not configured.
+                        <button @click="showSettings = true" class="underline underline-offset-2 font-black">Open Settings</button>
+                        to add your user token.
+                    </p>
                     <div x-show="searchResults.length > 0" class="grid grid-cols-2 md:grid-cols-4 gap-6 mt-8">
                         <template x-for="result in searchResults" :key="result.id">
                             <div @click="selectRelease(result)" 
@@ -2067,27 +2118,41 @@
                     <!-- Output Options Grid -->
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
                         <!-- Format Selection -->
-                        <div class="p-6 rounded-2xl border" :class="darkMode ? 'bg-black/20 border-gray-800' : 'bg-slate-100 border-gray-200'">
-                            <label class="block text-[12px] font-black text-brand uppercase tracking-widest mb-4 italic">Output Formats (Multi-select)</label>
+                        <div class="p-6 rounded-2xl border flex flex-col h-full" :class="darkMode ? 'bg-black/20 border-gray-800' : 'bg-slate-100 border-gray-200'">
                             <div class="grid grid-cols-2 gap-2">
                                 <template x-for="fmt in availableFormats" :key="fmt.id">
                                     <button @click="toggleFormat(fmt.id)" 
-                                            class="px-4 py-3 rounded-xl text-[12px] font-black transition border-2 flex items-center justify-center gap-2"
-                                            :class="outputFormats.includes(fmt.id) ? (darkMode ? 'bg-brand text-black border-brand shadow-[0_0_15px_rgba(229,161,0,0.3)]' : 'bg-brand text-black border-brand shadow-lg') : (darkMode ? 'border-gray-800 text-slate-500 bg-black/40 hover:border-gray-600' : 'border-gray-200 text-slate-400 bg-white hover:border-gray-300')"
-                                            x-text="(outputFormats.includes(fmt.id) ? 'ON ' : '') + fmt.label"></button>
+                                            class="px-4 py-3 rounded-xl text-[12px] font-black transition border-2 flex items-center gap-2 w-full"
+                                            :class="[
+                                                outputFormats.includes(fmt.id) ? 'justify-between' : 'justify-center',
+                                                outputFormats.includes(fmt.id)
+                                                    ? (darkMode ? 'bg-brand text-black border-brand shadow-[0_0_15px_rgba(229,161,0,0.3)]' : 'bg-brand text-black border-brand shadow-lg')
+                                                    : (darkMode ? 'border-gray-800 text-slate-500 bg-black/40 hover:border-gray-600' : 'border-gray-200 text-slate-400 bg-white hover:border-gray-300')
+                                            ]"
+                                            >
+                                        <span x-text="fmt.label"></span>
+                                        <span x-show="outputFormats.includes(fmt.id)" x-cloak
+                                              class="px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest"
+                                              :class="darkMode ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' : 'bg-emerald-100 text-emerald-700 border border-emerald-200'">
+                                            Active
+                                        </span>
+                                    </button>
                                 </template>
                             </div>
+                            <div class="mt-auto pt-4 text-[12px] font-black text-brand uppercase tracking-widest italic">Output Formats (Multi-select)</div>
                         </div>
 
                         <!-- Restoration Toggle -->
-                        <div class="p-6 rounded-2xl border flex flex-col justify-between" :class="darkMode ? 'bg-black/20 border-gray-800' : 'bg-slate-100 border-gray-200'">
+                        <div class="p-6 rounded-2xl border flex flex-col justify-between h-full" :class="darkMode ? 'bg-black/20 border-gray-800' : 'bg-slate-100 border-gray-200'">
                             <button @click="restorationLevel = restorationLevel === 1 ? 0 : 1" 
                                     class="w-full py-4 px-6 rounded-xl text-[12px] font-black transition border-2 flex items-center justify-between shadow-md"
                                     :class="restorationLevel === 1 ? 'bg-brand text-black border-brand shadow-[0_0_15px_rgba(229,161,0,0.3)]' : (darkMode ? 'border-gray-800 text-slate-500 bg-black/40 hover:border-gray-600' : 'border-gray-200 text-slate-400 bg-white hover:border-gray-300')">
                                 <span class="italic">RESTORE & NORMALIZE</span>
-                                <span class="px-3 py-1 rounded-md text-[8px]" :class="restorationLevel === 1 ? (darkMode ? 'bg-black/20' : 'bg-slate-200') : (darkMode ? 'bg-black/40' : 'bg-slate-300')" x-text="restorationLevel === 1 ? 'ACTIVE' : 'DISABLED'"></span>
+                                <span class="px-3 py-1 rounded-md text-[8px] font-black uppercase tracking-widest"
+                                      :class="restorationLevel === 1 ? (darkMode ? 'bg-emerald-500/20 text-emerald-200 border border-emerald-400/40' : 'bg-emerald-100 text-emerald-700 border border-emerald-200') : (darkMode ? 'bg-black/40 text-slate-400 border border-white/10' : 'bg-slate-200 text-slate-600 border border-slate-300')"
+                                      x-text="restorationLevel === 1 ? 'ACTIVE' : 'DISABLED'"></span>
                             </button>
-                            <p class="text-[11px] font-bold text-muted mt-4 leading-relaxed italic opacity-80" :class="darkMode ? 'text-slate-300' : 'text-slate-600'">Removes turntable rumble and automatically levels volume for digital playback.</p>
+                            <p class="text-[12px] font-black text-brand mt-4 leading-relaxed opacity-90">Removes turntable rumble and automatically levels volume for digital playback.</p>
                         </div>
                     </div>
 
@@ -2100,18 +2165,19 @@
                     </div>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-10">
-                        <template x-for="(track, idx) in detectedTracks" :key="idx">
+                        <template x-for="slot in trackGrid" :key="slot.index">
                             <div class="p-4 rounded-xl border flex items-center gap-3 shadow-inner" :class="darkMode ? 'bg-black/20 border-gray-800' : 'bg-slate-100 border-gray-200'">
                                 <!-- Transport buttons -->
                                 <div class="flex flex-col gap-1 flex-shrink-0">
-                                    <p class="text-[10px] font-black text-brand uppercase tracking-widest text-center">T<span x-text="track.number"></span></p>
+                                    <p class="text-[10px] font-black uppercase tracking-widest text-center"
+                                       :style="'color:' + getTrackColor(slot.index).replace('0.35', '1')">Track <span x-text="slot.track.number"></span></p>
                                     <div class="flex gap-1">
                                         <!-- Prev -->
                                         <button @click="prevCue()" class="dj-btn" style="width:26px;height:26px" title="Previous track">
                                             <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
                                         </button>
                                         <!-- Play/Pause -->
-                                        <button @click="jumpToTrack(track)" class="dj-btn dj-btn-play" style="width:26px;height:26px" title="Play from track start">
+                                        <button @click="jumpToTrack(slot.track)" class="dj-btn dj-btn-play" style="width:26px;height:26px" title="Play from track start">
                                             <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                         </button>
                                         <!-- Stop -->
@@ -2123,16 +2189,18 @@
                                             <svg viewBox="0 0 24 24" width="11" height="11" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6h2v12h-2z"/></svg>
                                         </button>
                                     </div>
-                                    <p class="text-[10px] font-bold opacity-50 text-center" x-text="formatDuration(track.duration)"></p>
+                                    <p class="text-[10px] font-bold text-center"
+                                       :style="'color:' + getTrackColor(slot.index).replace('0.35', '1')"
+                                       x-text="formatDuration(slot.track.duration)"></p>
                                 </div>
                                 <!-- Discogs mapping select -->
-                                <select x-model="customMapping[idx]" class="track-mapping-select flex-1 p-2 rounded text-[11px] font-bold outline-none focus:border-brand transition">
+                                <select x-model="customMapping[slot.index]" class="track-mapping-select flex-1 p-2 rounded text-[11px] font-bold outline-none focus:border-brand transition">
                                     <template x-for="(dt, dtIdx) in (selectedRelease?.tracks || [])" :key="dtIdx">
                                         <option :value="dtIdx" x-text="dt.position + ' - ' + dt.title"></option>
                                     </template>
                                 </select>
                                 <!-- Remove -->
-                                <button @click="removeTrack(idx)" class="flex-shrink-0 text-red-500 hover:text-red-400 transition" title="Remove track">
+                                <button @click="removeTrack(slot.index)" class="flex-shrink-0 text-red-500 hover:text-red-400 transition" title="Remove track">
                                     <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
                                 </button>
                             </div>
@@ -2230,9 +2298,9 @@
             </div>
         </footer>
 
-        <div x-show="showSettings" x-cloak class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
-            <div @click.away="showSettings = false" 
-                 class="rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden border transition-colors duration-300 flex flex-col max-h-[90vh]"
+        <div x-show="showSettings" x-cloak @click.self="showSettings = false"
+             class="fixed inset-0 bg-black/80 backdrop-blur-md flex items-center justify-center z-50 p-4">
+            <div class="rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden border transition-colors duration-300 flex flex-col max-h-[90vh]"
                  :class="darkMode ? 'bg-slate-900 border-gray-800 text-white' : 'bg-white border-gray-200 text-slate-900'">
                 <div class="p-8 border-b flex justify-between items-center transition-colors duration-300 flex-shrink-0"
                      :class="darkMode ? 'bg-black/60 border-gray-800' : 'bg-slate-50 border-gray-200'">
