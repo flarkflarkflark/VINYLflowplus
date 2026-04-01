@@ -7,7 +7,7 @@
 
 Turn your vinyl recordings into perfectly tagged, organized digital files in minutes - not hours. VINYLflowplus automates track splitting, Discogs metadata tagging, cover art embedding, and vinyl-style numbering (A1, A2, B1, B2).
 
-![VINYLflowplus Demo](docs/demo.gif)
+![VINYLflowplus Demo](docs/demo.gif?v=2)
 
 ## What Makes VINYLflowplus Different?
 
@@ -131,7 +131,7 @@ cd vinylflowplus
 
 VINYLflowplus no longer uses a first-run welcome modal. Set your Discogs token in **Settings** (recommended before searching):
 
-![VINYLflowplus Setup Screen](docs/modal.png)
+![VINYLflowplus Setup Screen](docs/modal.png?v=2)
 
 1. **Get your free Discogs API token** - Visit [discogs.com/settings/developers](https://www.discogs.com/settings/developers)
 2. **Generate a new token** - Click "Generate new token" on the Discogs settings page
