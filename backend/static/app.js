@@ -1,5 +1,5 @@
 /**
- * VINYLflowplus Frontend Application v1.0.3
+ * VINYLflowplus Frontend Application
  * Multi-Format Edition
  */
 
@@ -23,6 +23,7 @@ function vinylApp() {
         processingStepBase: null, processingStepSpan: null,
         systemMetrics: { cpu_percent: null, ram_used_gb: null, ram_total_gb: null, ram_percent: null, process_rss_mb: null },
         ffmpegStatus: { ok: true, version: '', last_error: '' },
+        appVersion: '',
         metricsTimer: null,
         processPollTimer: null,
         processPollTick: 0,
@@ -1476,6 +1477,8 @@ function vinylApp() {
                 this.discogsConfigured = d.discogs_configured;
                 this.systemStatus = d;
                 this.ffmpegStatus = { ok: d.ffmpeg_ok, version: d.ffmpeg_version, last_error: d.ffmpeg_last_error };
+                this.appVersion = d.app_version || '';
+                document.title = this.appVersion ? `VINYLflowplus v${this.appVersion}` : 'VINYLflowplus';
             } catch(e){} 
         },
 

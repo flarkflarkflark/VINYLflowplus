@@ -17,6 +17,7 @@ from socket import create_connection
 from pathlib import Path
 
 import uvicorn
+from version import get_app_version
 
 # Must be set before `import webview` so pywebview picks up the correct backend.
 if sys.platform.startswith("win"):
@@ -60,6 +61,8 @@ except Exception as exc:
 
 
 APP_NAME = "VINYLflowplus"
+APP_VERSION = get_app_version()
+WINDOW_TITLE = f"{APP_NAME} v{APP_VERSION}" if APP_VERSION else APP_NAME
 
 
 class DesktopApi:
@@ -337,7 +340,7 @@ def main() -> None:
     # --- Try native desktop window ---
     try:
         webview.create_window(
-            "VINYLflowplus",
+            WINDOW_TITLE,
             app_url,
             width=1280,
             height=900,

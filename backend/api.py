@@ -1,6 +1,5 @@
 """
 VINYLflowplus - FastAPI Backend
-v1.0.3 - Multi-Format Iron Queue (STABLE)
 """
 
 import os
@@ -39,6 +38,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from config import Config
 from audio_processor import AudioProcessor, Track, SUPPORTED_INPUT_EXTENSIONS, OUTPUT_FORMATS, resolve_ffmpeg, ProcessingCancelled
 from metadata_handler import MetadataHandler
+from version import get_app_version
 
 try:
     import psutil
@@ -58,11 +58,14 @@ def _ensure_psutil():
     except Exception as e:
         _psutil_error = repr(e)
 
+APP_VERSION = get_app_version()
+
+
 def _ffmpeg() -> str:
     """Return the ffmpeg executable to use (validated by resolve_ffmpeg)."""
     return resolve_ffmpeg().get("path") or "ffmpeg"
 
-app = FastAPI(title="VINYLflowplus API", version="1.0.3")
+app = FastAPI(title="VINYLflowplus API", version=APP_VERSION or "0.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -784,6 +787,7 @@ async def get_status():
     
     return {
         "discogs_configured": bool(config.discogs_token and config.discogs_token != "your_token_here"),
+        "app_version": APP_VERSION,
         "ffmpeg_ok": ffmpeg_ok,
         "ffmpeg_version": ffmpeg_ver,
         "ffmpeg_last_error": ffmpeg_last_error,

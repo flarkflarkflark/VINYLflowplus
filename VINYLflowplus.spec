@@ -1,6 +1,8 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
 import shutil
+import subprocess
 import sys
 from pathlib import Path
 
@@ -8,10 +10,75 @@ from PyInstaller.utils.hooks import collect_data_files
 
 
 WINDOWS_ICON = 'assets/VINYLflowplus.ico' if sys.platform.startswith('win') else None
-FFMPEG_PATH = shutil.which('ffmpeg')
 
-if not FFMPEG_PATH:
-    raise RuntimeError('ffmpeg was not found on PATH. Install ffmpeg before building.')
+
+def _ffmpeg_works(path: str) -> bool:
+    if not path:
+        return False
+    try:
+        res = subprocess.run(
+            [path, "-version"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=5,
+        )
+    except Exception:
+        return False
+    if res.returncode != 0:
+        return False
+    return res.stdout.lower().startswith("ffmpeg version")
+
+
+def _ffmpeg_candidates() -> list[str]:
+    candidates: list[str] = []
+    env_path = os.environ.get("VINYLFLOW_FFMPEG_PATH") or os.environ.get("FFMPEG_PATH")
+    if env_path:
+        candidates.append(env_path)
+
+    repo_root = Path.cwd()
+    exe_name = "ffmpeg.exe" if sys.platform.startswith("win") else "ffmpeg"
+    local_ffmpeg = repo_root / "tools" / "ffmpeg" / exe_name
+    if local_ffmpeg.exists():
+        candidates.append(str(local_ffmpeg))
+    local_ffmpeg_bin = repo_root / "tools" / "ffmpeg" / "bin" / exe_name
+    if local_ffmpeg_bin.exists():
+        candidates.append(str(local_ffmpeg_bin))
+
+    which_path = shutil.which("ffmpeg")
+    if which_path:
+        candidates.append(which_path)
+
+    if sys.platform.startswith("win"):
+        windows_paths = [
+            r"C:\ProgramData\chocolatey\lib\ffmpeg\tools\ffmpeg\bin\ffmpeg.exe",
+            r"C:\Program Files\ffmpeg\bin\ffmpeg.exe",
+            r"C:\Program Files (x86)\ffmpeg\bin\ffmpeg.exe",
+            r"C:\ffmpeg\bin\ffmpeg.exe",
+        ]
+        for path in windows_paths:
+            if Path(path).exists():
+                candidates.append(path)
+
+    return candidates
+
+
+def _resolve_ffmpeg_path() -> str:
+    seen = set()
+    for path in _ffmpeg_candidates():
+        normalized = os.path.normpath(path)
+        if normalized in seen:
+            continue
+        seen.add(normalized)
+        if _ffmpeg_works(normalized):
+            return normalized
+    raise RuntimeError(
+        "No working ffmpeg found. Install a full ffmpeg build or set VINYLFLOW_FFMPEG_PATH."
+    )
+
+
+FFMPEG_PATH = _resolve_ffmpeg_path()
 
 # certifi CA bundle — needed so requests/discogs_client can verify HTTPS certs.
 # Without this, every SSL connection from the packaged app fails with
@@ -20,6 +87,7 @@ certifi_datas = collect_data_files('certifi')
 
 DATA_FILES = [
     ('backend/static', 'backend/static'),
+    ('VERSION', '.'),
     *certifi_datas,
 ]
 
@@ -59,8 +127,6 @@ if sys.platform.startswith('win'):
 elif sys.platform == 'darwin':
     HIDDEN_IMPORTS.append('webview.platforms.cocoa')
 
-
-import os
 
 ONEFILE = os.environ.get('PYINSTALLER_ONEFILE', 'False').lower() == 'true'
 

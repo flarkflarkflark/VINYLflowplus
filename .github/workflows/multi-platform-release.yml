@@ -125,7 +125,16 @@ jobs:
       - name: Install FFmpeg (Windows)
         if: runner.os == 'Windows'
         shell: powershell
-        run: choco install ffmpeg -y
+        run: |
+          $ffmpegZip = "ffmpeg-release-essentials.zip"
+          Invoke-WebRequest -Uri "https://www.gyan.dev/ffmpeg/builds/ffmpeg-release-essentials.zip" -OutFile $ffmpegZip
+          Expand-Archive -Path $ffmpegZip -DestinationPath ffmpeg
+          $ffmpegExe = Get-ChildItem -Path ffmpeg -Recurse -Filter ffmpeg.exe | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $ffmpegExe) { throw "ffmpeg.exe not found in gyan.dev archive" }
+          $ffmpegDir = Split-Path $ffmpegExe
+          Add-Content $env:GITHUB_PATH $ffmpegDir
+          Add-Content $env:GITHUB_ENV "VINYLFLOW_FFMPEG_PATH=$ffmpegExe"
+          Add-Content $env:GITHUB_ENV "FFMPEG_PATH=$ffmpegExe"
 
       - name: Install FFmpeg (macOS)
         if: runner.os == 'macOS'
@@ -165,27 +174,16 @@ jobs:
           fi
           $PREFIX pip install pyinstaller
 
-      - name: Inject version into app files
+      - name: Set app version file
         shell: python
         run: |
-          import os, re
+          import os
+          from pathlib import Path
+
           tag = os.environ['RELEASE_TAG']
           ver = tag.lstrip('v')
-
-          with open('backend/static/index.html', 'r', encoding='utf-8') as f:
-              html = f.read()
-          html = re.sub(r'v\d+\.\d+\.\d+\s*STABLE', f'v{ver}', html)
-          html = re.sub(r'(?<=<title>VINYLflowplus )v[\d.]+(?=</title>)', f'v{ver}', html)
-          with open('backend/static/index.html', 'w', encoding='utf-8') as f:
-              f.write(html)
-
-          with open('backend/static/app.js', 'r', encoding='utf-8') as f:
-              js = f.read()
-          js = re.sub(r'v\d+\.\d+\.\d+', f'v{ver}', js, count=1)
-          with open('backend/static/app.js', 'w', encoding='utf-8') as f:
-              f.write(js)
-
-          print(f'Injected version v{ver} into app files')
+          Path('VERSION').write_text(ver + '\n', encoding='utf-8')
+          print(f'Set VERSION to {ver}')
 
       - name: Build Application (One-File, Windows)
         if: runner.os == 'Windows'
