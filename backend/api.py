@@ -874,6 +874,15 @@ async def update_config_api(updates: dict):
         raise HTTPException(status_code=400, detail=f"Invalid silence detection setting: {e}")
     for key, value in silence_updates.items():
         setattr(audio_processor, key, value)
+    if silence_updates:
+        config.default_silence_threshold = audio_processor.silence_threshold
+        config.default_min_silence_duration = audio_processor.min_silence_duration
+        config.default_min_track_length = audio_processor.min_track_length
+        config.save_silence_settings(
+            config.default_silence_threshold,
+            config.default_min_silence_duration,
+            config.default_min_track_length,
+        )
     if "flac_compression" in updates: audio_processor.flac_compression = int(updates["flac_compression"])
     if "declick_threshold" in updates: audio_processor.declick_threshold = int(updates["declick_threshold"])
     if "declick_burst" in updates: audio_processor.declick_burst = int(updates["declick_burst"])
