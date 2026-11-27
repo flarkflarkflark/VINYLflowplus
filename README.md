@@ -39,8 +39,11 @@ What it adds on top is a more complete desktop-oriented workflow:
 
 ---
 
-## Current highlights (v1.1.0)
+## Current highlights (v1.1.1)
 
+- **Silence detection settings now take effect** — threshold and minimum silence duration from Settings are applied to track splitting (previously they were ignored)
+- **Settings survive restarts** — silence detection, FLAC compression and declick values are saved to `config/settings.json`
+- **Settings validation** — invalid values are rejected with a clear message instead of being silently dropped
 - **Undo stack in waveform editor** — undo/redo track boundary edits
 - **Minimap overlay** — waveform overview panel for fast navigation across long recordings
 - **Autoscroll** — waveform follows playback cursor automatically
@@ -214,19 +217,25 @@ Your files appear in the `output/` folder, organized as `Artist - Album/A1-Track
 
 **Discogs Token**: Managed via the web UI (Settings menu)
 
-**Audio Processing Settings**: Adjust in the app via Settings, or for advanced users, edit `config/settings.json` or `.env`:
+**Audio Processing Settings**: Adjust in the app via Settings. Changes apply immediately and are saved to `config/settings.json`, so they persist across restarts. After changing the silence settings, click **Analyze** again to re-detect the tracks of a file that was already analyzed.
+
+For advanced users, the same values can be set in `.env` or as environment variables:
 
 ```ini
 # Silence detection (adjust if tracks are not splitting correctly)
-DEFAULT_SILENCE_THRESHOLD=-40      # dB - increase to -35 if tracks are merging
-DEFAULT_MIN_SILENCE_DURATION=1.5   # seconds - decrease to 1.0 for short gaps
-DEFAULT_MIN_TRACK_LENGTH=30        # seconds - ignore segments shorter than this
+DEFAULT_SILENCE_THRESHOLD=-40      # dB (<= 0) - increase to -35 if tracks are merging
+DEFAULT_MIN_SILENCE_DURATION=1.5   # seconds (> 0) - decrease to 1.0 for short gaps
+DEFAULT_MIN_TRACK_LENGTH=30        # seconds (> 0) - ignore segments shorter than this
 
 # FLAC compression (0-8, higher = smaller files)
 DEFAULT_FLAC_COMPRESSION=8
+
+# Declick (used when restoration is enabled)
+DEFAULT_DECLICK_THRESHOLD=6        # 1-100, higher = less aggressive
+DEFAULT_DECLICK_BURST=4            # 1-10, max consecutive samples replaced per click
 ```
 
-**Config Priority**: `config/settings.json` (UI-editable) + `.env` (manual) + environment variables (Docker)
+**Config Priority**: `config/settings.json` (saved from the UI) > environment variables / `.env` > built-in defaults. Invalid values in `settings.json` are ignored with a warning.
 
 ---
 

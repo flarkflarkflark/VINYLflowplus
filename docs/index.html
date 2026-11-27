@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Install VINYLflowplus v1.1.0 | Professional Vinyl Digitization</title>
+    <title>Install VINYLflowplus v1.1.1 | Professional Vinyl Digitization</title>
     <link rel="icon" type="image/png" href="https://raw.githubusercontent.com/flarkflarkflark/VINYLflowplus/main/assets/VFplus.png">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -212,7 +212,7 @@
                 </div>
 
                 <div class="p-4 bg-slate-900/50 rounded-lg border border-slate-700">
-                    <p class="text-sm text-brand italic font-semibold">Current in v1.1.0: undo stack, minimap overlay, autoscroll, settings in step 3, full track names with per-track artists, success screen redesign, and open-folder shortcut.</p>
+                    <p class="text-sm text-brand italic font-semibold">Current in v1.1.1: silence detection settings now really change the track split, and all processing settings (silence detection, FLAC compression, declick) are saved across restarts.</p>
                 </div>
             </div>
         </section>
@@ -323,8 +323,11 @@ pip install -r requirements.txt</code></pre>
         <!-- Current highlights -->
         <section class="mb-20">
             <div class="card border-brand/30 bg-brand/5">
-                <h2 class="text-2xl font-bold mb-4">Current highlights (v1.1.0)</h2>
+                <h2 class="text-2xl font-bold mb-4">Current highlights (v1.1.1)</h2>
                 <ul class="space-y-3 text-slate-300">
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Silence detection settings now take effect — threshold and minimum silence duration from Settings are applied to track splitting</span></li>
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Settings survive restarts — silence detection, FLAC compression and declick values are saved automatically</span></li>
+                    <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Settings validation — invalid values are rejected with a clear message instead of being silently ignored</span></li>
                     <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Undo stack in the waveform editor — undo/redo track boundary edits</span></li>
                     <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Minimap overlay — waveform overview panel for fast navigation across long recordings</span></li>
                     <li class="flex items-start gap-3"><span class="text-brand font-bold">-</span><span>Autoscroll — waveform follows playback cursor automatically</span></li>
