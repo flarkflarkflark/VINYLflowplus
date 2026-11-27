@@ -25,7 +25,7 @@ jobs:
             asset_name: VINYLflowplus-Windows.exe
             arch: x64
             is_intel: "False"
-          - os: macos-14
+          - os: macos-15
             name: macOS App (Modern)
             asset_name: VINYLflowplus-macOS-Universal.zip
             macos_arch: ""
