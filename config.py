@@ -72,7 +72,7 @@ class Config:
         self.default_restoration_level = int(json_settings.get('DEFAULT_RESTORATION_LEVEL', 0))
 
         # Audio processing settings
-        # Silence detection values saved from the settings dialog take precedence over env/defaults
+        # Values saved from the settings dialog take precedence over env/defaults
         self.default_silence_threshold = self._float_setting(
             json_settings, "DEFAULT_SILENCE_THRESHOLD", "-40"
         )
@@ -82,7 +82,15 @@ class Config:
         self.default_min_track_length = self._float_setting(
             json_settings, "DEFAULT_MIN_TRACK_LENGTH", "30"
         )
-        self.default_flac_compression = int(os.getenv("DEFAULT_FLAC_COMPRESSION", "8"))
+        self.default_flac_compression = self._int_setting(
+            json_settings, "DEFAULT_FLAC_COMPRESSION", "8"
+        )
+        self.default_declick_threshold = self._int_setting(
+            json_settings, "DEFAULT_DECLICK_THRESHOLD", "6"
+        )
+        self.default_declick_burst = self._int_setting(
+            json_settings, "DEFAULT_DECLICK_BURST", "4"
+        )
 
         # Temp file management
         self.temp_ttl_hours = float(os.getenv("TEMP_TTL_HOURS", "2"))
@@ -239,11 +247,10 @@ class Config:
             print(f"Failed to save defaults: {e}")
             return False
 
-    def save_silence_settings(
-        self, silence_threshold: float, min_silence_duration: float, min_track_length: float
-    ) -> bool:
+    def save_processing_settings(self, values: dict) -> bool:
         """
-        Save silence detection settings to settings.json.
+        Save processing settings (silence detection, FLAC compression, declick)
+        to settings.json. Keys are settings.json names, e.g. DEFAULT_SILENCE_THRESHOLD.
         """
         settings_path = Path(self._settings_path)
         settings_path.parent.mkdir(parents=True, exist_ok=True)
@@ -256,16 +263,14 @@ class Config:
             except Exception:
                 pass
 
-        settings['DEFAULT_SILENCE_THRESHOLD'] = silence_threshold
-        settings['DEFAULT_MIN_SILENCE_DURATION'] = min_silence_duration
-        settings['DEFAULT_MIN_TRACK_LENGTH'] = min_track_length
+        settings.update(values)
 
         try:
             with open(settings_path, 'w') as f:
                 json.dump(settings, f, indent=2)
             return True
         except Exception as e:
-            print(f"Failed to save silence settings: {e}")
+            print(f"Failed to save processing settings: {e}")
             return False
 
     @staticmethod
@@ -280,6 +285,22 @@ class Config:
             except (TypeError, ValueError):
                 print(f"Warning: ignoring invalid {key} in settings.json: {json_settings[key]!r}")
         return float(os.getenv(key, default))
+
+    @staticmethod
+    def _int_setting(json_settings: dict, key: str, default: str) -> int:
+        """
+        Read an integer from settings.json, falling back to the environment and then the default.
+        An unreadable value in settings.json is ignored instead of crashing startup.
+        """
+        if key in json_settings:
+            try:
+                value = float(json_settings[key])
+                if value.is_integer():
+                    return int(value)
+            except (TypeError, ValueError):
+                pass
+            print(f"Warning: ignoring invalid {key} in settings.json: {json_settings[key]!r}")
+        return int(os.getenv(key, default))
 
     def reload(self):
         """

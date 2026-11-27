@@ -1744,10 +1744,22 @@ function vinylApp() {
             } catch(e){} 
         },
         async loadFormats() { try { this.availableFormats = (await (await fetch('/api/formats')).json()).formats; } catch(e){} },
-        async saveConfig() { 
-            await fetch('/api/config', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.config) }); 
+        async saveConfig() {
+            try {
+                const r = await fetch('/api/config', { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(this.config) });
+                if (!r.ok) {
+                    let detail = `HTTP ${r.status}`;
+                    try { detail = (await r.json()).detail || detail; } catch (e) {}
+                    alert(`Settings not saved: ${detail}`);
+                    return;
+                }
+                this.config = await r.json();
+            } catch (e) {
+                alert('Settings not saved: could not reach the backend.');
+                return;
+            }
             await this.checkStatus();
-            this.showSettings = false; 
+            this.showSettings = false;
         },
         async saveProcessingDefaults() {
             try {

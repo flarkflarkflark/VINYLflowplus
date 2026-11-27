@@ -143,6 +143,8 @@ audio_processor = AudioProcessor(
     min_silence_duration=config.default_min_silence_duration,
     min_track_length=config.default_min_track_length,
     flac_compression=config.default_flac_compression,
+    declick_threshold=config.default_declick_threshold,
+    declick_burst=config.default_declick_burst,
 )
 metadata_handler = MetadataHandler(config.discogs_token, config.discogs_user_agent)
 
@@ -846,46 +848,59 @@ async def get_config_api():
         "default_restoration_level": config.default_restoration_level
     }
 
+# Processing settings editable from the settings dialog: name -> (type, min, max, min_exclusive)
+# Values from number inputs may arrive as strings, so they are converted here.
+PROCESSING_SETTINGS = {
+    "silence_threshold": (float, None, 0.0, False),
+    "min_silence_duration": (float, 0.0, None, True),
+    "min_track_length": (float, 0.0, None, True),
+    "flac_compression": (int, 0, 8, False),
+    "declick_threshold": (int, 1, 100, False),
+    "declick_burst": (int, 1, 10, False),
+}
+
+
+def _validate_processing_updates(updates: dict) -> dict:
+    """Return validated processing settings from an update payload; raise ValueError if any is invalid."""
+    validated = {}
+    for key, (kind, lo, hi, lo_exclusive) in PROCESSING_SETTINGS.items():
+        if key not in updates:
+            continue
+        raw = updates[key]
+        if isinstance(raw, bool) or raw is None or (isinstance(raw, str) and not raw.strip()):
+            raise ValueError(f"{key} must be a number")
+        number = float(raw)
+        if number != number or number in (float("inf"), float("-inf")):
+            raise ValueError(f"{key} must be a finite number")
+        if kind is int:
+            if not number.is_integer():
+                raise ValueError(f"{key} must be a whole number")
+            number = int(number)
+        if lo is not None and (number <= lo if lo_exclusive else number < lo):
+            raise ValueError(f"{key} must be {'>' if lo_exclusive else '>='} {lo}")
+        if hi is not None and number > hi:
+            raise ValueError(f"{key} must be <= {hi}")
+        validated[key] = number
+    return validated
+
+
 @app.put("/api/config")
 async def update_config_api(updates: dict):
-    if "output_dir" in updates: 
+    # Validate everything first so an invalid value never leaves a partial update behind
+    try:
+        processing_updates = _validate_processing_updates(updates)
+    except (TypeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid setting: {e}")
+    if "output_dir" in updates:
         config.default_output_dir = updates["output_dir"]
         config.save_output_dir(updates["output_dir"])
-    # Silence detection parameters (values from number inputs may arrive as strings)
-    # Validate all fields first so an invalid value never leaves a partial update behind
-    silence_updates = {}
-    try:
-        if "silence_threshold" in updates:
-            threshold = float(updates["silence_threshold"])
-            if threshold > 0:
-                raise ValueError("silence_threshold must be <= 0 dB")
-            silence_updates["silence_threshold"] = threshold
-        if "min_silence_duration" in updates:
-            duration = float(updates["min_silence_duration"])
-            if duration <= 0:
-                raise ValueError("min_silence_duration must be > 0 s")
-            silence_updates["min_silence_duration"] = duration
-        if "min_track_length" in updates:
-            track_len = float(updates["min_track_length"])
-            if track_len <= 0:
-                raise ValueError("min_track_length must be > 0 s")
-            silence_updates["min_track_length"] = track_len
-    except (TypeError, ValueError) as e:
-        raise HTTPException(status_code=400, detail=f"Invalid silence detection setting: {e}")
-    for key, value in silence_updates.items():
-        setattr(audio_processor, key, value)
-    if silence_updates:
-        config.default_silence_threshold = audio_processor.silence_threshold
-        config.default_min_silence_duration = audio_processor.min_silence_duration
-        config.default_min_track_length = audio_processor.min_track_length
-        config.save_silence_settings(
-            config.default_silence_threshold,
-            config.default_min_silence_duration,
-            config.default_min_track_length,
+    if processing_updates:
+        for key, value in processing_updates.items():
+            setattr(audio_processor, key, value)
+            setattr(config, f"default_{key}", value)
+        config.save_processing_settings(
+            {f"DEFAULT_{key.upper()}": value for key, value in processing_updates.items()}
         )
-    if "flac_compression" in updates: audio_processor.flac_compression = int(updates["flac_compression"])
-    if "declick_threshold" in updates: audio_processor.declick_threshold = int(updates["declick_threshold"])
-    if "declick_burst" in updates: audio_processor.declick_burst = int(updates["declick_burst"])
     if "discogs_user_token" in updates or "discogs_user_agent" in updates:
         token = updates.get("discogs_user_token", config.discogs_token)
         user_agent = updates.get("discogs_user_agent", config.discogs_user_agent)
