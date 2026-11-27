@@ -851,6 +851,29 @@ async def update_config_api(updates: dict):
     if "output_dir" in updates: 
         config.default_output_dir = updates["output_dir"]
         config.save_output_dir(updates["output_dir"])
+    # Silence detection parameters (values from number inputs may arrive as strings)
+    # Validate all fields first so an invalid value never leaves a partial update behind
+    silence_updates = {}
+    try:
+        if "silence_threshold" in updates:
+            threshold = float(updates["silence_threshold"])
+            if threshold > 0:
+                raise ValueError("silence_threshold must be <= 0 dB")
+            silence_updates["silence_threshold"] = threshold
+        if "min_silence_duration" in updates:
+            duration = float(updates["min_silence_duration"])
+            if duration <= 0:
+                raise ValueError("min_silence_duration must be > 0 s")
+            silence_updates["min_silence_duration"] = duration
+        if "min_track_length" in updates:
+            track_len = float(updates["min_track_length"])
+            if track_len <= 0:
+                raise ValueError("min_track_length must be > 0 s")
+            silence_updates["min_track_length"] = track_len
+    except (TypeError, ValueError) as e:
+        raise HTTPException(status_code=400, detail=f"Invalid silence detection setting: {e}")
+    for key, value in silence_updates.items():
+        setattr(audio_processor, key, value)
     if "flac_compression" in updates: audio_processor.flac_compression = int(updates["flac_compression"])
     if "declick_threshold" in updates: audio_processor.declick_threshold = int(updates["declick_threshold"])
     if "declick_burst" in updates: audio_processor.declick_burst = int(updates["declick_burst"])
